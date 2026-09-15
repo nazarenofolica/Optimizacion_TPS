@@ -1,0 +1,88 @@
+% =====================================================================
+% Esquema del proceso — TP2, Sección Cocinas de TODO DECO (punto a).
+% Es la versión prolija del diagrama de docs/plan_de_trabajo.md §9.
+%
+% Uso en el informe:
+%     \usepackage{tikz}
+%     \usetikzlibrary{positioning, arrows.meta, calc, decorations.pathreplacing}
+%     ...
+%     \begin{figure}[htbp]
+%       \centering
+%       \input{../docs/esquema_proceso.tex}
+%       \caption{Del stock del depósito a la variedad de combos ofrecidos.}
+%     \end{figure}
+%
+% Los colores son los mismos de los gráficos (src/graficos.py).
+%
+% Nota: el esquema no usa los caracteres "<" ni ">" en ningún lado (las flechas se
+% declaran como -{Stealth} y las desigualdades con \leq). Es a propósito: babel en
+% español los toma como atajos de «comillas» y rompería la compilación.
+% =====================================================================
+
+\definecolor{tpAcento}{HTML}{2A78D6}
+\definecolor{tpAcentoSuave}{HTML}{CDE2FB}
+\definecolor{tpGris}{HTML}{898781}
+\definecolor{tpGrisSuave}{HTML}{E1E0D9}
+\definecolor{tpTinta}{HTML}{0B0B0B}
+\definecolor{tpTintaDos}{HTML}{52514E}
+
+\begin{tikzpicture}[
+    font=\footnotesize,
+    espacio/.style={
+      draw=tpGrisSuave, fill=tpGrisSuave!35, rounded corners=2pt,
+      text=tpTinta, minimum width=4.9cm, minimum height=0.48cm,
+      inner sep=3pt, align=center,
+    },
+    limita/.style={espacio, draw=tpAcento, fill=tpAcentoSuave},
+    caja/.style={
+      draw=tpGris, rounded corners=3pt, text=tpTinta,
+      minimum width=3.1cm, minimum height=1.5cm, inner sep=5pt, align=center,
+    },
+    resultado/.style={caja, draw=tpAcento, fill=tpAcentoSuave},
+    flecha/.style={-{Stealth[length=4pt]}, draw=tpGris, line width=0.7pt},
+    etiqueta/.style={text=tpTintaDos, font=\scriptsize, midway, above},
+  ]
+
+  % --- Columna 1: los espacios del depósito (recurso) ---------------
+  \node[espacio] (e1) {Baldosas \quad $\leq 5$};
+  \node[espacio, below=1.6mm of e1] (e2) {Empapelado \quad $\leq 8$};
+  \node[espacio, below=1.6mm of e2] (e3) {Apliques de luz \quad $\leq 4$};
+  \node[espacio, below=1.6mm of e3] (e4) {Alacenas \quad $\leq 4$};
+  \node[limita,  below=1.6mm of e4] (e5) {\textbf{Mesadas} \quad $\boldsymbol{\leq 3}$};
+  \node[espacio, below=1.6mm of e5] (e6) {Bacha y grifería \quad $\leq 4$};
+  \node[espacio, below=1.6mm of e6] (e7) {Lavavajillas + cocinas \quad $\leq 5$};
+
+  \node[text=tpTintaDos, font=\scriptsize\bfseries, above=2.5mm of e1] (tituloDep)
+    {DEPÓSITO (capacidad por espacio)};
+
+  % Llave que agrupa los siete espacios.
+  \coordinate (depTop) at ($(e1.north east)+(2mm,0)$);
+  \coordinate (depBot) at ($(e7.south east)+(2mm,0)$);
+  \draw[draw=tpGris, decorate, decoration={brace, amplitude=4pt}]
+    (depTop) -- (depBot);
+
+  % --- Columna 2: el stock (variables de decisión) ------------------
+  \node[caja, right=15mm of e4] (stock)
+    {\textbf{Stock}\\[1mm] $x_p \in \mathbb{Z}_{\geq 0}$\\[0.5mm] unidades de cada\\ uno de los 30 artículos};
+
+  % --- Columna 3: los combos ----------------------------------------
+  \node[caja, right=15mm of stock] (combos)
+    {\textbf{Combos completos}\\[1mm] $y_c \in \{0,1\}$\\[0.5mm] 20 combos\\ de 7 u 8 artículos};
+
+  % --- Columna 4: el resultado --------------------------------------
+  \node[resultado, right=15mm of combos] (variedad)
+    {\textbf{Variedad}\\[1mm] $\max \sum_c y_c$\\[0.5mm] combos disponibles\\ para la venta};
+
+  % --- Flechas -------------------------------------------------------
+  \draw[flecha] ($(depTop)!0.5!(depBot)+(4mm,0)$) -- (stock.west)
+    node[etiqueta, align=center] {R2\\ capacidad};
+  \draw[flecha] (stock.east) -- (combos.west)
+    node[etiqueta, align=center] {R1\\ cobertura};
+  \draw[flecha] (combos.east) -- (variedad.west);
+
+  % --- Nota al pie del esquema ---------------------------------------
+  \node[text=tpTintaDos, font=\scriptsize, align=center, below=6mm of combos] (nota)
+    {Un combo cuenta solo si \emph{todos} sus artículos tienen\\
+     una unidad reservada para él (supuesto S1).};
+
+\end{tikzpicture}

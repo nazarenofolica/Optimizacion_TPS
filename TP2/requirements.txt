@@ -1,0 +1,6 @@
+# TP2 Optimización — Sección Cocinas TODO DECO
+# Instalar con:  pip install -r requirements.txt
+
+pulp>=3.0          # modelado y resolución del PLE (solver CBC incluido)
+pandas>=2.0        # tablas de resultados
+matplotlib>=3.8    # gráficos del informe
