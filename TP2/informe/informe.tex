@@ -632,7 +632,7 @@ fusiona dos espacios de la columna izquierda en uno solo.
 Corresponde a la situación vigente, en la que la reposición de los productos se
 realiza una vez al mes y el depósito conserva su disposición actual. El modelo
 se resolvió con el solver CBC a través de PuLP, con estado \texttt{Optimal} en
-las tres etapas (Anexo~\ref{sec:anexo}).
+las tres etapas (véase el Anexo).
 
 \subsection{Variedad alcanzada y plan de stock}
 
@@ -961,9 +961,13 @@ ocupa un lugar una sola vez, sea utilizada por un combo o por diez.
 
 Bajo ese criterio, los cuatro espacios que aparecen completos no son
 equivalentes. Apliques de luz y bacha y grifería disponen de exactamente cuatro
-lugares para las cuatro variantes que existen: nunca pudieron presentar holgura
-y \textbf{nunca excluirán un combo por sí solos}. Los cuellos de botella
-efectivos son dos: \textbf{mesadas}, con tres lugares para cuatro variantes, y
+lugares para las cuatro variantes que existen, de modo que \textbf{no pueden
+quedarse sin lugar}: su holgura nula únicamente indica que la solución utiliza
+las cuatro variantes. La propia tabla lo confirma, porque alacenas presenta la
+misma relación —cuatro lugares para cuatro variantes— y conserva una unidad de
+holgura, ya que la solución prescinde de \art{A4}. \textbf{Ninguno de esos tres
+espacios puede excluir un combo por sí solo.} Los cuellos de botella efectivos
+son dos: \textbf{mesadas}, con tres lugares para cuatro variantes, y
 \textbf{lavavajillas y cocinas}, con cinco lugares para seis variantes.
 
 \subsection{Valor de una ampliación de capacidad}
@@ -1048,7 +1052,9 @@ cuatro que quedan excluidos son el \textbf{6, el 8, el 19 y el 20}, y la causa
 es precisa: son exactamente los cuatro combos que incluyen \art{C4}, la cocina a
 gas negra, único artículo del catálogo que permanece en cero. El espacio de
 lavavajillas y cocinas conserva cinco lugares para seis variantes, de modo que
-una de ellas debe resignarse.
+una de ellas debe resignarse, y la resignada es \art{C4} por ser la que menos
+combos habilita: cuatro, frente a entre cinco y ocho de las demás variantes de
+ese espacio (Tabla~\ref{tab:apariciones}).
 
 \subsection{Ocupación del depósito}
 
@@ -1076,9 +1082,9 @@ El espacio consolidado dispone de 12 lugares para un máximo de 8 variantes
 —cuatro de mesada y cuatro de alacena—, de modo que \textbf{deja de restringir
 el problema en cualquier configuración}, y conserva cuatro lugares libres en la
 solución final. Apliques de luz y bacha y grifería vuelven a presentar holgura
-nula por la razón ya señalada: su capacidad coincide con el número de variantes
-existentes. El único cuello de botella efectivo que subsiste es el espacio de
-lavavajillas y cocinas.
+nula sin que ello implique restricción alguna: su capacidad iguala el número de
+variantes existentes, de modo que no pueden quedarse sin lugar. El único cuello
+de botella efectivo que subsiste es el espacio de lavavajillas y cocinas.
 
 \subsection{Conveniencia de la reubicación}
 
@@ -1270,9 +1276,8 @@ de prioridad:
 \end{enumerate}
 
 % ============================================================================
-\appendix
-\section{Anexo — Herramientas y verificación}
-\label{sec:anexo}
+\section*{Anexo — Herramientas y verificación}
+\addcontentsline{toc}{section}{Anexo — Herramientas y verificación}
 
 \paragraph{Entorno y herramientas.} El trabajo se desarrolló en Python 3.10 con
 el siguiente conjunto de librerías:
@@ -1308,28 +1313,30 @@ completa de espacios y no solo sus capacidades. El resto del programa
 —restricciones, cotas, ocupación y reportes— recorre la lista de espacios de
 forma genérica.
 
-\paragraph{Verificación.} Se implementaron cuatro capas de control automático
-que se ejecutan antes de aceptar cualquier resultado:
+\paragraph{Verificación.} Los resultados se validaron por tres vías
+independientes entre sí. La primera es \textbf{analítica}: la cota
+$\sum_c y_c \leq 3$ deducida en la Sección~\ref{sec:restricciones} predice el
+óptimo del escenario base sin intervención del solver. La segunda es la
+\textbf{enumeración exhaustiva} de la Sección~\ref{sec:esc1_alt}, que tampoco lo
+utiliza. La tercera es un conjunto de \textbf{controles automáticos} que se
+ejecutan antes de aceptar cualquier resultado:
 
 \begin{itemize}
-  \item \textbf{46 controles sobre los datos de entrada}: que todo artículo
-  integrante de un combo exista en el catálogo, que ningún combo repita
-  categoría, las 30 frecuencias de la Tabla~\ref{tab:apariciones} una por una,
-  las capacidades y las cotas de la Tabla~\ref{tab:cota_trivial}.
-  \item \textbf{25 controles cruzados sobre los óptimos} de los tres escenarios:
-  que la variedad no supere la cota analítica, que el stock de la solución final
-  sea exactamente el necesario, que la ocupación respete todas las capacidades y
-  que la solución figure entre las enumeradas exhaustivamente.
-  \item \textbf{10 controles sobre las pruebas de supuestos}, formulados como
-  propiedades que cualquier resultado correcto debe satisfacer: ampliar la
-  capacidad nunca puede reducir la variedad, incrementar las unidades por combo
-  nunca puede aumentarla, ningún criterio de desempate puede perder variedad.
-  \item \textbf{Enumeración exhaustiva independiente del solver}, que construye
-  el stock requerido por cada conjunto de combos y lo compara directamente
-  contra las capacidades.
+  \item \textbf{46 sobre los datos de entrada}: que todo artículo integrante de
+  un combo exista en el catálogo, que ningún combo repita categoría, las 30
+  frecuencias de la Tabla~\ref{tab:apariciones} una por una, las capacidades y
+  las cotas de la Tabla~\ref{tab:cota_trivial}.
+  \item \textbf{25 cruzados sobre los óptimos} de los tres escenarios: que la
+  variedad no supere la cota analítica, que el stock de la solución final sea
+  exactamente el necesario, que la ocupación respete todas las capacidades y que
+  la solución figure entre las enumeradas exhaustivamente.
+  \item \textbf{10 sobre las pruebas de supuestos}, formulados como propiedades
+  que cualquier resultado correcto debe satisfacer: ampliar la capacidad nunca
+  puede reducir la variedad, incrementar las unidades por combo nunca puede
+  aumentarla, ningún criterio de desempate puede perder variedad.
 \end{itemize}
 
-Los controles no verifican que el resultado coincida con el esperado sino
+Estos últimos no verifican que el resultado coincida con el esperado sino
 propiedades que todo resultado correcto debe cumplir, lo que los vuelve útiles
 precisamente cuando el resultado sorprende.
 
