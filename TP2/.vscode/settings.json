@@ -1,0 +1,61 @@
+{
+  // ==========================================================================
+  //  LaTeX Workshop — compilación del informe
+  //
+  //  Por qué no se usa latexmk (la receta por defecto de la extensión):
+  //  latexmk necesita Perl, y MiKTeX no lo trae. Como la bibliografía de
+  //  informe.tex es un `thebibliography` manual (no bibtex ni biber), alcanza
+  //  con dos pasadas de pdflatex: la primera resuelve el texto, la segunda el
+  //  índice, las referencias cruzadas (\ref, \cite) y los hipervínculos.
+  //
+  //  Para compilar: Ctrl+Alt+B, o el botón ▶ del panel TeX.
+  //  Para ver el PDF: Ctrl+Alt+V.
+  //
+  //  REQUISITO: pdflatex tiene que estar en el PATH. MiKTeX lo agrega al
+  //  instalarse, pero VS Code hereda el PATH al arrancar: si instalaste MiKTeX
+  //  con VS Code ya abierto, hay que REINICIAR VS Code o vas a ver el error
+  //  "spawn pdflatex ENOENT".
+  //
+  //  -aux-directory manda los auxiliares (.aux .log .out .toc) a informe/.aux/
+  //  para que la carpeta del informe quede solo con el .tex y el .pdf.
+  //  Es una opción propia de MiKTeX; con TeX Live habría que sacarla.
+  // ==========================================================================
+
+  "latex-workshop.latex.tools": [
+    {
+      "name": "pdflatex",
+      "command": "pdflatex",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-aux-directory=.aux",
+        "%DOC%"
+      ],
+      "env": {}
+    }
+  ],
+
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "pdflatex x2",
+      "tools": ["pdflatex", "pdflatex"]
+    },
+    {
+      "name": "pdflatex x1 (rápido, sin actualizar índice)",
+      "tools": ["pdflatex"]
+    }
+  ],
+
+  // No recompilar en cada guardado: el informe tarda unos segundos y molesta.
+  "latex-workshop.latex.autoBuild.run": "never",
+
+  // Los auxiliares quedan junto al .tex; están ignorados en .gitignore.
+  "latex-workshop.latex.autoClean.run": "never",
+
+  // Visor de PDF embebido en VS Code (no abre el navegador).
+  "latex-workshop.view.pdf.viewer": "tab",
+
+  // Estos mensajes de LaTeX son ruido conocido en este documento.
+  "latex-workshop.message.badbox.show": false
+}

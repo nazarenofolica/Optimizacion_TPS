@@ -1,0 +1,1368 @@
+\documentclass[10pt,a4paper]{article}
+
+% ============================================================================
+%  Sección Cocinas de TODO DECO — Optimización 2026 2C
+%  Martínez Folica, Nazareno · Naón, Pedro
+%
+%  Compilar con dos pasadas de pdflatex (índice y referencias cruzadas).
+%
+%  Nota de maquetación: todas las tablas y figuras usan [H] (paquete float)
+%  para que aparezcan exactamente donde están declaradas. El documento tiene
+%  muchas tablas y con flotantes libres el orden de lectura se rompe: una
+%  tabla puede subir al tope de la página y partir al medio una enumeración.
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.2cm,headheight=14pt]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage[table]{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{caption}
+\captionsetup{font=small,skip=4pt}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,decorations.pathreplacing}
+\usepackage[colorlinks=true,linkcolor=accentlink,citecolor=accentlink,urlcolor=accentlink,linktoc=all]{hyperref}
+
+% ---------- paleta ----------------------------------------------------------
+\definecolor{limita}{HTML}{2A78D6}
+\definecolor{accent}{HTML}{1F4E79}
+\definecolor{accentlink}{HTML}{1F5C99}
+
+% ---------- tipografía de títulos -------------------------------------------
+\titleformat{\section}{\normalfont\Large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{accent}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalfont\bfseries\color{accent}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.1em}{0.55em}
+\titlespacing*{\subsection}{0pt}{0.9em}{0.4em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small Optimización 2026 2C — Sección Cocinas de TODO DECO}
+\fancyhead[R]{\small Martínez Folica, N. · Naón, P.}
+\fancyfoot[C]{\small\thepage}
+
+\setlength{\parskip}{0.25em}
+\setlist[itemize]{topsep=0.2em, itemsep=0.05em}
+\setlist[enumerate]{topsep=0.2em, itemsep=0.05em}
+
+\newcommand{\cuello}[1]{\textbf{\textcolor{limita}{#1}}}
+\newcommand{\art}[1]{\texttt{#1}}
+\newcommand{\cita}[1]{\emph{``#1''}}
+
+\renewcommand{\contentsname}{Índice}
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabla}
+
+\begin{document}
+
+% ============================================================================
+\begin{titlepage}
+\begin{center}
+\vspace*{1.2cm}
+{\large UCA}\\[2pt]
+{\large Facultad de Ingeniería y Ciencias Agrarias}\\[1.4cm]
+
+{\large Optimización — 2026, 2\textdegree{} Cuatrimestre}\\[0.3cm]
+{\large Trabajo Práctico N.\textdegree{} 2}\\[1.8cm]
+
+\rule{0.85\linewidth}{0.6pt}\\[0.5cm]
+{\Huge\bfseries\color{accent} Sección Cocinas de TODO DECO}\\[0.5cm]
+{\Large Modelo de programación entera y binaria para la\\ definición del plan de stock del depósito}\\[0.5cm]
+\rule{0.85\linewidth}{0.6pt}\\[2.2cm]
+
+\begin{tabular}{c}
+{\large\bfseries Integrantes} \\[0.4cm]
+{\large Martínez Folica, Nazareno} \\[0.15cm]
+{\large Naón, Pedro}
+\end{tabular}
+
+\vfill
+
+{\large 17 de septiembre de 2026}
+\end{center}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+% ============================================================================
+\section{Situación y alcance}
+\label{sec:situacion}
+
+La cadena de artículos del hogar y construcción TODO DECO incorporó una Sección
+Cocinas en una de sus sucursales del interior del país. La sección ofrece
+\textbf{20 combos} que, según su propia descripción comercial, combinan
+\cita{Cocina, lavavajillas, alacenas, mesadas, bacha, grifería, baldosas y papel
+vinílico decorativo}: ocho categorías de producto que, entre todas sus
+variantes, suman un catálogo de \textbf{30 artículos} distintos. Cada combo es
+una lista cerrada de siete u ocho de esos artículos.
+
+La condición comercial que gobierna el problema está definida por la empresa en
+una sola frase:
+
+\begin{quote}
+\cita{Los clientes pueden adquirir un combo completo a precio promocional si
+todos los artículos se encuentran disponibles en stock en el momento del
+pedido.}
+\end{quote}
+
+El espacio de almacenamiento, en cambio, es escaso. La empresa establece que
+\cita{como el espacio es compartido con otras secciones y el almacén es pequeño,
+la capacidad es muy limitada}, y fija un tope por tipo de artículo que totaliza
+\textbf{33 lugares}. De esas dos definiciones surge la tensión que el modelo
+tiene que resolver: \textbf{los combos comparten artículos y compiten por los
+mismos lugares del depósito}, y basta con que falte uno solo de los artículos de
+un combo para que ese combo deje de estar disponible para la venta.
+
+El objetivo fijado para la sección es \textbf{maximizar la variedad de combos
+disponibles para la venta}, y la decisión que hay que tomar para lograrlo es
+cuántas unidades de cada uno de los 30 artículos mantener en stock.
+
+\subsection{Alcance del análisis}
+
+El informe formula un único modelo y lo resuelve bajo tres escenarios
+sucesivos, que se corresponden con las tres situaciones que la empresa está
+evaluando:
+
+\begin{enumerate}
+  \item \textbf{Reposición mensual, depósito actual} (Sección~\ref{sec:esc1}).
+  Es la situación vigente: la reposición de los productos se realiza una vez al
+  mes.
+  \item \textbf{Reposición automática} (Sección~\ref{sec:esc2}). La empresa
+  cerró \cita{un nuevo contrato con proveedores de la zona para que puedan
+  disminuir considerablemente los tiempos de los envíos}, con lo cual la
+  reposición pasa a considerarse instantánea.
+  \item \textbf{Espacio compartido para mesadas y alacenas}
+  (Sección~\ref{sec:esc3}). Una nueva disposición física del almacén permitiría
+  reubicar ambas categorías en un espacio común de 12 unidades, sobre el
+  escenario anterior.
+\end{enumerate}
+
+Los tres comparten formulación: cambian los parámetros, no las ecuaciones.
+
+\subsection{Naturaleza del problema}
+
+Las relaciones del problema son lineales, pero las cantidades involucradas no
+son divisibles: no existe media cocina en stock ni medio combo disponible para
+la venta. Las variables son, por lo tanto, \textbf{enteras y binarias}, y el
+modelo pertenece a la programación lineal entera. Se resuelve mediante el
+algoritmo de \emph{Branch \& Bound} \cite{catedra-mip, hillier}.
+
+Esto tiene una consecuencia metodológica que conviene anticipar: en programación
+entera \textbf{no se dispone del análisis post-óptimo} habitual de la
+programación lineal continua \cite{catedra-mip}. El óptimo entero no varía de
+forma continua con el término independiente de una restricción sino a saltos, de
+modo que los precios sombra y los rangos permisibles pierden validez. El
+análisis de sensibilidad se realiza, en su lugar, \textbf{re-resolviendo el
+modelo}: se amplía la capacidad de un espacio en una unidad y se mide cuánto
+varía el óptimo. Ese procedimiento se aplica en cada uno de los tres escenarios.
+
+% ============================================================================
+\section{Formulación del modelo}
+\label{sec:modelo}
+
+\subsection{Supuestos adoptados}
+\label{sec:supuestos}
+
+La información disponible es precisa en los conteos —la composición de cada
+combo y la capacidad de cada espacio son datos exactos— pero deja abiertos
+algunos puntos de interpretación que resultan indispensables para escribir el
+modelo. Cada supuesto adoptado responde a tres preguntas: qué no puede
+escribirse sin él, por qué se eligió esa lectura y no otra, y cómo se verificó
+su incidencia sobre el resultado. Todos ellos son parámetros del modelo y no
+constantes del código, de modo que evaluarlos consiste en resolver nuevamente
+con otro valor.
+
+\paragraph{S1 — La disponibilidad bajo reposición mensual se interpreta como
+reserva exclusiva de unidades.} Es el supuesto que vincula el stock con los
+combos, y sin él el modelo no puede formularse. Caben dos lecturas:
+
+\begin{itemize}
+  \item[(i)] \textbf{Exclusiva.} Cada combo ofrecido dispone de su propio juego
+  de unidades reservado para el mes. Si dos combos incluyen \art{B2}, se
+  requieren dos juegos de \art{B2}. Garantiza que cualquier combo ofrecido pueda
+  venderse aun cuando ya se hayan vendido los demás.
+  \item[(ii)] \textbf{Compartida.} Basta con una unidad de cada artículo: al
+  inicio del mes todos los combos que la utilizan están disponibles, pero en
+  cuanto se vende uno, los que comparten artículos con él dejan de estarlo hasta
+  la reposición siguiente.
+\end{itemize}
+
+Se adopta la lectura \textbf{(i)}, por tres razones. La primera es que la
+empresa precisa expresamente que \cita{la reposición de los productos se realiza
+una vez al mes}, y bajo la lectura (ii) ese dato no tendría ninguna incidencia
+sobre el modelo. La segunda es que la lectura (ii) describe exactamente la
+situación de reposición automática analizada en la Sección~\ref{sec:esc2}:
+adoptarla aquí volvería indistinguibles ambos escenarios. La tercera es
+conceptual: la disponibilidad para la venta bajo reposición mensual debe
+sostenerse \emph{durante} el mes, y no únicamente el primer día. La incidencia
+de esta decisión se cuantifica en la propia Sección~\ref{sec:esc2}.
+
+\paragraph{S2 — Cada combo incluye una unidad de cada artículo que lista.} La
+composición de los combos indica \emph{qué} artículos los integran, no
+\emph{cuántas} unidades de cada uno, mientras que las capacidades están
+expresadas en juegos, rollos y unidades. Para baldosas, alacenas y bachas la
+propia empresa habla de juegos, de modo que un juego por combo es la lectura
+natural. El caso menos evidente es el empapelado, ya que una cocina real puede
+requerir más de un rollo; por eso se evalúa un barrido de 1 a 9 rollos por combo
+(Sección~\ref{sec:sens_s2}).
+
+\paragraph{S3 — El desempate entre soluciones óptimas prioriza la cobertura del
+catálogo y luego el ahorro de espacio.} El objetivo de variedad no incorpora el
+stock, lo que deja indeterminados dos aspectos de la respuesta: qué conjunto de
+combos se ofrece —hay cientos de conjuntos equivalentes— y cuánta mercadería se
+guarda. Como la decisión buscada es precisamente el número de unidades por
+artículo, se requiere un criterio que produzca una solución única. El adoptado
+se apoya en dos definiciones de la propia empresa: que el espacio
+\cita{es compartido con otras secciones}, de donde se sigue que a igual variedad
+conviene el plan que menos lugar ocupa; y la descripción de la sección, que
+enumera las ocho categorías que comercializa. El mecanismo se detalla en la
+Sección~\ref{sec:objetivo} y se contrasta contra otros tres criterios en la
+Sección~\ref{sec:sens_s3}.
+
+\paragraph{S4 — Todas las variantes de una categoría ocupan el mismo lugar.} La
+capacidad se mide en unidades sin distinguir variante: un juego de baldosas
+\art{B1} ocupa lo mismo que uno \art{B4}. La empresa expresa las capacidades en
+esos términos y lo confirma para el espacio compartido, al señalar que los
+lavavajillas y las cocinas \cita{tienen el mismo tamaño}.
+
+\paragraph{S5 — Todos los combos tienen igual valor y no se dispone de
+pronósticos de demanda.} La variedad se define como la cantidad de combos
+distintos disponibles, con peso unitario cada uno, ya que no se cuenta con
+precios, márgenes ni estimaciones de venta. Ofrecer un combo significa poder
+venderlo al menos una vez durante el mes, en coherencia con S1. De disponerse de
+precios, el objetivo podría ponderarse sin modificar el resto del modelo.
+
+\paragraph{S6 — Supuestos menores.} El horizonte de análisis es de un mes y el
+stock inicial constituye el pico de ocupación, dado que luego solo desciende con
+las ventas; la capacidad se controla, por lo tanto, contra ese stock inicial. El
+depósito parte vacío, sin existencias previas ni pedidos pendientes. Los
+artículos no se comercializan sueltos fuera de los combos, o bien esas ventas no
+afectan la reserva. Rigen además los supuestos generales de todo modelo lineal
+—proporcionalidad, aditividad, certidumbre y no negatividad—, con una salvedad
+deliberada: la divisibilidad se abandona, y es precisamente lo que determina el
+carácter entero del modelo.
+
+\begin{table}[H]
+\centering\small
+\caption{Supuestos del modelo y alternativas evaluadas.}
+\label{tab:supuestos}
+\begin{tabularx}{\linewidth}{@{}llXl@{}}
+\toprule
+\textbf{ID} & \textbf{Supuesto} & \textbf{Lectura adoptada} & \textbf{Alternativas evaluadas} \\
+\midrule
+S1 & Disponibilidad         & Reserva exclusiva      & Reserva compartida \\
+S2 & Unidades por artículo  & 1 por combo            & 1 a 9 rollos de empapelado \\
+S3 & Desempate entre óptimos & Categorías y unidades & Otros tres criterios \\
+S4 & Lugar por variante     & Uniforme               & --- \\
+S5 & Valor de cada combo    & Unitario, sin demanda  & --- \\
+S6 & Horizonte y stock inicial & Un mes, depósito vacío & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Variables de decisión}
+\label{sec:variables}
+
+El modelo decide simultáneamente el stock a mantener y los combos que quedan
+habilitados:
+\[
+x_p \in \mathbb{Z}_{\geq 0},\ p \in \{\art{B1}\dots\art{C4}\}
+\qquad\qquad
+y_c \in \{0,1\},\ c = 1\dots 20
+\]
+donde $x_p$ son las unidades del artículo $p$ en el depósito e $y_c$ vale 1 si
+el combo $c$ queda disponible para la venta, es decir, si todos sus artículos
+tienen unidad reservada. Son \textbf{50 variables}: 30 enteras y 20 binarias.
+
+Mantener $x_p$ como variable explícita, en lugar de deducirla de los $y_c$,
+responde a tres motivos: es la magnitud que la decisión requiere expresar; la
+capacidad del depósito se formula naturalmente sobre el stock y no sobre los
+combos; y en los escenarios siguientes lo que se modifica es la relación entre
+stock y combos, de modo que basta reescribir la restricción de cobertura sin
+alterar el resto de la formulación.
+
+A estas dos familias se agrega una tercera, que interviene únicamente en las
+etapas de desempate descriptas en la sección siguiente:
+\[
+z_k \in \{0,1\},\ k \in \{\text{baldosas}\dots\text{cocinas}\}
+\]
+con $z_k = 1$ si la categoría $k$ del catálogo queda representada en alguno de
+los combos ofrecidos. Son 8 variables binarias adicionales.
+
+Cabe una precisión técnica: bajo S1, declarar $x_p$ como entera es redundante,
+puesto que si los $y_c$ son binarios el stock mínimo necesario resulta de una
+suma de enteros. Se la declara entera de todos modos para que la formulación
+refleje la naturaleza del problema \cite{catedra-mip} y no dependa de una
+propiedad que dejaría de valer, por ejemplo, ante pedidos parciales.
+
+\subsection{Función objetivo}
+\label{sec:objetivo}
+
+El objetivo de la sección se traduce de forma directa:
+\[
+\text{Max } V = \sum_{c=1}^{20} y_c
+\]
+con peso unitario para cada combo, según el supuesto S5.
+
+Este funcional, sin embargo, resulta insuficiente para producir la decisión
+buscada, por dos propiedades del problema que conviene explicitar:
+
+\begin{enumerate}
+  \item \textbf{El objetivo no incorpora el stock.} Guardar unidades que ningún
+  combo utiliza no empeora el valor del funcional. Resolviendo únicamente esta
+  etapa, la solución obtenida asigna \textbf{33 unidades} —la capacidad completa
+  del depósito— para sostener tres combos que requieren 21: los 12 lugares
+  restantes quedan ocupados con mercadería que no habilita ningún combo. La
+  variedad sería correcta y el plan de stock, no.
+  \item \textbf{La solución óptima no es única.} En el escenario base existen 854
+  conjuntos de combos que alcanzan la variedad máxima
+  (Sección~\ref{sec:esc1_alt}), y el algoritmo devuelve uno cualquiera de ellos.
+\end{enumerate}
+
+Ambas se resuelven incorporando dos objetivos subordinados, bajo el esquema de
+\textbf{metas lexicográficas} \cite{catedra-metas}: cada etapa se optimiza sin
+deteriorar el resultado de las anteriores.
+
+\[
+\begin{aligned}
+\textbf{Etapa 1:}\quad & V^{*} = \text{Max} \sum_c y_c
+  && \text{s.a. R1--R4} \\[2pt]
+\textbf{Etapa 2:}\quad & K^{*} = \text{Max} \sum_k z_k
+  && \text{s.a. R1--R4},\ \ \textstyle\sum_c y_c \geq V^{*} \\[2pt]
+\textbf{Etapa 3:}\quad & U^{*} = \text{Min} \sum_p x_p
+  && \text{s.a. R1--R4},\ \ \textstyle\sum_c y_c \geq V^{*},\ \sum_k z_k \geq K^{*}
+\end{aligned}
+\]
+
+La etapa 1 determina cuántos combos pueden ofrecerse. La etapa 2 selecciona,
+entre los planes que alcanzan esa variedad, aquellos que dejan representadas más
+categorías del catálogo. La etapa 3 elige, entre estos últimos, el que menos
+lugar ocupa del almacén compartido.
+
+La etapa 2 merece justificación, porque atiende a una dificultad concreta del
+problema. Aplicado en forma aislada, el criterio de mínimo stock favorece los
+combos de siete artículos y admite soluciones que dejan una categoría entera del
+catálogo sin representación: la terna 14--18--20, por ejemplo, alcanza la
+variedad máxima con 21 unidades pero \textbf{no incluye ningún lavavajillas},
+en contradicción con la descripción comercial de la sección. Sobre el diseño de
+esta etapa se tomaron tres decisiones:
+
+\begin{itemize}
+  \item Se maximizan \textbf{las categorías del catálogo} en general, y no la
+  presencia de un artículo puntual, de modo que el criterio conserve validez en
+  los escenarios siguientes, donde la categoría ausente puede ser otra.
+  \item Se incorpora como \textbf{objetivo y no como restricción}. Una
+  restricción del tipo \emph{``al menos un combo con lavavajillas''} puede volver
+  el modelo infactible, situación que efectivamente se verifica en la
+  Sección~\ref{sec:sens_s2}. Como etapa de desempate, el modelo informa que
+  cubre siete categorías en lugar de ocho y continúa resolviendo.
+  \item La cobertura antecede al ahorro de espacio, porque la capacidad de
+  ofrecer las categorías que la sección comercializa es condición de su
+  propuesta comercial, mientras que liberar lugar beneficia a las demás
+  secciones de la sucursal.
+\end{itemize}
+
+Una alternativa considerada fue un funcional único ponderado
+$\text{Max} \sum_c y_c - \varepsilon \sum_p x_p$ con $\varepsilon < 1/33$, que
+produce el mismo resultado porque ninguna reducción de stock compensa la pérdida
+de un combo. Se optó por el esquema lexicográfico porque deja la jerarquía de
+prioridades expresada en la formulación.
+
+Por último, resolver el mismo modelo con variables continuas —$y_c \in [0,1]$ y
+$x_p$ real— produce la \textbf{relajación lineal}, que aporta una cota superior
+de la variedad y los precios sombra de cada espacio. Su alcance se discute en la
+Sección~\ref{sec:esc1_relaj}.
+
+\subsection{Parámetros}
+\label{sec:parametros}
+
+Los parámetros de entrada son tres: la composición de cada combo, las unidades
+de cada artículo que un combo requiere y la capacidad de cada espacio del
+depósito.
+\[
+a_{pc} \in \{0,1\}:\ \text{el combo } c \text{ incluye el artículo } p
+\qquad
+u_p:\ \text{unidades por combo}
+\qquad
+K_e:\ \text{capacidad del espacio } e
+\]
+
+\begin{table}[H]
+\centering\small
+\caption{Composición de los 20 combos.}
+\label{tab:combos}
+\begin{tabular}{rcccccccc r}
+\toprule
+\textbf{Combo} & Baldosa & Empap. & Aplique & Alacena & Mesada & Bacha & Lavav. & Cocina & \textbf{Art.} \\
+\midrule
+1  & B2 & E2 & L4 & A2 & M4 & G2 & W2 & C2 & 8 \\
+2  & B1 & E1 & L1 & A4 & M4 & G4 & W1 & C2 & 8 \\
+3  & B1 & E2 & L2 & A1 & M1 & G4 & W1 & C3 & 8 \\
+4  & B3 & E3 & L3 & A3 & M3 & G1 & W1 & C1 & 8 \\
+5  & B4 & E4 & L1 & A2 & M2 & G2 & W1 & C1 & 8 \\
+6  & B2 & E2 & L2 & A4 & M4 & G3 & W2 & C4 & 8 \\
+7  & B1 & E3 & L4 & A3 & M2 & G1 & W1 & C1 & 8 \\
+8  & B2 & E1 & L3 & A1 & M1 & G3 & W2 & C4 & 8 \\
+9  & B4 & E1 & L2 & A3 & M2 & G2 & W2 & C2 & 8 \\
+10 & B1 & E4 & L1 & A1 & M3 & G4 & W1 & C3 & 8 \\
+11 & B3 & E4 & L3 & A3 & M1 & G1 & W1 & C3 & 8 \\
+12 & B2 & --- & L1 & A2 & M2 & G4 & W2 & C2 & 7 \\
+13 & B4 & --- & L3 & A3 & M1 & G2 & W1 & C3 & 7 \\
+14 & B4 & E1 & L4 & A1 & M3 & G1 & --- & C1 & 7 \\
+15 & B3 & E2 & L1 & A1 & M1 & G3 & --- & C3 & 7 \\
+16 & B3 & E3 & L4 & A1 & M3 & G2 & --- & C1 & 7 \\
+17 & B1 & E3 & L2 & A3 & M3 & G4 & --- & C3 & 7 \\
+18 & B2 & E3 & L3 & A2 & M4 & G1 & --- & C2 & 7 \\
+19 & B2 & E2 & L4 & A4 & M4 & G2 & --- & C4 & 7 \\
+20 & B2 & E2 & L1 & A1 & M2 & G3 & --- & C4 & 7 \\
+\bottomrule
+\end{tabular}
+\vspace{1mm}\\
+\footnotesize Once combos incluyen ocho artículos y nueve incluyen siete: los
+combos 12 y 13 no llevan empapelado y los combos 14 a 20 no llevan lavavajillas.
+\end{table}
+
+Todos los combos, en cambio, incluyen exactamente una baldosa, un aplique, una
+alacena, \textbf{una mesada}, una bacha y una cocina. Esa regularidad —en
+particular la de las mesadas— determina el resultado del primer escenario.
+
+\begin{table}[H]
+\centering\small
+\caption{Capacidad de almacenamiento por espacio.}
+\label{tab:capacidad}
+\begin{tabular}{llr}
+\toprule
+\textbf{Espacio} & \textbf{Artículos} & \textbf{Capacidad} \\
+\midrule
+Baldosas                & \art{B1}--\art{B4}                        & 5 juegos \\
+Empapelado vinílico     & \art{E1}--\art{E4}                        & 8 rollos \\
+Apliques de luz         & \art{L1}--\art{L4}                        & 4 unidades \\
+Alacenas                & \art{A1}--\art{A4}                        & 4 juegos \\
+Mesadas                 & \art{M1}--\art{M4}                        & 3 unidades \\
+Bacha y grifería        & \art{G1}--\art{G4}                        & 4 juegos \\
+Lavavajillas + cocinas  & \art{W1}--\art{W2}, \art{C1}--\art{C4}    & 5 unidades \\
+\midrule
+\textbf{Total} & & \textbf{33 lugares} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La última fila de la Tabla~\ref{tab:capacidad} corresponde a una definición
+explícita de la empresa: los lavavajillas y las cocinas \cita{tienen el mismo
+tamaño así que pueden almacenarse juntos, con un máximo de 5 unidades en
+total}. Es el único espacio que aloja dos categorías, y adelanta la forma que
+tomará la reubicación evaluada en la Sección~\ref{sec:esc3}.
+
+\begin{table}[H]
+\centering\small
+\caption{Cantidad de combos en los que interviene cada artículo.}
+\label{tab:apariciones}
+\begin{tabular}{lcccc r}
+\toprule
+\textbf{Categoría} & \textbf{Var. 1} & \textbf{Var. 2} & \textbf{Var. 3} & \textbf{Var. 4} & \textbf{Total} \\
+\midrule
+Baldosas            & B1: 5 & B2: 7 & B3: 4 & B4: 4 & 20 \\
+Empapelado vinílico & E1: 4 & E2: 6 & E3: 5 & E4: 3 & 18 \\
+Apliques de luz     & L1: 6 & L2: 4 & L3: 5 & L4: 5 & 20 \\
+Alacenas            & A1: 7 & A2: 4 & A3: 6 & A4: 3 & 20 \\
+Mesadas             & M1: 5 & M2: 5 & M3: 5 & M4: 5 & 20 \\
+Bacha y grifería    & G1: 5 & G2: 6 & G3: 4 & G4: 5 & 20 \\
+Lavavajillas        & W1: 8 & W2: 5 & ---   & ---   & 13 \\
+Cocinas             & C1: 5 & C2: 5 & C3: 6 & C4: 4 & 20 \\
+\midrule
+\textbf{Total} & & & & & \textbf{151} \\
+\bottomrule
+\end{tabular}
+\vspace{1mm}\\
+\footnotesize Control: $11 \times 8 + 9 \times 7 = 151$ artículos requeridos en
+total.
+\end{table}
+
+Los valores de la Tabla~\ref{tab:apariciones} son los coeficientes de la
+restricción de cobertura bajo reserva exclusiva, y permiten dimensionar el
+problema antes de resolverlo: reservar \art{B2} para los siete combos que lo
+utilizan exigiría siete juegos de baldosas, frente a los cinco que admite el
+depósito.
+
+\begin{table}[H]
+\centering\small
+\caption{Cota máxima de variedad que impone cada espacio, bajo reserva
+exclusiva. Si todos los combos ocupan al menos $u$ lugares de un espacio de
+capacidad $K$, no pueden ofrecerse más de $\lfloor K/u \rfloor$ combos.}
+\label{tab:cota_trivial}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad} & \textbf{Lugares por combo} & \textbf{Cota} \\
+\midrule
+Baldosas               & 5 & 1 & 5 \\
+Empapelado vinílico    & 8 & 0 & sin cota \\
+Apliques de luz        & 4 & 1 & 4 \\
+Alacenas               & 4 & 1 & 4 \\
+\cuello{Mesadas}       & \cuello{3} & \cuello{1} & \cuello{3} \\
+Bacha y grifería       & 4 & 1 & 4 \\
+Lavavajillas + cocinas & 5 & 1 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+De la Tabla~\ref{tab:cota_trivial} se desprenden tres conclusiones anticipadas,
+todas bajo la lectura exclusiva de S1:
+
+\begin{enumerate}
+  \item \textbf{Las mesadas fijan el techo del problema.} Todos los combos
+  llevan exactamente una mesada y el depósito admite tres, de modo que no pueden
+  ofrecerse más de tres combos. La optimización se reduce a determinar cuáles.
+  \item \textbf{El espacio de lavavajillas y cocinas actúa como segundo
+  filtro.} Tres combos tomados entre el 1 y el 13 ocupan $2+2+2 = 6$ lugares y
+  el espacio admite 5; por lo tanto, de cada tres combos ofrecidos a lo sumo dos
+  pueden pertenecer a ese grupo.
+  \item \textbf{El empapelado no restringe en ningún caso.} Con tres combos se
+  utilizan como máximo tres rollos de los ocho disponibles. Lo mismo ocurre con
+  baldosas, apliques, alacenas y bachas, a los que les resta al menos un lugar.
+\end{enumerate}
+
+\subsection{Restricciones}
+\label{sec:restricciones}
+
+Las restricciones traducen las dos definiciones operativas de la empresa: la
+condición de venta del combo completo y la capacidad del almacén.
+
+La \textbf{restricción de cobertura (R1)} surge de la condición comercial citada
+en la Sección~\ref{sec:situacion} combinada con la periodicidad mensual de la
+reposición: si cada combo ofrecido requiere su propio juego de unidades, el
+stock de un artículo debe alcanzar para todos los combos que lo incluyen.
+
+La \textbf{restricción de capacidad (R2)} recoge la definición del depósito:
+\cita{se pueden almacenar hasta 5 juegos de baldosas, 8 rollos de empapelado
+vinílico, 4 apliques de luz, 4 juegos de alacenas, 3 mesadas y 4 juegos de bacha
+y grifería}, con el agregado del espacio compartido de lavavajillas y cocinas,
+que se formula como R2$'$.
+
+\begin{table}[H]
+\centering\small
+\caption{Restricciones del modelo.}
+\label{tab:restricciones}
+\begin{tabular}{llrr}
+\toprule
+\textbf{\#} & \textbf{Concepto} & \textbf{Expresión} & \textbf{Cantidad} \\
+\midrule
+R1     & Cobertura de combos     & $x_p \geq \sum_c u_p\, a_{pc}\, y_c \quad \forall p$ & 30 \\
+R2     & Capacidad por espacio   & $\sum_{p \in P_e} x_p \leq K_e$                      & 6 \\
+R2$'$  & Espacio compartido      & $x_{W1}+x_{W2}+\sum_{j} x_{Cj} \leq 5$               & 1 \\
+R3     & Integralidad            & $y_c \in \{0,1\}$, \ $x_p \in \mathbb{Z}$            & --- \\
+R4     & No negatividad          & $x_p \geq 0 \quad \forall p$                         & --- \\
+\bottomrule
+\end{tabular}
+\vspace{1mm}\\
+\footnotesize Las etapas 2 y 3 del desempate agregan 8 variables binarias $z_k$
+y sus 8 restricciones de atadura $z_k \leq \sum_{c \,:\, k \in c} y_c$.
+\end{table}
+
+El modelo queda conformado por \textbf{37 restricciones} en la etapa 1 y 45 en
+su versión completa, sobre 58 variables. R2 y R2$'$ son, en rigor, la misma
+restricción aplicada a distintos conjuntos de artículos $P_e$: el depósito se
+representa como una lista de espacios, cada uno con las categorías que aloja y
+su capacidad. Esa formulación es la que permite evaluar la reubicación de la
+Sección~\ref{sec:esc3} modificando un dato y no el modelo.
+
+Dos ejemplos escritos en forma completa:
+\[
+\text{R1 para \art{B2}:}\quad x_{B2} \geq y_{1}+y_{6}+y_{8}+y_{12}+y_{18}+y_{19}+y_{20}
+\qquad\qquad
+\text{R2 mesadas:}\quad \sum_{j=1}^{4} x_{Mj} \leq 3
+\]
+
+\paragraph{Cota analítica de la variedad.} Sumando R1 sobre las cuatro variantes
+de mesada, y dado que cada combo incluye exactamente una —de modo que cada $y_c$
+interviene una sola vez en esa suma—, se obtiene:
+\[
+\sum_{j=1}^{4} x_{Mj} \;\geq\; \sum_{c} y_c
+\qquad\text{y por R2}\qquad
+\sum_{j=1}^{4} x_{Mj} \;\leq\; 3
+\qquad\Longrightarrow\qquad
+\boxed{\ \sum_c y_c \leq 3\ }
+\]
+
+La cota es alcanzable: cualquier terna tomada entre los combos 14 y 20 ocupa
+exactamente tres lugares en cada uno de los siete espacios, todos con capacidad
+igual o superior a tres. La variedad máxima del escenario base queda así
+determinada analíticamente en \textbf{tres combos}, con independencia del
+solver, lo que constituye el primer control de validez del modelo.
+
+\subsection{Esquema del proceso}
+\label{sec:esquema}
+
+La Figura~\ref{fig:proceso} representa el problema en su conjunto: la capacidad
+de cada espacio del depósito limita el stock disponible, el stock determina qué
+combos quedan completos y la cantidad de combos completos constituye la variedad
+que se maximiza.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{\input{../docs/esquema_proceso.tex}}
+\caption{Del depósito a la oferta: la capacidad de cada espacio se transforma en
+variedad de combos disponibles. En azul, el espacio que limita en el escenario
+base. Las dos flechas corresponden a las dos familias de restricciones.}
+\label{fig:proceso}
+\end{figure}
+
+El esquema corresponde al escenario base. Los dos escenarios siguientes no
+modifican su estructura sino dos elementos dentro de ella: la reposición
+automática altera la relación de cobertura, y la nueva disposición física
+fusiona dos espacios de la columna izquierda en uno solo.
+
+% ============================================================================
+\section{Escenario 1 — Reposición mensual}
+\label{sec:esc1}
+
+Corresponde a la situación vigente, en la que la reposición de los productos se
+realiza una vez al mes y el depósito conserva su disposición actual. El modelo
+se resolvió con el solver CBC a través de PuLP, con estado \texttt{Optimal} en
+las tres etapas (Anexo~\ref{sec:anexo}).
+
+\subsection{Variedad alcanzada y plan de stock}
+
+La variedad máxima es de \textbf{3 combos sobre 20}, el 15\,\% del catálogo, en
+coincidencia con la cota analítica deducida en la
+Sección~\ref{sec:restricciones}. El plan de stock resultante requiere
+\textbf{21 unidades} distribuidas en \textbf{17 de los 30 artículos}, y habilita
+los combos \textbf{12, 15 y 18}.
+
+\begin{table}[H]
+\centering\small
+\caption{Combos habilitados y su requerimiento de stock.}
+\label{tab:combos_e1}
+\begin{tabular}{rlrr}
+\toprule
+\textbf{Combo} & \textbf{Artículos} & \textbf{Unidades} & \textbf{Lugares lavav. + cocinas} \\
+\midrule
+12 & \art{B2 L1 A2 M2 G4 W2 C2} & 7 & 2 \\
+15 & \art{B3 E2 L1 A1 M1 G3 C3} & 7 & 1 \\
+18 & \art{B2 E3 L3 A2 M4 G1 C2} & 7 & 1 \\
+\midrule
+\textbf{Total} & & \textbf{21} & \textbf{4} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La combinación cubre las ocho categorías del catálogo: el combo 12 aporta el
+lavavajillas y los combos 15 y 18 aportan el empapelado, categorías que ninguno
+de ellos incluye simultáneamente.
+
+\begin{table}[H]
+\centering\footnotesize
+\renewcommand{\arraystretch}{0.95}
+\caption{Plan de stock. Los trece artículos restantes quedan en cero: \art{B1},
+\art{B4}, \art{E1}, \art{E4}, \art{L2}, \art{L4}, \art{A3}, \art{A4}, \art{M3},
+\art{G2}, \art{W1}, \art{C1} y \art{C4}.}
+\label{tab:stock_e1}
+\begin{tabular}{llrl}
+\toprule
+\textbf{Categoría} & \textbf{Artículo} & \textbf{Unidades} & \textbf{Combos} \\
+\midrule
+Baldosas            & \art{B2} Marfil                        & 2 & 12, 18 \\
+Baldosas            & \art{B3} Blanco y azul a cuadros       & 1 & 15 \\
+Empapelado vinílico & \art{E2} Símil marfil a rayas celestes & 1 & 15 \\
+Empapelado vinílico & \art{E3} Símil mármol azul             & 1 & 18 \\
+Apliques de luz     & \art{L1} Plafón único rectangular      & 2 & 12, 15 \\
+Apliques de luz     & \art{L3} Bombillas de filamentos       & 1 & 18 \\
+Alacenas            & \art{A1} Madera clara                  & 1 & 15 \\
+Alacenas            & \art{A2} Madera oscura                 & 2 & 12, 18 \\
+Mesadas             & \art{M1} Madera laqueada               & 1 & 15 \\
+Mesadas             & \art{M2} Cemento alisado               & 1 & 12 \\
+Mesadas             & \art{M4} Granito                       & 1 & 18 \\
+Bacha y grifería    & \art{G1} Bacha dividida, grifo mono-comando & 1 & 18 \\
+Bacha y grifería    & \art{G3} Bacha única, grifo mono-comando    & 1 & 15 \\
+Bacha y grifería    & \art{G4} Bacha única, grifos separados      & 1 & 12 \\
+Lavavajillas        & \art{W2} Gris                          & 1 & 12 \\
+Cocinas             & \art{C2} Cocina eléctrica negra        & 2 & 12, 18 \\
+Cocinas             & \art{C3} Cocina a gas blanca           & 1 & 15 \\
+\midrule
+\textbf{Total} & \textbf{17 artículos} & \textbf{21} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cuatro artículos requieren dos unidades —\art{B2}, \art{L1}, \art{A2} y
+\art{C2}—: son precisamente los que comparten dos de los combos habilitados, y
+constituyen la manifestación directa de la reserva exclusiva del supuesto S1.
+Esa duplicación es la que desaparece al pasar a reposición automática.
+
+\subsection{Ocupación del depósito}
+
+\begin{table}[H]
+\centering\small
+\caption{Ocupación del depósito bajo el plan propuesto.}
+\label{tab:ocupacion_e1}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad} & \textbf{Ocupado} & \textbf{Holgura} \\
+\midrule
+Baldosas               & 5 & 3 & 2 \\
+Empapelado vinílico    & 8 & 2 & 6 \\
+Apliques de luz        & 4 & 3 & 1 \\
+Alacenas               & 4 & 3 & 1 \\
+\cuello{Mesadas}       & \cuello{3} & \cuello{3} & \cuello{0} \\
+Bacha y grifería       & 4 & 3 & 1 \\
+Lavavajillas + cocinas & 5 & 4 & 1 \\
+\midrule
+\textbf{Total} & \textbf{33} & \textbf{21} & \textbf{12} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Un solo espacio se agota, y lo hace en todas las soluciones óptimas: las mesadas
+están completas en las 854 ternas que alcanzan la variedad máxima. Al mismo
+tiempo, \textbf{12 de los 33 lugares del depósito —el 36\,\%— quedan sin
+utilizar}. La limitación de la sección no proviene, por lo tanto, de la
+dimensión general del almacén sino de un único espacio de tres lugares, lo que
+modifica por completo el objeto de una eventual negociación de capacidad con las
+demás secciones de la sucursal.
+
+\subsection{Valor de una ampliación de capacidad}
+\label{sec:esc1_cap}
+
+Dado que el modelo entero no admite precios sombra, el valor de una unidad
+adicional de almacenamiento se determina ampliando la capacidad de cada espacio
+y resolviendo nuevamente.
+
+\begin{table}[H]
+\centering\small
+\caption{Efecto de un lugar adicional, un espacio por vez.}
+\label{tab:cap_e1}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad ampliada} & $\boldsymbol{V^{*}}$ & $\boldsymbol{\Delta V^{*}}$ \\
+\midrule
+Baldosas               & 6 & 3 & 0 \\
+Empapelado vinílico    & 9 & 3 & 0 \\
+Apliques de luz        & 5 & 3 & 0 \\
+Alacenas               & 5 & 3 & 0 \\
+\cuello{Mesadas}       & \cuello{4} & \cuello{4} & \cuello{$+1$} \\
+Bacha y grifería       & 5 & 3 & 0 \\
+Lavavajillas + cocinas & 6 & 3 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\caption{Variedad máxima según la capacidad del espacio de mesadas.}
+\label{tab:barrido_e1}
+\begin{tabular}{rr}
+\toprule
+\textbf{Capacidad de mesadas} & $\boldsymbol{V^{*}}$ \\
+\midrule
+3 (actual) & 3 \\
+4          & 4 \\
+5          & 4 \\
+6          & 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Un lugar adicional de mesada habilita un combo; un lugar adicional en cualquier
+otro espacio no produce ningún efecto. El barrido de la
+Tabla~\ref{tab:barrido_e1} muestra además que el beneficio se agota de
+inmediato: con cuatro mesadas la variedad queda limitada simultáneamente por
+apliques, alacenas y bachas —los tres espacios tienen cuatro lugares y todos los
+combos utilizan uno de cada uno—, de modo que a partir de allí ninguna
+ampliación aislada incrementa la oferta. Para superar los cuatro combos sería
+necesario ampliar varios espacios de forma conjunta.
+
+\subsection{Relajación lineal}
+\label{sec:esc1_relaj}
+
+\begin{table}[H]
+\centering\small
+\caption{Relajación lineal del modelo. La cota obtenida es de 3,0000 combos y
+la solución resulta entera.}
+\label{tab:relajacion_e1}
+\begin{tabular}{lrrr r}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad} & \textbf{Ocupado} & \textbf{Holgura} & \textbf{Precio sombra} \\
+\midrule
+Baldosas               & 5 & 3 & 2 & 0 \\
+Empapelado vinílico    & 8 & 3 & 5 & 0 \\
+Apliques de luz        & 4 & 3 & 1 & 0 \\
+Alacenas               & 4 & 3 & 1 & 0 \\
+\cuello{Mesadas}       & \cuello{3} & \cuello{3} & \cuello{0} & \cuello{$+1$} \\
+Bacha y grifería       & 4 & 3 & 1 & 0 \\
+Lavavajillas + cocinas & 5 & 3 & 2 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La relajación resulta exacta en este caso: como la cota de las mesadas se
+obtiene sumando restricciones lineales, el problema relajado no puede superarla,
+y la solución hallada ya es entera. El precio sombra del espacio de mesadas
+—un combo por lugar— coincide con el resultado de la re-resolución de la
+Tabla~\ref{tab:cap_e1}.
+
+Esa coincidencia, sin embargo, es un resultado y no una garantía. En un modelo
+entero el dual de la relajación puede sobreestimar el valor de un recurso, y de
+hecho en el escenario siguiente el mismo lugar de mesada pasa a valer
+\textbf{tres combos} en lugar de uno: ningún precio sombra de la relajación
+anticipa ese salto. Es la razón por la cual el análisis de capacidad se realiza
+re-resolviendo el modelo en cada escenario.
+
+\subsection{Soluciones óptimas alternativas}
+\label{sec:esc1_alt}
+
+El modelo presenta degeneración: existen múltiples planes de stock que alcanzan
+la misma variedad máxima. Se los determinó por enumeración exhaustiva,
+evaluando las $\binom{20}{3} = 1.140$ ternas posibles contra las capacidades del
+depósito, y también las $\binom{20}{4} = 4.845$ cuaternas.
+
+\[
+\underbrace{1.140}_{\text{ternas posibles}} \;-\;
+\underbrace{\binom{13}{3} = 286}_{\text{ternas tomadas entre los combos 1 y 13}}
+\;=\; \boxed{854 \text{ ternas óptimas}}
+\qquad\qquad
+0 \text{ cuaternas factibles}
+\]
+
+Las 286 ternas descartadas son las formadas exclusivamente por combos del 1 al
+13, que ocupan seis lugares de lavavajillas y cocinas cuando el espacio admite
+cinco.
+
+\begin{table}[H]
+\centering\small
+\caption{Distribución de las 854 ternas óptimas.}
+\label{tab:distribucion_e1}
+\begin{tabular}{rr@{\qquad\qquad}rr@{\qquad\qquad}rr}
+\toprule
+\textbf{Unidades} & \textbf{Ternas} & \textbf{Lugares lavav.+coc.} & \textbf{Ternas} & \textbf{Categorías} & \textbf{Ternas} \\
+\midrule
+21 & 84  & 3 & 35  & 7 & 35 \\
+22 & 385 & 4 & 273 & 8 & 819 \\
+23 & 385 & 5 & 546 &   & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Aplicando el criterio de desempate completo —ocho categorías cubiertas y 21
+unidades— permanecen \textbf{49 ternas equivalentes}, de las cuales la
+presentada es una. Las 35 ternas que cubren solo siete categorías coinciden
+exactamente con las que ocupan tres lugares de lavavajillas y cocinas: son las
+formadas únicamente por combos del 14 al 20, ninguno de los cuales incluye
+lavavajillas.
+
+Esto tiene dos consecuencias. La primera es de presentación: el plan de stock
+debe ofrecerse como una solución representativa y no como la única posible. La
+segunda es favorable para la operación: si la sección dispone de criterios que
+el modelo no incorpora —márgenes, rotación o acuerdos con proveedores—, cuenta
+con 49 planes alternativos entre los cuales elegir sin resignar variedad.
+
+La enumeración cumple además una función de verificación: no utiliza el solver
+sino que construye el stock requerido por cada conjunto de combos y lo compara
+contra las capacidades. La coincidencia entre ambos procedimientos respalda la
+formulación y no únicamente la resolución.
+
+% ============================================================================
+\section{Escenario 2 — Reposición automática}
+\label{sec:esc2}
+
+El nuevo contrato con proveedores de la zona permite considerar la reposición
+como instantánea: lo que se vende se repone de inmediato. Esa modificación no
+altera la estructura del modelo sino el supuesto S1. Si un artículo se repone al
+instante, deja de ser necesario reservar un juego por combo y basta con
+\textbf{una unidad de cada artículo}. En la formulación, el cambio afecta
+únicamente a R1:
+
+\[
+\underbrace{x_p \geq \sum_c u_p\, a_{pc}\, y_c \quad \forall p}_{\text{reposición mensual}}
+\qquad\Longrightarrow\qquad
+\underbrace{x_p \geq u_p\, a_{pc}\, y_c \quad \forall p, \forall c}_{\text{reposición automática}}
+\]
+
+La cobertura pasa de una restricción por artículo (30) a una por par
+artículo--combo (151), y el término de la derecha deja de acumularse. Un
+artículo utilizado por diez combos ocupa un lugar y no diez.
+
+\subsection{Variedad alcanzada y plan de stock}
+
+La variedad máxima asciende a \textbf{13 combos sobre 20}, el 65\,\% del
+catálogo. Quedan habilitados los combos 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15,
+16 y 17, con las ocho categorías cubiertas.
+
+\begin{table}[H]
+\centering\small
+\caption{Efecto de la reposición automática sobre la oferta.}
+\label{tab:comparacion_12}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Indicador} & \textbf{Escenario 1} & \textbf{Escenario 2} & $\boldsymbol{\Delta}$ \\
+\midrule
+Combos disponibles para la venta   & 3  & 13 & $+10$ \\
+Artículos distintos en el depósito & 17 & 27 & $+10$ \\
+Unidades totales en stock          & 21 & 27 & $+6$ \\
+Categorías del catálogo cubiertas  & 8  & 8  & 0 \\
+Soluciones óptimas alternativas    & 854 & 4 & $-850$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{La variedad de oferta se ve beneficiada bajo cualquiera de sus dos
+lecturas posibles.} Medida en combos disponibles, se multiplica por 4,3. Medida
+en artículos distintos en el depósito, pasa de 17 a \textbf{27 de los 30},
+quedando fuera únicamente \art{A4}, \art{M4} y \art{C4}. Bajo reposición
+automática cada artículo utilizado requiere exactamente una unidad, de modo que
+el plan de stock consiste en una unidad de cada uno de esos 27 artículos y las
+unidades totales coinciden con la cantidad de artículos distintos.
+
+El stock total se incrementa de 21 a 27 unidades, con lo cual la sección ocupa
+más lugar del almacén compartido. La contrapartida es una mejora sustancial de
+la eficiencia: se pasa de 7 unidades almacenadas por combo ofrecido a 2,1, al
+eliminarse las unidades duplicadas de un mismo artículo.
+
+\subsection{Ocupación del depósito}
+
+\begin{table}[H]
+\centering\small
+\caption{Ocupación del depósito bajo reposición automática.}
+\label{tab:ocupacion_e2}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad} & \textbf{Ocupado} & \textbf{Holgura} & \textbf{Variantes existentes} \\
+\midrule
+Baldosas                  & 5 & 4 & 1 & 4 \\
+Empapelado vinílico       & 8 & 4 & 4 & 4 \\
+Apliques de luz           & 4 & 4 & 0 & 4 \\
+Alacenas                  & 4 & 3 & 1 & 4 \\
+\cuello{Mesadas}          & \cuello{3} & \cuello{3} & \cuello{0} & \cuello{4} \\
+Bacha y grifería          & 4 & 4 & 0 & 4 \\
+\cuello{Lavav. + cocinas} & \cuello{5} & \cuello{5} & \cuello{0} & \cuello{6} \\
+\midrule
+\textbf{Total} & \textbf{33} & \textbf{27} & \textbf{6} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La última columna de la Tabla~\ref{tab:ocupacion_e2} resulta indispensable para
+interpretar correctamente las holguras, porque bajo reposición automática
+\textbf{la capacidad de un espacio deja de acotar una cantidad de combos y pasa
+a acotar una cantidad de variantes distintas} de esa categoría: cada variante
+ocupa un lugar una sola vez, sea utilizada por un combo o por diez.
+
+Bajo ese criterio, los cuatro espacios que aparecen completos no son
+equivalentes. Apliques de luz y bacha y grifería disponen de exactamente cuatro
+lugares para las cuatro variantes que existen: nunca pudieron presentar holgura
+y \textbf{nunca excluirán un combo por sí solos}. Los cuellos de botella
+efectivos son dos: \textbf{mesadas}, con tres lugares para cuatro variantes, y
+\textbf{lavavajillas y cocinas}, con cinco lugares para seis variantes.
+
+\subsection{Valor de una ampliación de capacidad}
+
+\begin{table}[H]
+\centering\small
+\caption{Efecto de un lugar adicional bajo reposición automática.}
+\label{tab:cap_e2}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad ampliada} & $\boldsymbol{V^{*}}$ & $\boldsymbol{\Delta V^{*}}$ \\
+\midrule
+Baldosas                  & 6 & 13 & 0 \\
+Empapelado vinílico       & 9 & 13 & 0 \\
+Apliques de luz           & 5 & 13 & 0 \\
+Alacenas                  & 5 & 13 & 0 \\
+\cuello{Mesadas}          & \cuello{4} & \cuello{16} & \cuello{$+3$} \\
+Bacha y grifería          & 5 & 13 & 0 \\
+\cuello{Lavav. + cocinas} & \cuello{6} & \cuello{15} & \cuello{$+2$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El resultado confirma el análisis anterior: únicamente mesadas y el espacio
+compartido de lavavajillas y cocinas incrementan la variedad. Además lo hacen
+\textbf{de a varios combos por lugar}, porque incorporar la variante faltante
+habilita simultáneamente a todos los combos que la utilizan. Con la capacidad de
+mesadas en cuatro lugares ese cuello de botella desaparece por completo, y el
+único que subsiste es el de lavavajillas y cocinas.
+
+La cantidad de soluciones óptimas alternativas se reduce de 854 a
+\textbf{cuatro}. Bajo reposición automática el margen para almacenar unidades
+sin utilizar es mucho menor, de modo que existen muchas menos formas de alcanzar
+la misma variedad.
+
+% ============================================================================
+\section{Escenario 3 — Espacio compartido para mesadas y alacenas}
+\label{sec:esc3}
+
+La nueva disposición física del almacén permitiría reubicar las mesadas y las
+alacenas en un espacio común \cita{con la capacidad de almacenar hasta 12
+unidades en total}, bajo la misma modalidad con que actualmente se almacenan los
+lavavajillas y las cocinas. El escenario se evalúa sobre la situación de
+reposición automática.
+
+El cambio es de datos y no de formulación: dos espacios de la lista se
+consolidan en uno.
+
+\[
+\underbrace{\sum_j x_{Mj} \leq 3 \quad\text{y}\quad \sum_j x_{Aj} \leq 4}_{\text{7 lugares en 2 espacios}}
+\qquad\Longrightarrow\qquad
+\underbrace{\sum_j x_{Mj} + \sum_j x_{Aj} \leq 12}_{\text{12 lugares en 1 espacio}}
+\]
+
+El depósito pasa de 33 a \textbf{38 lugares} distribuidos en seis espacios.
+
+\subsection{Variedad alcanzada}
+
+La variedad máxima asciende a \textbf{16 combos sobre 20}, el 80\,\% del
+catálogo. Quedan habilitados los combos 1, 2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14,
+15, 16, 17 y 18, con 29 unidades en stock: una unidad de 29 de los 30 artículos
+del catálogo.
+
+\begin{table}[H]
+\centering\small
+\caption{Efecto de la nueva disposición física sobre la oferta.}
+\label{tab:comparacion_23}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Indicador} & \textbf{Escenario 2} & \textbf{Escenario 3} & $\boldsymbol{\Delta}$ \\
+\midrule
+Combos disponibles para la venta  & 13 & 16 & $+3$ \\
+Unidades totales en stock         & 27 & 29 & $+2$ \\
+Categorías del catálogo cubiertas & 8  & 8  & 0 \\
+Soluciones óptimas alternativas   & 4  & 1  & $-3$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{La nueva disposición no permite completar la oferta de combos.} Los
+cuatro que quedan excluidos son el \textbf{6, el 8, el 19 y el 20}, y la causa
+es precisa: son exactamente los cuatro combos que incluyen \art{C4}, la cocina a
+gas negra, único artículo del catálogo que permanece en cero. El espacio de
+lavavajillas y cocinas conserva cinco lugares para seis variantes, de modo que
+una de ellas debe resignarse.
+
+\subsection{Ocupación del depósito}
+
+\begin{table}[H]
+\centering\small
+\caption{Ocupación del depósito con mesadas y alacenas consolidadas.}
+\label{tab:ocupacion_e3}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad} & \textbf{Ocupado} & \textbf{Holgura} & \textbf{Variantes existentes} \\
+\midrule
+Baldosas                  & 5 & 4 & 1 & 4 \\
+Empapelado vinílico       & 8 & 4 & 4 & 4 \\
+Apliques de luz           & 4 & 4 & 0 & 4 \\
+Bacha y grifería          & 4 & 4 & 0 & 4 \\
+\cuello{Lavav. + cocinas} & \cuello{5} & \cuello{5} & \cuello{0} & \cuello{6} \\
+Mesadas + alacenas        & 12 & 8 & 4 & 8 \\
+\midrule
+\textbf{Total} & \textbf{38} & \textbf{29} & \textbf{9} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El espacio consolidado dispone de 12 lugares para un máximo de 8 variantes
+—cuatro de mesada y cuatro de alacena—, de modo que \textbf{deja de restringir
+el problema en cualquier configuración}, y conserva cuatro lugares libres en la
+solución final. Apliques de luz y bacha y grifería vuelven a presentar holgura
+nula por la razón ya señalada: su capacidad coincide con el número de variantes
+existentes. El único cuello de botella efectivo que subsiste es el espacio de
+lavavajillas y cocinas.
+
+\subsection{Conveniencia de la reubicación}
+
+\textbf{La nueva disposición física es conveniente.} La variedad se incrementa
+de 13 a 16 combos —un 23\,\%— \textbf{sin requerir capacidad adicional}: los
+siete lugares hoy repartidos entre mesadas (3) y alacenas (4) pasan a ser doce
+en un espacio único, con lo cual ambas categorías dejan de limitar la oferta. La
+reubicación no demanda mercadería ni superficie adicional, y su rendimiento es
+de tres combos.
+
+\subsection{Capacidad adicional a solicitar}
+
+\begin{table}[H]
+\centering\small
+\caption{Efecto de un lugar adicional bajo la nueva disposición.}
+\label{tab:cap_e3}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Espacio} & \textbf{Capacidad ampliada} & $\boldsymbol{V^{*}}$ & $\boldsymbol{\Delta V^{*}}$ \\
+\midrule
+Baldosas                  & 6  & 16 & 0 \\
+Empapelado vinílico       & 9  & 16 & 0 \\
+Apliques de luz           & 5  & 16 & 0 \\
+Bacha y grifería          & 5  & 16 & 0 \\
+\cuello{Lavav. + cocinas} & \cuello{6} & \cuello{20} & \cuello{$+4$} \\
+Mesadas + alacenas        & 13 & 16 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Un único lugar adicional en el espacio de lavavajillas y cocinas —de
+cinco a seis— es suficiente para completar los 20 combos del catálogo.} La
+ampliación recupera de manera simultánea los cuatro combos que incluyen
+\art{C4}, dado que con seis lugares las seis variantes de esa categoría pueden
+almacenarse en conjunto.
+
+Ningún otro espacio requiere ampliación: el espacio consolidado de mesadas y
+alacenas conserva cuatro lugares libres, y a los restantes puede sumárseles
+capacidad sin que la variedad se modifique. Solicitar cualquier otra unidad de
+almacenamiento no produciría ningún efecto sobre la oferta.
+
+Bajo esta disposición la solución óptima además es \textbf{única}: de las 4.845
+combinaciones posibles de 16 combos, una sola resulta factible. Al subsistir una
+única restricción activa en todo el modelo, la única forma de alcanzar 16 combos
+consiste en tomar los 16 que no utilizan \art{C4}.
+
+% ============================================================================
+\section{Sensibilidad del modelo a los supuestos}
+\label{sec:sensibilidad}
+
+Los supuestos que admiten más de una lectura se evaluaron resolviendo el modelo
+completo bajo cada alternativa. El supuesto S1 —la interpretación de la
+disponibilidad— ya quedó cuantificado por la comparación entre los
+Escenarios~\ref{sec:esc1} y~\ref{sec:esc2}, que constituye en sí misma su
+prueba: 3 combos frente a 13. Esta sección aborda los dos restantes.
+
+\subsection{S2 — Unidades de empapelado por combo}
+\label{sec:sens_s2}
+
+\begin{table}[H]
+\centering\small
+\caption{Variedad máxima según las unidades de empapelado que requiere un combo.}
+\label{tab:sens_s2}
+\begin{tabular}{rrlrr}
+\toprule
+\textbf{Rollos por combo} & $\boldsymbol{V^{*}}$ & \textbf{Combos habilitados} & \textbf{Con empapelado} & \textbf{Categorías} \\
+\midrule
+1 (base) & 3 & 12 -- 15 -- 18 & 2 & 8 \\
+2 a 8    & 3 & 12 -- 13 -- 15 & 1 & 8 \\
+9        & 2 & 12 -- 13       & 0 & 7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La variedad no se modifica hasta ocho rollos por combo, un valor ya fuera de
+todo rango plausible. El mecanismo que explica esa insensibilidad es la
+composición del catálogo: los combos 12 y 13 no incluyen empapelado y completan
+la terna sin ocupar ese espacio. \textbf{El supuesto S2 resulta irrelevante para
+el resultado en cualquier rango razonable.}
+
+La última fila aporta además la justificación empírica de por qué la cobertura
+de categorías se incorporó como objetivo y no como restricción: con nueve rollos
+por combo, ninguna solución factible puede cubrir el empapelado. Formulada como
+restricción, el modelo resultaría infactible y no produciría información alguna;
+como etapa de desempate, informa que cubre siete categorías y continúa
+resolviendo.
+
+\subsection{S3 — Criterio de desempate}
+\label{sec:sens_s3}
+
+\begin{table}[H]
+\centering\small
+\caption{Resultado de los cuatro criterios de desempate evaluados, sobre el
+escenario base.}
+\label{tab:sens_s3}
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Criterio} & \textbf{Combos} & $\boldsymbol{V^{*}}$ & \textbf{Categorías} & \textbf{Unidades} \\
+\midrule
+Categorías y unidades (adoptado) & 12 -- 15 -- 18 & 3 & 8 & 21 \\
+Mínimo de unidades               & 14 -- 18 -- 20 & 3 & 7 & 21 \\
+Máximo de artículos              & \ 5 -- \ 9 -- 15 & 3 & 8 & 23 \\
+Sin desempate                    & 15 -- 17 -- 20 & 3 & 7 & 21 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los cuatro criterios alcanzan la misma variedad máxima: el desempate nunca le
+cuesta un combo a la sección, únicamente determina cuál de las soluciones
+equivalentes se adopta. El criterio elegido es el único que garantiza la
+cobertura de las ocho categorías al mínimo costo de espacio; el de máximo de
+artículos también las cubre, pero ocupando dos lugares adicionales.
+
+Cabe señalar que cubrir las ocho categorías \textbf{no representa costo alguno
+en términos de depósito}: tanto el criterio adoptado como el de mínimo de
+unidades ocupan 21 lugares. Lo único que se modifica es la distribución interna
+—un lugar más en lavavajillas y cocinas y uno menos en empapelado—.
+
+La última fila merece una advertencia. Sin criterio de desempate, la solución
+obtenida resultó tener 21 unidades por coincidencia; nada en el modelo lo
+garantiza, y otra versión del solver podría devolver cualquiera de las 854
+ternas óptimas, incluida alguna de 23 unidades.
+
+% ============================================================================
+\section{Conclusiones y recomendaciones}
+\label{sec:conclusiones}
+
+\begin{table}[H]
+\centering\small
+\caption{Síntesis de los tres escenarios analizados.}
+\label{tab:sintesis}
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Escenario} & \textbf{Espacio que limita} & \textbf{Combos} & \textbf{\% catálogo} & \textbf{Óptimos} \\
+\midrule
+1 — Reposición mensual        & Mesadas                        & 3  & 15\,\%  & 854 \\
+2 — Reposición automática     & Mesadas y lavav. + cocinas     & 13 & 65\,\%  & 4 \\
+3 — Mesadas y alacenas juntas & Lavavajillas + cocinas         & 16 & 80\,\%  & 1 \\
+\midrule
+3 con un lugar adicional      & ---                            & 20 & 100\,\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los tres escenarios convergen en un mismo diagnóstico: \textbf{la Sección
+Cocinas no enfrenta una limitación de capacidad general sino la de un único
+espacio por vez}. En cada configuración existe un solo cuello de botella que
+determina íntegramente el resultado, mientras el resto del almacén conserva
+lugar sin utilizar —12 de 33 lugares en el escenario base—. Esa observación
+cambia la naturaleza de cualquier negociación de espacio con las demás secciones
+de la sucursal: lo relevante no es cuánto lugar se solicita sino en qué espacio.
+
+\textbf{La decisión de modelado de mayor incidencia no fue de cálculo sino de
+interpretación.} Entender la disponibilidad bajo reposición mensual como reserva
+exclusiva de unidades, y no como una unidad compartida entre todos los combos
+que la utilizan, es lo que separa 3 combos de 13. Ningún dato del problema
+resuelve esa lectura: se adoptó con justificación explícita
+(Sección~\ref{sec:supuestos}) y se cuantificó su efecto mediante la comparación
+de escenarios.
+
+\textbf{El objetivo de variedad, por sí solo, no determina la decisión
+buscada.} Maximizar la cantidad de combos define correctamente cuántos pueden
+ofrecerse, pero no cuántas unidades mantener en stock, que es la decisión
+operativa. Resuelto únicamente ese funcional, el modelo ocupa el depósito
+completo con 12 unidades que no habilitan ningún combo. Las etapas
+lexicográficas incorporadas cierran esa indeterminación, y la de cobertura de
+categorías lo hace sin costo alguno en espacio.
+
+\textbf{La ausencia de análisis post-óptimo no restringió el análisis de
+sensibilidad.} El procedimiento de re-resolución resultó, de hecho, más
+informativo que los precios sombra: un lugar de mesada vale un combo en el
+escenario base y tres en el de reposición automática, diferencia que el dual de
+la relajación lineal no habría anticipado. El costo es computacional —una
+resolución por escenario— y a esta escala resulta despreciable.
+
+\paragraph{Recomendaciones.} Se desprenden tres cursos de acción, en este orden
+de prioridad:
+
+\begin{enumerate}
+  \item \textbf{Operar bajo el nuevo esquema de reposición automática.} Eleva la
+  oferta de 3 a 13 combos sin modificar la disposición del depósito ni solicitar
+  capacidad adicional.
+  \item \textbf{Ejecutar la reubicación de mesadas y alacenas} en el espacio
+  compartido de 12 unidades. Suma tres combos más, también sin requerir
+  capacidad adicional.
+  \item \textbf{Solicitar un lugar adicional en el espacio de lavavajillas y
+  cocinas.} Es la única ampliación con efecto sobre la oferta, y completa los 20
+  combos del catálogo.
+\end{enumerate}
+
+% ============================================================================
+\appendix
+\section{Anexo — Herramientas y verificación}
+\label{sec:anexo}
+
+\paragraph{Entorno y herramientas.} El trabajo se desarrolló en Python 3.10 con
+el siguiente conjunto de librerías:
+
+\begin{itemize}
+  \item \textbf{PuLP} \cite{pulp} con el solver \textbf{CBC} \cite{cbc}, para el
+  modelado y la resolución del problema de programación lineal entera. CBC
+  implementa internamente el algoritmo de \emph{Branch \& Bound}. La
+  correspondencia con la notación de LINDO/LINGO es directa: \texttt{INT y} se
+  expresa como \texttt{LpVariable(..., cat=LpBinary)}, \texttt{GIN x} como
+  \texttt{cat=LpInteger}, y los precios duales se obtienen mediante
+  \texttt{constraint.pi}, con validez restringida a la relajación lineal.
+  \item \textbf{pandas}, para la construcción de las tablas de resultados.
+  \item \textbf{matplotlib}, para el material gráfico de trabajo.
+  \item \texttt{itertools.combinations}, de la biblioteca estándar, para la
+  enumeración exhaustiva de soluciones óptimas alternativas.
+\end{itemize}
+
+\paragraph{Diseño del modelo.} La formulación se escribió una única vez, como
+función parametrizada:
+\begin{quote}
+\centering\small
+\texttt{resolver(params, objetivo, variedad\_min, categorias\_min, combos\_fijos, relajar)}
+\end{quote}
+Las tres etapas lexicográficas, la relajación lineal, los análisis de capacidad,
+las pruebas de supuestos y los tres escenarios son llamadas a esa misma función
+con distintos parámetros. Los supuestos y las capacidades residen en un único
+diccionario de configuración, y la solicitud de un supuesto, un espacio o una
+categoría inexistente produce un error en lugar de devolver silenciosamente el
+caso base. De los tres escenarios, únicamente el tercero requirió modificar el
+código, y en una sola línea: permitir que la configuración reciba la estructura
+completa de espacios y no solo sus capacidades. El resto del programa
+—restricciones, cotas, ocupación y reportes— recorre la lista de espacios de
+forma genérica.
+
+\paragraph{Verificación.} Se implementaron cuatro capas de control automático
+que se ejecutan antes de aceptar cualquier resultado:
+
+\begin{itemize}
+  \item \textbf{46 controles sobre los datos de entrada}: que todo artículo
+  integrante de un combo exista en el catálogo, que ningún combo repita
+  categoría, las 30 frecuencias de la Tabla~\ref{tab:apariciones} una por una,
+  las capacidades y las cotas de la Tabla~\ref{tab:cota_trivial}.
+  \item \textbf{25 controles cruzados sobre los óptimos} de los tres escenarios:
+  que la variedad no supere la cota analítica, que el stock de la solución final
+  sea exactamente el necesario, que la ocupación respete todas las capacidades y
+  que la solución figure entre las enumeradas exhaustivamente.
+  \item \textbf{10 controles sobre las pruebas de supuestos}, formulados como
+  propiedades que cualquier resultado correcto debe satisfacer: ampliar la
+  capacidad nunca puede reducir la variedad, incrementar las unidades por combo
+  nunca puede aumentarla, ningún criterio de desempate puede perder variedad.
+  \item \textbf{Enumeración exhaustiva independiente del solver}, que construye
+  el stock requerido por cada conjunto de combos y lo compara directamente
+  contra las capacidades.
+\end{itemize}
+
+Los controles no verifican que el resultado coincida con el esperado sino
+propiedades que todo resultado correcto debe cumplir, lo que los vuelve útiles
+precisamente cuando el resultado sorprende.
+
+% ============================================================================
+\renewcommand{\refname}{Bibliografía}
+\addcontentsline{toc}{section}{Bibliografía}
+
+\begin{thebibliography}{9}
+
+\bibitem{hillier} Hillier, F. S. y Lieberman, G. J. (2015).
+  \emph{Introducción a la Investigación de Operaciones} (9.\textsuperscript{a}
+  ed.). México: McGraw-Hill Interamericana. Capítulo 11: programación entera,
+  formulación con variables binarias, algoritmo de \emph{Branch \& Bound} y
+  empleo de la relajación lineal como cota.
+
+\bibitem{catedra-metas} Cátedra de Optimización, UCA (2026).
+  \emph{Clase 5 — Programación por metas}. Material de cátedra,
+  2.\textsuperscript{o} cuatrimestre de 2026. Fuente del esquema de metas
+  lexicográficas aplicado en la Sección~\ref{sec:objetivo}.
+
+\bibitem{catedra-mip} Cátedra de Optimización, UCA (2026).
+  \emph{Clase 6 — Programación entera y binaria}. Material de cátedra,
+  2.\textsuperscript{o} cuatrimestre de 2026. Fuente del algoritmo de resolución
+  y de la inaplicabilidad del análisis post-óptimo en modelos enteros.
+
+\bibitem{pulp} Mitchell, S., O'Sullivan, M. y Dunning, I.
+  \emph{PuLP: A Linear Programming Toolkit for Python}. Documentación oficial
+  del paquete \texttt{PuLP}, utilizado como motor de modelado y resolución.
+
+\bibitem{cbc} Forrest, J. y Lougee-Heimer, R.
+  \emph{CBC (COIN-OR Branch and Cut)}. Solver de programación lineal y entera
+  empleado por PuLP para la resolución de todos los modelos de este informe.
+
+\end{thebibliography}
+
+\end{document}
