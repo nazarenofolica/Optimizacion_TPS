@@ -182,7 +182,7 @@ OPCIONES = {
 # ---------------------------------------------------------------------------
 
 
-def construir_params(capacidades=None, **overrides):
+def construir_params(capacidades=None, espacios=None, **overrides):
     """Devuelve el diccionario de parámetros del modelo.
 
     Parameters
@@ -190,6 +190,11 @@ def construir_params(capacidades=None, **overrides):
     capacidades : dict, optional
         {espacio: capacidad} para pisar capacidades del depósito. Es lo que usan
         los tests de "un lugar más" (plan §10.1).
+    espacios : dict, optional
+        Reemplaza por completo la estructura de espacios del depósito (por defecto,
+        `ESPACIOS`). Es lo que necesita el inciso c) (plan §17.2): mesadas y
+        alacenas pasan a compartir un espacio nuevo, en vez de tener uno cada una.
+        `capacidades` se aplica encima de este argumento, no de `ESPACIOS`.
     **overrides
         Cualquier clave de SUPUESTOS. `S2_unidades_por_articulo` se combina con el
         valor base: alcanza con pasar las categorías que cambian.
@@ -198,6 +203,7 @@ def construir_params(capacidades=None, **overrides):
             construir_params(S1_disponibilidad="compartida")
             construir_params(S2_unidades_por_articulo={"E": 3})
             construir_params(capacidades={"mesadas": 4})
+            construir_params(espacios=espacios_c, S1_disponibilidad="compartida")
 
     Returns
     -------
@@ -227,7 +233,7 @@ def construir_params(capacidades=None, **overrides):
         else:
             supuestos[clave] = valor
 
-    espacios = deepcopy(ESPACIOS)
+    espacios = deepcopy(espacios if espacios is not None else ESPACIOS)
     for espacio, capacidad in (capacidades or {}).items():
         if espacio not in espacios:
             raise KeyError(f"Espacio desconocido: {espacio!r}. Válidos: {sorted(espacios)}")

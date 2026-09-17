@@ -18,6 +18,18 @@
 > adopta en firme (no queda como consulta abierta) y el desempate **S3** pasó a tener **dos
 > niveles** (primero categorías cubiertas, después unidades). El resto del plan se deja como
 > estaba: el contraste entre lo planeado y lo que pasó es material para el informe.
+>
+> **Actualización — punto b) resuelto.** Siguiendo la guía de §17.1 (mismo modelo, `S1_disponibilidad`
+> pasado a `"compartida"`), el punto b) ya está resuelto y verificado: **V\* = 13** combos de 20
+> (contra 3 en a) y 27 artículos distintos en stock (contra 17). El detalle completo está en
+> [`procedimiento.md`](procedimiento.md) §7; el checklist de §16 y la guía de §17.1 se marcaron
+> como hechos.
+>
+> **Actualización — punto c) resuelto.** Siguiendo la guía de §17.2 (mesadas y alacenas juntas en
+> 12 lugares, partiendo de b), el punto c) también está resuelto y verificado: **V\* = 16** combos
+> de 20, la disposición conviene y hace falta pedir un lugar más en lavavajillas + cocinas para
+> llegar a los 20. Detalle completo en [`procedimiento.md`](procedimiento.md) §8 y resumen en §18:
+> **con esto, los tres incisos de la consigna están resueltos.**
 
 ---
 
@@ -734,21 +746,27 @@ Estado a la fecha de la última corrida. El detalle de todo lo marcado como hech
 
 **Con esto el punto a) queda completo.** Lo que sigue es b), c) y la redacción del informe.
 
-### Punto b) — reposición automática (todo por hacer) → guía en §17.1
+### Punto b) — reposición automática — hecho → guía en §17.1
 
-- [ ] Resolver con `S1_disponibilidad="compartida"`
-- [ ] Responder si la variedad de oferta se beneficia, con las dos lecturas de "variedad"
-- [ ] Enumerar los óptimos alternativos del escenario
-- [ ] Repetir el análisis de capacidad (+1 lugar por espacio) en este escenario
-- [ ] Registrar todo en `procedimiento.md`
+- [x] Resuelto con `S1_disponibilidad="compartida"`: **V\* = 13** combos de 20 (procedimiento §7.1)
+- [x] La variedad de oferta se beneficia con las dos lecturas: combos 3 → 13, artículos distintos
+      en stock 17 → 27 (procedimiento §7.8)
+- [x] Óptimos alternativos enumerados: 4 (contra 854 en a), procedimiento §7.7)
+- [x] Análisis de capacidad +1 por espacio repetido: solo mesadas (+3) y lavavajillas + cocinas
+      (+2) suman; el resto ya tiene tantos lugares como variantes existen (procedimiento §7.5 y §7.6)
+- [x] Todo registrado en `procedimiento.md` §7, con 8 controles automáticos en verde (§7.9)
 
-### Punto c) — mesadas y alacenas juntas (todo por hacer) → guía en §17.2
+### Punto c) — mesadas y alacenas juntas — hecho → guía en §17.2
 
-- [ ] Permitir redefinir los espacios en `config.construir_params` (es el único cambio de código)
-- [ ] Resolver con mesadas + alacenas en un espacio de 12 lugares, partiendo de b)
-- [ ] Verificar si se completan los 20 combos
-- [ ] Decidir si la nueva disposición conviene y qué almacenamiento extra habría que pedir
-- [ ] Registrar todo en `procedimiento.md`
+- [x] Espacios redefinibles en `config.construir_params` (argumento `espacios`; único cambio de
+      código de todo el trabajo, procedimiento §8.1)
+- [x] Resuelto con mesadas + alacenas en un espacio de 12 lugares, partiendo de b): **V\* = 16**
+      combos de 20 (procedimiento §8.2)
+- [x] No se completan los 20 combos: quedan afuera los 4 combos con cocina C4 (6, 8, 19 y 20),
+      porque lavavajillas + cocinas sigue en 6 variantes para 5 lugares (procedimiento §8.3)
+- [x] La disposición conviene (variedad 13 → 16 sin pedir lugar extra) y hace falta pedir **un
+      lugar más en lavavajillas + cocinas** para llegar a los 20 combos (procedimiento §8.5 y §8.6)
+- [x] Todo registrado en `procedimiento.md` §8, con 8 controles automáticos en verde (§8.8)
 
 ### Informe (todo por hacer)
 
@@ -826,6 +844,22 @@ Para responder *"¿qué otras unidades de almacenamiento deberían solicitarse?"
 herramienta: el test de capacidad +1 por espacio (`02_tests_supuestos.py`, función
 `test_capacidad`), corrido sobre los parámetros de c).
 
+> **Actualización — confirmado al resolver (procedimiento §8).** La cuenta a mano de este párrafo
+> se cumplió exacto: **V\* = 16**, afuera los combos 6, 8, 19 y 20 (los cuatro con C4), y el test de
+> capacidad +1 confirmó que alcanza con **un lugar más en lavavajillas + cocinas** para llegar a los
+> 20 combos. Ningún otro espacio pide ampliación.
+
 ---
 
 Todo lo que salga de estos pasos se registra en **`procedimiento.md`**, no acá.
+
+---
+
+## 18. Estado final del trabajo
+
+Los tres incisos de la consigna están **resueltos y verificados**: a) en `scripts/01_punto_a.py`
+(procedimiento §3), b) en `scripts/03_punto_b.py` (procedimiento §7) y c) en
+`scripts/04_punto_c.py` (procedimiento §8). El detalle completo de cada corrida, sus hallazgos y
+sus controles automáticos está en [`procedimiento.md`](procedimiento.md); este documento se deja
+como el esquema original, con notas de "Actualización" donde el resultado confirmó o ajustó lo
+planeado. Lo único que queda es la redacción del informe.

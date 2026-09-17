@@ -1,13 +1,13 @@
-# TP2 TODO DECO — Procedimiento (bitácora de desarrollo) — punto a)
+# TP2 TODO DECO — Procedimiento (bitácora de desarrollo) — puntos a) y b)
 
 > **Qué es este archivo.** El registro de lo que **efectivamente se hizo** al codificar y
 > resolver el modelo, incluyendo **en qué se apartó del plan y por qué**. El plan está en
 > [`plan_de_trabajo.md`](plan_de_trabajo.md) y **no se reescribe** para que coincida con esto:
-> lo único que se le agregó son notas de "Actualización" que apuntan a §2.5 y §2.6.
+> lo único que se le agregó son notas de "Actualización" que apuntan a §2.5, §2.6 y §8.
 >
 > **Estado:** punto a) resuelto y verificado (§3), tests de supuestos corridos (§4) y las dos
-> decisiones que habían quedado abiertas, cerradas con justificación (§2.5 y §2.6).
-> Puntos b) y c) sin empezar. Informe sin redactar.
+> decisiones que habían quedado abiertas, cerradas con justificación (§2.5 y §2.6). Punto b)
+> resuelto y verificado (§8). Punto c) sin empezar. Informe sin redactar.
 
 ---
 
@@ -564,11 +564,290 @@ desempate por mínimo de unidades dejaría la sección sin lavavajillas (§2.5).
 
 ---
 
-## 7. Pendientes
+## 7. Resultados del punto b)
 
-**El checklist completo del trabajo —lo hecho y lo que falta, incluidos los incisos b) y c)— está
-en [`plan_de_trabajo.md`](plan_de_trabajo.md) §16**, y la guía para seguir b) y c), con los
-parámetros exactos que hay que cambiar, en §17.
+Corrida: `python scripts/03_punto_b.py` · estado **Optimal** en las etapas y en la enumeración.
+Sigue al pie de la letra la guía que el plan había dejado en §17.1: **mismo modelo de a)**, con
+`S1_disponibilidad="compartida"` en vez de `"exclusiva"`. No hizo falta tocar `src/`.
 
-**El punto a) está completo**, incluido su material gráfico (§3.10). De acá en adelante quedan
-los incisos b) y c), y la redacción del informe.
+### 7.1. Variedad máxima: 13 combos de 20 (contra 3 en a)
+
+**V\* = 13**, el **65 % del catálogo**, frente al 15 % de a). Con reposición automática, lo que se
+vende vuelve enseguida, así que alcanza con **una unidad de cada artículo** para que un combo esté
+disponible: la restricción de cobertura R1 pasa de `x_p ≥ Σ u·y_c` a `x_p ≥ u·y_c` por cada combo
+que usa `p` (una restricción por par artículo–combo en vez de una por artículo). Coincide
+exactamente con lo que había anticipado el test B del punto a) (procedimiento §4.3).
+
+### 7.2. La solución que se presenta (mismo desempate S3 que a)
+
+Con `categorias_y_unidades`, quedan **13 combos y las 8 categorías cubiertas**, sin cambiar el
+criterio de desempate del punto a):
+
+**Combos ofrecidos:** 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16 y 17 — **27 unidades en stock**.
+
+### 7.3. Plan de stock — una unidad por artículo usado
+
+Bajo la lectura compartida, cada artículo que aparece en algún combo ofrecido necesita **exactamente
+1 unidad**, sin importar en cuántos combos aparezca (`resultados/tablas/15_plan_stock_b.csv`).
+**27 de los 30 artículos** quedan con stock (en cero: **A4, M4 y C4** — los tres artículos que no
+usa ningún combo de los 13 elegidos). Es la otra lectura posible de "variedad de oferta" que pide la
+consigna:
+no solo combos, también **artículos distintos disponibles en el depósito**.
+
+### 7.4. Ocupación del depósito — ahora limitan cuatro espacios a la vez
+
+| Espacio | Capacidad | Ocupado | Holgura | Limita |
+|---|---:|---:|---:|:---:|
+| Baldosas | 5 | 4 | 1 | No |
+| Empapelado vinílico | 8 | 4 | 4 | No |
+| **Apliques de luz** | **4** | **4** | **0** | **Sí** |
+| Alacenas | 4 | 3 | 1 | No |
+| **Mesadas** | **3** | **3** | **0** | **Sí** |
+| **Bacha y grifería** | **4** | **4** | **0** | **Sí** |
+| **Lavavajillas + cocinas** | **5** | **5** | **0** | **Sí** |
+| **Total** | **33** | **27** | **6** | |
+
+### 7.5. ⚠ Hallazgo: bajo b) lo que limita no es "cuántos combos entran" sino "cuántas variantes"
+
+Bajo la lectura compartida, la capacidad de cada espacio deja de acotar una cantidad de *combos* y
+pasa a acotar una cantidad de **variantes distintas** de esa categoría (cada variante cuesta 1 lugar
+una sola vez, la usen uno o diez combos). Eso separa los siete espacios en dos grupos, y explica por
+qué cuatro aparecen "llenos" en la tabla anterior sin que eso signifique lo mismo en los cuatro:
+
+| Espacio | Capacidad | Variantes que existen | ¿Puede limitar? |
+|---|---:|---:|---|
+| Baldosas | 5 | 4 (B1–B4) | No: sobra lugar aunque se usen todas |
+| Empapelado | 8 | 4 (E1–E4) | No |
+| Apliques de luz | 4 | 4 (L1–L4) | No: la capacidad **alcanza justo** para las 4, nunca sobra ni falta |
+| Alacenas | 4 | 4 (A1–A4) | No: mismo caso que apliques |
+| **Mesadas** | **3** | **4 (M1–M4)** | **Sí: sobra una variante afuera** |
+| Bacha y grifería | 4 | 4 (G1–G4) | No: mismo caso que apliques |
+| **Lavavajillas + cocinas** | **5** | **6 (W1–W2, C1–C4)** | **Sí: sobra una variante afuera** |
+
+Apliques y bacha "limitan" en la tabla de ocupación (holgura 0) pero es una coincidencia: sus
+capacidades son exactamente el número de variantes que existen, así que **nunca pudieron sobrar
+lugares y nunca van a excluir un combo por sí solos**. Los dos cuellos de botella reales son
+**mesadas** (3 lugares para 4 variantes) y **lavavajillas + cocinas** (5 para 6). El test de
+capacidad +1 de §7.6 lo confirma con números.
+
+### 7.6. Capacidad +1 por espacio, bajo b)
+
+| Espacio | Capacidad probada | V\* | ΔV\* |
+|---|---:|---:|---:|
+| Baldosas | 6 | 13 | 0 |
+| Empapelado vinílico | 9 | 13 | 0 |
+| Apliques de luz | 5 | 13 | 0 |
+| Alacenas | 5 | 13 | 0 |
+| **Mesadas** | **4** | **16** | **+3** |
+| Bacha y grifería | 5 | 13 | 0 |
+| **Lavavajillas + cocinas** | **6** | **15** | **+2** |
+
+Confirma §7.5: solo mesadas y lavavajillas + cocinas suman, y suman **de a varios combos por
+lugar** (no de a uno, como en a), porque liberar la variante que faltaba habilita de golpe a todos
+los combos que la usaban. Con mesadas en 4 (las 4 variantes disponibles) deja de limitar del todo;
+el cuello de botella que queda es lavavajillas + cocinas, exactamente el que el plan §17.2 había
+anticipado como el freno del inciso c).
+
+### 7.7. Óptimos alternativos: 4 (contra 854 en a)
+
+Enumeración exhaustiva, sin solver (`17_optimos_alternativos_b.csv`):
+
+```
+Conjuntos de 13 combos que entran :   4 de 77.520
+Conjuntos de 14 combos que entran :   0 de 38.760
+```
+
+Los cuatro llenan siempre apliques (4/4), mesadas (3/3), bacha y grifería (4/4) y lavavajillas +
+cocinas (5/5) — son los espacios de §7.5 sin margen —, y usan 27 o 28 unidades según si además
+llenan alacenas (4/4) o dejan una variante afuera (3/4). **La solución deja de ser tan degenerada
+como en a)**: pasar de reserva exclusiva a compartida no solo sube la variedad, también **reduce
+drásticamente los empates** (854 → 4), porque bajo la lectura compartida hay mucho menos margen
+para "sobrar" stock sin usar.
+
+### 7.8. ¿Se beneficia la variedad de oferta? — respuesta con las dos lecturas
+
+| Métrica | a) exclusiva | b) compartida | Δ |
+|---|---:|---:|---:|
+| Combos ofrecidos | 3 | **13** | +10 |
+| Artículos distintos en stock | 17 | **27** | +10 |
+| Unidades totales en stock | 21 | 27 | +6 |
+| Categorías del catálogo cubiertas | 8 | 8 | 0 |
+
+**Sí, la variedad de oferta se ve claramente beneficiada**, se la lea como combos disponibles o
+como artículos distintos en el depósito: las dos métricas más que se cuadruplican y cuadriplican
+respectivamente. Tiene sentido con la razón 2 del supuesto S1 (plan §4.1): la lectura compartida
+**es** el escenario de reposición automática, así que a) y b) muestran la diferencia real entre
+reponer una vez al mes y reponer al instante. La contracara es que también sube el stock necesario
+(21 → 27 unidades) y, sobre todo, el depósito pasa de tener un solo cuello de botella a tener dos
+(§7.5): sigue habiendo margen para vender más si se resuelve **lavavajillas + cocinas**, que es
+justamente lo que plantea el inciso c).
+
+### 7.9. Controles cruzados — 8 de 8 OK
+
+`scripts/03_punto_b.py` corre 8 controles automáticos: V\*(b) ≥ V\*(a), la fuerza bruta coincide con
+el solver (hay ternas... en este caso conjuntos de 13 que entran y ninguno de 14), el desempate no
+pierde variedad, el stock de la solución final es exactamente el necesario, la ocupación respeta
+las capacidades, la solución final está entre los óptimos enumerados, sumar capacidad nunca baja la
+variedad, y los artículos distintos en stock de b) son ≥ los de a). Los 8 dan **OK**.
+
+### 7.10. Conclusiones del punto b) para el informe
+
+1. **La variedad de oferta se beneficia mucho con la reposición automática**: 3 → 13 combos (15 % →
+   65 % del catálogo) y 17 → 27 artículos distintos en stock.
+2. **El mecanismo es el supuesto S1**: alcanza con una unidad de cada artículo en vez de una reserva
+   por combo, así que un mismo artículo sirve para varios combos a la vez.
+3. **El cuello de botella deja de ser uno solo.** Bajo reposición automática, lo que limita cada
+   espacio no es la cantidad de combos sino la cantidad de **variantes** de esa categoría; con eso,
+   **mesadas** (3 lugares para 4 variantes) y **lavavajillas + cocinas** (5 para 6) son los dos
+   espacios que de verdad acotan, y los otros cinco tienen exactamente tantos lugares como variantes
+   existen (nunca van a limitar, aunque queden "llenos").
+4. **La solución es casi única**: 4 óptimos alternativos contra 854 en a). Reponer rápido no solo
+   da más variedad, también deja mucho menos margen de elección entre planes de stock equivalentes.
+5. **De cara al inciso c)**, que parte de este mismo escenario: liberar mesadas (capacidad 4) saca
+   ese cuello de botella por completo; el que queda —y el que c) va a tener que resolver— es
+   **lavavajillas + cocinas**.
+
+---
+
+## 8. Resultados del punto c)
+
+Corrida: `python scripts/04_punto_c.py` · estado **Optimal** en las etapas y en la enumeración.
+Sigue la guía del plan §17.2: parte del escenario de b) (`S1_disponibilidad="compartida"`) y funde
+mesadas y alacenas en un único espacio de 12 lugares.
+
+### 8.1. El único cambio de código: `espacios` como argumento de `construir_params`
+
+Tal como preveía el plan, fue el único punto que tocó `src/`. `config.construir_params` ahora acepta
+un argumento `espacios` que reemplaza `ESPACIOS` por completo (§17.2 daba el fragmento casi textual);
+`capacidades` se sigue aplicando encima, por si hace falta combinar los dos. El resto del código
+—restricciones, cotas triviales, ocupación, reportes, gráficos— recorre `params["espacios"]` de
+forma genérica y **no necesitó ningún cambio**, confirmando lo que anticipaba la nota de
+implementación del plan §7.
+
+```python
+def espacios_mesadas_alacenas_juntas(capacidad=12):
+    espacios = deepcopy(config.ESPACIOS)
+    del espacios["mesadas"], espacios["alacenas"]
+    espacios["mesadas_alacenas"] = {
+        "nombre": "Mesadas + alacenas",
+        "categorias": ("M", "A"),
+        "capacidad": capacidad,
+    }
+    return espacios
+
+params_c = construir_params(espacios=espacios_mesadas_alacenas_juntas(), S1_disponibilidad="compartida")
+```
+
+### 8.2. Variedad máxima: 16 combos de 20 (contra 13 en b)
+
+**V\* = 16**, el **80 % del catálogo**. Mesadas y alacenas juntas **dejan de limitar por completo**:
+el espacio nuevo tiene 12 lugares para, como mucho, 8 variantes (4 de mesada + 4 de alacena), así que
+nunca puede quedarse sin lugar bajo la lectura compartida (holgura 4 en la solución final, §8.4).
+
+**Confirma exactamente la cuenta a mano del plan §17.2**: quedan afuera los 4 combos que llevan
+**C4** (cocina a gas negra) — los combos **6, 8, 19 y 20** —, porque **lavavajillas + cocinas sigue
+teniendo 6 variantes para 5 lugares** y es la única restricción real que le queda al modelo bajo
+esta disposición (mismo hallazgo del punto b), §7.5, que ya lo adelantaba).
+
+### 8.3. La solución que se presenta
+
+Con el mismo desempate S3 de a) y b) (`categorias_y_unidades`): **16 combos, 8 categorías cubiertas,
+29 unidades en stock**. Bajo la lectura compartida cada artículo necesita como mucho 1 unidad
+(§7.3), así que las 29 unidades son **29 de los 30 artículos con exactamente 1 unidad cada uno**
+(`21_plan_stock_c.csv`). El único artículo en cero es **C4**: es justo el que se resigna para no
+superar los 5 lugares de lavavajillas + cocinas.
+
+**Combos ofrecidos:** 1, 2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17 y 18.
+**Combos que no quedan disponibles:** 6, 8, 19 y 20.
+
+### 8.4. Ocupación del depósito bajo c)
+
+| Espacio | Capacidad | Ocupado | Holgura | Limita |
+|---|---:|---:|---:|:---:|
+| Baldosas | 5 | 4 | 1 | No |
+| Empapelado vinílico | 8 | 4 | 4 | No |
+| Apliques de luz | 4 | 4 | 0 | Sí* |
+| Bacha y grifería | 4 | 4 | 0 | Sí* |
+| **Lavavajillas + cocinas** | **5** | **5** | **0** | **Sí** |
+| **Mesadas + alacenas** | **12** | **8** | **4** | **No** |
+| **Total** | **38** | **29** | **9** | |
+
+\* Igual que en b) (§7.5): apliques y bacha "limitan" solo porque su capacidad coincide con el número
+de variantes que existen (4 de cada una); nunca van a excluir un combo por sí solos. El único cuello
+de botella real que le queda al modelo es **lavavajillas + cocinas**.
+
+### 8.5. ¿Qué otras unidades de almacenamiento deberían solicitarse?
+
+Test de capacidad +1 por espacio, bajo c) (`24_test_capacidad_mas_uno_c.csv`):
+
+| Espacio | Capacidad probada | V\* | ΔV\* |
+|---|---:|---:|---:|
+| Baldosas | 6 | 16 | 0 |
+| Empapelado vinílico | 9 | 16 | 0 |
+| Apliques de luz | 5 | 16 | 0 |
+| Bacha y grifería | 5 | 16 | 0 |
+| **Lavavajillas + cocinas** | **6** | **20** | **+4** |
+| Mesadas + alacenas | 13 | 16 | 0 |
+
+**Un solo lugar más en lavavajillas + cocinas alcanza para completar los 20 combos**: recupera de
+golpe los 4 combos que llevan C4, porque las 6 variantes de esa categoría vuelven a entrar todas
+juntas. Ningún otro espacio pide ampliación: mesadas + alacenas ya sobra (4 lugares libres) y los
+demás no mueven la variedad aunque se les sume capacidad.
+
+### 8.6. ¿Conviene la nueva disposición física?
+
+**Sí, conviene, y por bastante**: sin tocar el depósito lavavajillas + cocinas (el único espacio que
+no cambia de disposición), pasar mesadas y alacenas a un espacio compartido de 12 lugares sube la
+variedad de 13 a 16 combos (+ 23 %) **sin pedir un solo lugar extra**, porque el espacio nuevo le
+sobra desde el primer momento (8 variantes posibles contra 12 lugares). La reubicación es, en los
+hechos, gratis.
+
+**No alcanza para completar el catálogo por sí sola.** El freno que queda no es de disposición sino
+de capacidad: **lavavajillas + cocinas** sigue teniendo 6 variantes para 5 lugares, y es el único
+espacio de los seis que hoy no tiene margen. La recomendación concreta para el informe es pedir
+**un lugar más en lavavajillas + cocinas** (de 5 a 6): con eso —y sin ningún otro cambio— la
+Sección Cocinas puede ofrecer sus 20 combos completos.
+
+### 8.7. Óptimos alternativos: uno solo
+
+Enumeración exhaustiva, sin solver (`23_optimos_alternativos_c.csv`): de las `comb(20,16) = 4.845`
+combinaciones de 16 combos, **una sola entra en el depósito**, y es exactamente la que reporta el
+solver. Tiene sentido: al quedar solo lavavajillas + cocinas como restricción activa, la única forma
+de armar 16 combos es tomar los 16 que no usan C4 — no hay margen para elegir ningún otro conjunto.
+**La solución deja de ser degenerada del todo** (854 en a) → 4 en b) → 1 en c)): cuantas menos
+restricciones activas quedan, menos formas hay de armar la misma variedad.
+
+### 8.8. Controles cruzados — 8 de 8 OK
+
+`scripts/04_punto_c.py` corre 8 controles automáticos: V\*(c) ≥ V\*(b), la fuerza bruta coincide con
+el solver, el desempate no pierde variedad, el stock de la solución final es exactamente el
+necesario, la ocupación respeta las capacidades, la solución final está entre los óptimos
+enumerados, sumar capacidad nunca baja la variedad, y mesadas + alacenas queda con holgura positiva
+(nunca limita, como predecía §8.2). Los 8 dan **OK**.
+
+### 8.9. Conclusiones del punto c) para el informe
+
+1. **La nueva disposición conviene**: variedad 13 → 16 combos (+ 23 %) sin pedir más lugar en
+   ningún espacio, porque mesadas y alacenas juntas (12 lugares para 8 variantes posibles) dejan de
+   ser un cuello de botella por completo.
+2. **No alcanza para ofrecer el catálogo completo.** Quedan afuera los 4 combos con cocina C4 (6, 8,
+   19 y 20), porque lavavajillas + cocinas sigue en 6 variantes para 5 lugares.
+3. **Recomendación concreta:** pedir **un lugar más en lavavajillas + cocinas**. Es la única unidad
+   de almacenamiento que hace falta solicitar; con eso se completan los 20 combos (confirmado con el
+   test de capacidad +1, §8.5).
+4. **La solución deja de tener óptimos alternativos**: de 854 (a) a 4 (b) a **1 (c)**. Cuando queda
+   una sola restricción activa en todo el modelo, la solución óptima es única.
+5. **Hilo conductor de los tres incisos:** cada escenario retira una restricción (primero la reserva
+   exclusiva de a), después el espacio separado de mesadas y alacenas) y en los tres casos
+   **lavavajillas + cocinas termina siendo lo último que limita**. Es el espacio que, si la cátedra
+   preguntara "¿y después?", habría que ampliar primero.
+
+---
+
+## 9. Pendientes
+
+**El checklist completo del trabajo está en [`plan_de_trabajo.md`](plan_de_trabajo.md) §16.**
+
+**Los puntos a), b) y c) están completos**, incluido el material gráfico de cada uno (§3.10,
+`02_ocupacion_deposito_b.png` y `03_ocupacion_deposito_c.png`). De acá en adelante queda solo la
+redacción del informe (bibliografía y estructura: plan §0 y §16).
