@@ -1,0 +1,7 @@
+# TP3 Optimización — Diseño de Supermercados (CarroMenos)
+# Instalar con:  pip install -r requirements.txt
+
+pulp>=3.0          # modelado y resolución del PLE de localización (solver CBC incluido)
+pandas>=2.0        # tablas de datos y de resultados
+matplotlib>=3.8    # mapa de flujos y gráficos del informe
+scipy>=1.10        # análisis de sensibilidad sobre el PL con asignación fija (linprog / HiGHS)

@@ -1,0 +1,22 @@
+id,nombre_mapa,tipo,producto,lat,lon
+S1,Supermercado 1,supermercado,,-34.7574804,-58.3776529
+S2,Supermercado 2,supermercado,,-34.4739904,-58.6627762
+S3,Supermercado 3,supermercado,,-34.4487028,-58.8859463
+S4,Supermercado 4,supermercado,,-34.5740415,-58.5305492
+S5,Supermercado 5,supermercado,,-34.6615874,-58.4839308
+S6,Supermercado 6,supermercado,,-34.7011871,-58.53339
+S7,Supermercado 7,supermercado,,-34.6784542,-58.3346854
+S8,Supermercado 8,supermercado,,-34.5743334,-58.5061831
+S9,Supermercado 9,supermercado,,-34.674415,-58.3680412
+S10,Supermercado 10,supermercado,,-34.5455302,-58.4496732
+A,Centro A,centro,,-34.6034556,-58.4597175
+B,Centro B,centro,,-34.6067734,-58.5554675
+C,Centro C,centro,,-34.5062268,-58.7313636
+D,Centro D,centro,,-34.6591066,-58.3758798
+P_Fideos_1,Planta Fideos,planta,Fideos,-34.4589456,-58.7259
+P_Galletitas_1,Planta Galletitas,planta,Galletitas,-34.4745033,-58.6696044
+P_Gaseosas_1,Planta Gaseosa,planta,Gaseosas,-34.6540513,-58.4097616
+P_Leche_1,Planta Leche,planta,Leche,-34.8475653,-58.3783986
+P_Leche_2,Planta Leche,planta,Leche,-34.4847317,-58.6054593
+P_Fideos_2,Planta Fideos,planta,Fideos,-34.5084366,-58.5355034
+P_Arroz_1,Planta Arroz,planta,Arroz,-34.4291773,-58.9642421
