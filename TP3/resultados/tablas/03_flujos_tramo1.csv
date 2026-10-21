@@ -1,0 +1,16 @@
+planta,producto,centro,pallets
+P_Arroz_1,Arroz,A,5250.8102
+P_Arroz_1,Arroz,C,2319.1898
+P_Arroz_1,Arroz,D,980.0
+P_Fideos_1,Fideos,C,3700.0
+P_Fideos_2,Fideos,A,13300.0
+P_Fideos_2,Fideos,D,3300.0
+P_Galletitas_1,Galletitas,A,5000.0
+P_Galletitas_1,Galletitas,C,1750.0
+P_Galletitas_1,Galletitas,D,1750.0
+P_Gaseosas_1,Gaseosas,A,2380.0
+P_Gaseosas_1,Gaseosas,C,900.0
+P_Gaseosas_1,Gaseosas,D,1270.0
+P_Leche_1,Leche,D,2700.0
+P_Leche_2,Leche,A,5550.0
+P_Leche_2,Leche,C,1700.0

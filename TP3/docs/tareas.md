@@ -13,23 +13,23 @@
 
 | # | Tarea | Fase | Depende de | Hecho |
 |---|---|---|---|:---:|
-| T01 | Capacidad del camión (Q) | F0 Datos externos | — | ☐ |
-| T02 | Sueldo de un conductor (W) | F0 | — | ☐ |
-| T03 | km máximos por conductor y mes (K_max) | F0 | — | ☐ |
-| T04 | Factor de emisión del gasoil (φ) | F0 | — | ☐ |
-| T05 | Revisar el portafolio de redes (mim.com.ar) | F0 | — | ☐ |
-| T06 | Precio del carbono *(opcional)* | F0 | — | ☐ |
-| T07 | `config.py`: datos y supuestos | F1 Base de código | T01–T04 | ☐ |
-| T08 | `01_distancias.py`: matriz OSRM + haversine | F1 | — | ☐ |
-| T09 | `datos.py`: lectura y coeficientes por arco | F1 | T07, T08 | ☐ |
-| T10 | `00_verificar_datos.py` | F1 | T09 | ☐ |
-| T11 | `modelo.resolver` | F2 Modelo y a) | T10 | ☐ |
-| T12 | Enumeración de configuraciones | F2 | T11 | ☐ |
-| T13 | `02_punto_a.py`: óptimo e indicadores | F2 | T12 | ☐ |
-| T14 | Frontera costo–CO₂ | F2 | T13 | ☐ |
-| T15 | `graficos.py`: mapa de flujos | F2 | T13 | ☐ |
-| T16 | Rangos de sensibilidad con highspy | F3 Sensibilidad | T13 | ☐ |
-| T17 | Barridos que cambian la configuración | F3 | T13 | ☐ |
+| T01 | Capacidad del camión (Q) | F0 Datos externos | — | ☑ |
+| T02 | Sueldo de un conductor (W) | F0 | — | ☑ |
+| T03 | km máximos por conductor y mes (K_max) | F0 | — | ☑ |
+| T04 | Factor de emisión del gasoil (φ) | F0 | — | ☑ |
+| T05 | Revisar el portafolio de redes (mim.com.ar) | F0 | — | ☑ |
+| T06 | Precio del carbono *(opcional)* | F0 | — | ☑ |
+| T07 | `config.py`: datos y supuestos | F1 Base de código | T01–T04 | ☑ |
+| T08 | `01_distancias.py`: matriz OSRM + haversine | F1 | — | ☑ |
+| T09 | `datos.py`: lectura y coeficientes por arco | F1 | T07, T08 | ☑ |
+| T10 | `00_verificar_datos.py` | F1 | T09 | ☑ |
+| T11 | `modelo.resolver` | F2 Modelo y a) | T10 | ☑ |
+| T12 | Enumeración de configuraciones | F2 | T11 | ☑ |
+| T13 | `02_punto_a.py`: óptimo e indicadores | F2 | T12 | ☑ |
+| T14 | Frontera costo–CO₂ | F2 | T13 | ☑ |
+| T15 | `graficos.py`: mapa de flujos | F2 | T13 | ☑ |
+| T16 | Rangos de sensibilidad con highspy | F3 Sensibilidad | T13 | ☑ |
+| T17 | Barridos que cambian la configuración | F3 | T13 | ☑ |
 | T18 | Pregunta b): punto de Weber | F4 Preguntas | T09 | ☐ |
 | T19 | Pregunta c): umbral de Goyito por producto | F4 | T13 | ☐ |
 | T20 | Pregunta d): flota propia en el tramo 1 | F4 | T13 | ☐ |

@@ -1,0 +1,10 @@
+caso,esperado_highs,obtenido_pulp,criterio,ok
+Capacidad de D +603 (dentro del rango): Δcosto/pallet,-265.7991,-265.7991,igual,True
+Capacidad de D +1.005 (fuera del rango): el precio cambia,-265.7991,-253.0506,distinto,True
+km de conductores +965 (dentro del rango): Δcosto/km,-222.2624,-222.2624,igual,True
+Demanda de Leche en S9 +5: costo por pallet extra,821.1001,821.1048,igual,True
+Demanda de Leche en S9 −5: ahorro por pallet (precio sombra de HiGHS),821.1001,821.0929,igual,True
+Demanda de Fideos en S8 +5: costo por pallet extra,566.3087,566.3075,igual,True
+Demanda de Fideos en S8 −5: ahorro por pallet (precio sombra de HiGHS),566.3087,566.3075,igual,True
+"Costo Galletitas 1 → C = 1.251,0 (dentro del rango): ¿cambian los flujos?",0.0,0.0,igual,True
+"Costo Galletitas 1 → C = 1.368,1 (fuera del rango): ¿cambian los flujos?",1.0,1.0,igual,True
