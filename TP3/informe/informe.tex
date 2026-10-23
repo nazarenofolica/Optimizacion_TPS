@@ -295,10 +295,6 @@ $\mathit{exc} \geq 0$, los kilómetros que exceden el tope pactado con el
 sindicato, y para la pregunta~c) una binaria $u_k$ por producto, que vale 1 si
 el producto lo transporta Goyito.
 
-Mantener los flujos por producto, y no agregados en pallets, responde a dos
-motivos: los productos salen de plantas distintas —y fideos y leche, de dos
-plantas cada uno—, y la pregunta~c) se formula precisamente por producto.
-
 \subsection{Función objetivo}
 \label{sec:objetivo}
 
@@ -708,14 +704,11 @@ próximos a entrar en la solución son D $\to$ S1 (costo reducido de \$\,38 por
 pallet) y A $\to$ S9 (\$\,41): son los supermercados de la frontera entre las
 zonas de A y de D.
 
-\paragraph{Control cruzado.} Los precios y rangos de HiGHS se verificaron
-cambiando el dato en el modelo original y resolviendo de nuevo, en nueve casos.
-Todos coinciden: ampliar D en 603 pallets (dentro del rango) baja el costo
-\$\,265,80 por pallet, exactamente el precio sombra; ampliarlo en 1.005 (fuera
-del rango) da \$\,253,05, porque el precio cambió. Lo mismo se comprobó para
-los kilómetros de los conductores, para la demanda de dos pares
-supermercado–producto en ambos sentidos y para el costo de un arco dentro y
-fuera de su rango.
+\paragraph{Control cruzado.} Los precios y rangos de HiGHS se verificaron en
+nueve casos, cambiando el dato en el modelo original y resolviendo de nuevo:
+por ejemplo, ampliar D en 603 pallets (dentro del rango) baja el costo
+\$\,265,80 por pallet, exactamente el precio sombra, y ampliarlo en 1.005
+(fuera del rango) da \$\,253,05. Todos los casos coinciden.
 
 \subsection{Barridos sobre la decisión de localización}
 \label{sec:barridos}
@@ -751,15 +744,8 @@ cuatro parámetros (Figura~\ref{fig:barridos}).
 \label{sec:tests}
 
 Cada supuesto con lectura alternativa se evaluó cambiándolo de a uno y
-resolviendo el modelo entero completo.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.86\linewidth]{../resultados/graficos/12_tests_supuestos.png}
-\caption{Variación del costo bajo cada supuesto alternativo. En naranja, el
-único caso que cambia la configuración óptima.}
-\label{fig:tests}
-\end{figure}
+resolviendo el modelo entero completo (Tabla~\ref{tab:tests} y
+Figura~\ref{fig:tests}).
 
 \begin{table}[H]
 \centering\small
@@ -797,6 +783,14 @@ cambia. La razón está en la frontera de la Sección~\ref{sec:frontera}: evitar
 un kilogramo de CO$_2$ cuesta al menos \$\,420, y USD\,100 por tonelada son
 \$\,155 por kilogramo al tipo de cambio oficial \cite{bna}.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.62\linewidth]{../resultados/graficos/12_tests_supuestos.png}
+\caption{Variación del costo bajo cada supuesto alternativo. En naranja, el
+único caso que cambia la configuración óptima.}
+\label{fig:tests}
+\end{figure}
+
 % ============================================================================
 \section{Representación gráfica del flujo de los transportes}
 \label{sec:grafica}
@@ -831,7 +825,7 @@ tramo, sus costos y sus emisiones en la solución óptima.}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.78\linewidth]{../resultados/graficos/02_mapa_flujos_a.png}
+\includegraphics[width=0.64\linewidth]{../resultados/graficos/02_mapa_flujos_a.png}
 \caption{Tramo centro $\to$ supermercado de la solución óptima. Cada
 supermercado toma el color del centro que lo abastece; el grosor de cada línea
 es proporcional a los pallets por mes. Las plantas no se muestran para no
@@ -841,17 +835,14 @@ cruzar flujos; su abastecimiento está en la Figura~\ref{fig:tramo1_a}.}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.62\linewidth]{../resultados/graficos/03_tabla_tramo1_a.png}
+\includegraphics[width=0.46\linewidth]{../resultados/graficos/03_tabla_tramo1_a.png}
 \caption{Tramo planta $\to$ centro de la solución óptima, en pallets por mes.
 Quince flujos de siete plantas a tres centros se leen mejor como tabla que
 como flechas sobre un mapa.}
 \label{fig:tramo1_a}
 \end{figure}
 
-Las dos figuras se complementan: el mapa responde a \emph{qué centro atiende a
-cada supermercado}, que es una pregunta geográfica, y la tabla a \emph{de qué
-planta se abastece cada centro}. Los mismos gráficos para las preguntas~d)
-y~e) se presentan en las secciones correspondientes.
+Los mismos gráficos para la pregunta~d) se presentan en su sección.
 
 % ============================================================================
 \section{Librerías utilizadas}
@@ -1236,13 +1227,6 @@ un día de trabajo de un conductor, y es incompatible con la operación: su
 costo supera al de toda la red. Si el problema es la fatiga, la vía de
 negociación que el modelo sugiere es un tope expresado por día o por jornada,
 compatible con los 350\,km diarios que el propio convenio toma como referencia.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.66\linewidth]{../resultados/graficos/11_mapa_flujos_e.png}
-\caption{Tramo centro $\to$ supermercado con el tope de 500\,km.}
-\label{fig:mapa_e}
-\end{figure}
 
 % ============================================================================
 \section{Conclusiones y recomendaciones}
