@@ -11,6 +11,14 @@
 > sobre los datos de la consigna. Los valores marcados **(Explorar)** son datos que la consigna no
 > da: el plan propone un valor por defecto que hay que confirmar con una fuente (tareas F0).
 >
+> **Actualización — trabajo terminado (23/10/2026).** Las cinco preguntas, la sensibilidad, los
+> tests y el informe están resueltos (ver [`procedimiento.md`](procedimiento.md) §3 a §6 e
+> `informe/informe.pdf`). El plan se deja como estaba. Los desvíos (D1 a D16) y las predicciones que no
+> se cumplieron están en `procedimiento.md` §2 y §5.2. Las más importantes son: la configuración
+> óptima no es A+C (§4.2) sino **A+C+D**; los números de §4.2 tenían un error de cuenta en los fijos
+> de tres centros (D5); en b) el punto de Weber en línea recta no resiste la verificación por calle
+> y hizo falta una segunda etapa (D11); y en e) el tope **sube** el CO₂ en vez de bajarlo (§12 e.3).
+>
 > **Regla (la misma del TP1 y el TP2):** desde acá, este documento **no se reescribe** para que
 > coincida con lo que termine pasando. Los desvíos se anotan en `procedimiento.md` §2: el contraste
 > entre lo planeado y lo que pasó es material para el informe (criterio "Analizar").

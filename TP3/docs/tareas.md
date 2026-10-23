@@ -6,6 +6,9 @@
 >
 > **Cómo se usa:** al terminar una tarea, tildarla en el índice y anotar en
 > [`procedimiento.md`](procedimiento.md) lo que pasó, sobre todo si algo se apartó del plan.
+>
+> **Estado (23/10/2026): las 31 tareas están hechas.** Los resultados de cada una están en
+> `procedimiento.md` §3 a §6 y el informe en `informe/informe.pdf`. Solo falta el commit.
 
 ---
 
@@ -30,20 +33,20 @@
 | T15 | `graficos.py`: mapa de flujos | F2 | T13 | ☑ |
 | T16 | Rangos de sensibilidad con highspy | F3 Sensibilidad | T13 | ☑ |
 | T17 | Barridos que cambian la configuración | F3 | T13 | ☑ |
-| T18 | Pregunta b): punto de Weber | F4 Preguntas | T09 | ☐ |
-| T19 | Pregunta c): umbral de Goyito por producto | F4 | T13 | ☐ |
-| T20 | Pregunta d): flota propia en el tramo 1 | F4 | T13 | ☐ |
-| T21 | Pregunta e): tope de 500 km | F4 | T13, T20 | ☐ |
-| T22 | Tests de supuestos | F5 Tests | T13 | ☐ |
-| T23 | Esqueleto de `informe.tex` | F6 Informe | — | ☐ |
-| T24 | Informe a): modelo (a.i a a.vi) | F6 | T13, T23 | ☐ |
-| T25 | Informe b): sensibilidad | F6 | T16, T17 | ☐ |
-| T26 | Informe c): gráficos de flujo | F6 | T15 | ☐ |
-| T27 | Informe d): librerías | F6 | T23 | ☐ |
-| T28 | Informe: preguntas a) a e) | F6 | T14, T18–T22 | ☐ |
-| T29 | Bibliografía | F6 | T01–T06 | ☐ |
-| T30 | Revisión final y compilación | F6 | T24–T29 | ☐ |
-| T31 | Cierre: procedimiento, README, commit | F7 | T30 | ☐ |
+| T18 | Pregunta b): punto de Weber | F4 Preguntas | T09 | ☑ |
+| T19 | Pregunta c): umbral de Goyito por producto | F4 | T13 | ☑ |
+| T20 | Pregunta d): flota propia en el tramo 1 | F4 | T13 | ☑ |
+| T21 | Pregunta e): tope de 500 km | F4 | T13, T20 | ☑ |
+| T22 | Tests de supuestos | F5 Tests | T13 | ☑ |
+| T23 | Esqueleto de `informe.tex` | F6 Informe | — | ☑ |
+| T24 | Informe a): modelo (a.i a a.vi) | F6 | T13, T23 | ☑ |
+| T25 | Informe b): sensibilidad | F6 | T16, T17 | ☑ |
+| T26 | Informe c): gráficos de flujo | F6 | T15 | ☑ |
+| T27 | Informe d): librerías | F6 | T23 | ☑ |
+| T28 | Informe: preguntas a) a e) | F6 | T14, T18–T22 | ☑ |
+| T29 | Bibliografía | F6 | T01–T06 | ☑ |
+| T30 | Revisión final y compilación | F6 | T24–T29 | ☑ |
+| T31 | Cierre: procedimiento, README, commit | F7 | T30 | ☑ (el commit lo hace el equipo al revisar) |
 
 **Camino crítico:** T01–T04 → T07 → T09 → T10 → T11 → T13 → (T16, T19, T20, T21, T22) → T28 → T30.
 T08, T18, T23 y T05 se pueden hacer en paralelo con cualquier cosa.

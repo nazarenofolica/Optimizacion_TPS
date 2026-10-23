@@ -1,5 +1,11 @@
 # TP3 CarroMenos — Lo que queda por hacer
 
+> **Actualización 23/10/2026 — TODO HECHO.** Las tareas T18 a T31 de este documento se completaron:
+> preguntas b) a e) (`scripts/04` a `07`), tests de supuestos (`08`) e informe
+> (`informe/informe.pdf`). Resultados en [`procedimiento.md`](procedimiento.md) §3.3 a §6. P1 quedó
+> cerrado con el test G; P2 no se pudo confirmar contra el acta oficial, pero el test E muestra que no
+> cambia la recomendación (procedimiento §4.3). Este archivo queda como registro del traspaso.
+
 > Para quien sigue el trabajo. Hechas F0 a F3 (17 de 31 tareas): datos externos, código base,
 > modelo, pregunta a) y sensibilidad. Faltan las preguntas b) a e), los tests de supuestos, el
 > informe y el cierre. El detalle de cada tarea está en [`tareas.md`](tareas.md); acá va lo que
@@ -90,7 +96,7 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
 
 ### F4 — Preguntas b) a e)
 
-#### ☐ T18 — Pregunta b): un único centro de capacidad infinita (punto de Weber)
+#### ☑ T18 — Pregunta b): un único centro de capacidad infinita (punto de Weber)
 - Script nuevo `scripts/04_punto_b.py` y módulo `src/weber.py`. Es el único que **no** usa
   `modelo.resolver`: el centro puede estar en cualquier punto del mapa (plan §12 b).
 - Función a minimizar en (lat, lon): tramo 1 `(T/Q) · dem_k · min_p d(p, X)` (la planta más cercana
@@ -103,7 +109,7 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
   gravedad.
 - Entregables: `13_punto_b.csv`, gráfico del punto óptimo sobre el mapa.
 
-#### ☐ T19 — Pregunta c): precio mínimo de Goyito por producto
+#### ☑ T19 — Pregunta c): precio mínimo de Goyito por producto
 - `scripts/05_punto_c.py`. El modelo ya acepta `goyito={producto: precio}` (binaria `u_k`; si
   Goyito lleva el producto, sale de la demanda y se paga `precio × demanda del producto`).
 - Umbral global: `Z* / 51.850` = 56.055.516 / 51.850 ≈ **$1.081 por pallet**.
@@ -116,7 +122,7 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
 - Ambiental: `km_goyito`, litros y CO₂ del viaje directo contra vía centro.
 - Entregables: `14_umbral_goyito.csv`, gráfico.
 
-#### ☐ T20 — Pregunta d): flota propia también planta → centro
+#### ☑ T20 — Pregunta d): flota propia también planta → centro
 - `scripts/06_punto_d.py`: `modelo.resolver(p, escenario="d")`.
 - Ya se corrió de prueba: **A+C+D, $80,9 M, 18 conductores, 92,0 t CO₂** (contra $56,1 M y 6
   conductores en a). Confirmar con el script y explicar: el tramo 1 pasa de $500 por km de ida a
@@ -124,7 +130,7 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
 - Comparar con a): costo y desglose, configuración, conductores, km, litros, CO₂.
 - Entregables: `15_comparacion_a_d.csv`, mapa con `graficos.mapa_asignacion`.
 
-#### ☐ T21 — Pregunta e): tope de 500 km por conductor
+#### ☑ T21 — Pregunta e): tope de 500 km por conductor
 - `scripts/07_punto_e.py`: `escenario="e"` y `escenario="de"`.
 - Pruebas ya corridas: e) **$98,8 M, 42.608 km de exceso** (≈ $42,6 M de penalidad); d+e) **$209,2 M**.
 - Explicar el trade-off: un conductor más cuesta W = $1,6 M y "cubre" 500 km = $500.000 de
@@ -135,7 +141,7 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
 
 ### F5 — Tests de supuestos
 
-#### ☐ T22 — `scripts/08_tests_supuestos.py`
+#### ☑ T22 — `scripts/08_tests_supuestos.py`
 - Tests A a G del plan §13: un supuesto por vez con `construir_params(...)`, re-resolver el entero y
   comparar con la base. Todos los supuestos ya están parametrizados en `config.py`
   (`distancias="haversine"`, `principal="al_menos_uno"`, `Q`, `tarifa_ida_vuelta=True`, `W`,
@@ -149,26 +155,26 @@ r = modelo.resolver(p, config_fija=["A", "C"]) # configuración fija -> PL de fl
 
 ### F6 — Informe (`informe/informe.tex`)
 
-- ☐ T23 Esqueleto: copiar preámbulo, carátula y bibliografía de `TP2/informe/informe.tex`. Compila
+- ☑ T23 Esqueleto: copiar preámbulo, carátula y bibliografía de `TP2/informe/informe.tex`. Compila
   con la receta de `.vscode/settings.json`.
-- ☐ T24 a) Modelo: supuestos (tabla del plan §5.5 + los desvíos que cambian el modelo: D1, D2, D4),
+- ☑ T24 a) Modelo: supuestos (tabla del plan §5.5 + los desvíos que cambian el modelo: D1, D2, D4),
   variables, función objetivo, parámetros, restricciones, resolución (tabla de las 3
   configuraciones, `02_configuraciones.csv`).
-- ☐ T25 b) Sensibilidad: todo está en `procedimiento.md` §3.2 y en las tablas 09 a 12b. Explicar por
+- ☑ T25 b) Sensibilidad: todo está en `procedimiento.md` §3.2 y en las tablas 09 a 12b. Explicar por
   qué se fija la configuración (binarias → no hay precios sombra) y la degeneración.
-- ☐ T26 c) Gráficos: `02_mapa_flujos_a.png` (qué centro atiende a cada súper) +
+- ☑ T26 c) Gráficos: `02_mapa_flujos_a.png` (qué centro atiende a cada súper) +
   `03_tabla_tramo1_a.png` (de qué planta se abastece cada centro), y los de d) y e).
-- ☐ T27 d) Librerías: PuLP 3.3.2 (CBC), highspy 1.15.1, pandas 2.3.3, numpy 1.26.4, matplotlib, scipy
+- ☑ T27 d) Librerías: PuLP 3.3.2 (CBC), highspy 1.15.1, pandas 2.3.3, numpy 1.26.4, matplotlib, scipy
   1.12.0, requests 2.34.2 + OSRM. Para qué se usó cada una.
-- ☐ T28 Preguntas a) a e): respuesta primero, justificación después, indicadores ambientales en
+- ☑ T28 Preguntas a) a e): respuesta primero, justificación después, indicadores ambientales en
   todas.
-- ☐ T29 Bibliografía: fuentes de `procedimiento.md` §1.1 (DSV, CCT 40/89, IPCC 2006, Ley 27.430),
+- ☑ T29 Bibliografía: fuentes de `procedimiento.md` §1.1 (DSV, CCT 40/89, IPCC 2006, Ley 27.430),
   OSRM / OpenStreetMap, clases de la cátedra (03, 05, 06, 09), links útiles de la consigna.
-- ☐ T30 Revisión final: releer contra las DOS listas de la consigna (plan §0), números del informe
+- ☑ T30 Revisión final: releer contra las DOS listas de la consigna (plan §0), números del informe
   = CSVs, compilar el PDF.
 
 ### F7 — Cierre
-- ☐ T31 Completar `procedimiento.md` (§4 tests, §5 verificaciones, §6 conclusiones), actualizar el
+- ☑ T31 Completar `procedimiento.md` (§4 tests, §5 verificaciones, §6 conclusiones), actualizar el
   README y hacer commit.
 
 ---
@@ -179,7 +185,7 @@ Dos dudas sobre los datos que quedaron abiertas. Ninguna frena las tareas de F4,
 cerrarlas antes del informe (T24 y T29). Lo que se decida se anota como desvío en
 `procedimiento.md` §2.
 
-### ☐ P1 — ¿La apertura es un costo mensual o una inversión única?
+### ☑ P1 — ¿La apertura es un costo mensual o una inversión única?
 
 - **Qué dice la consigna:** "costo estimado de apertura" del centro, sin unidad de tiempo. El
   gerente sí es "mensual".
@@ -200,7 +206,7 @@ cerrarlas antes del informe (T24 y T29). Lo que se decida se anota como desvío 
      anotar desde qué valor cambiaría, si cambia.
   3. En el informe: declararlo como supuesto (S16) con el barrido como respaldo.
 
-### ☐ P2 — Confirmar los datos del convenio de camioneros en el acta oficial
+### ☐ P2 (no confirmado; cubierto por el test E) — Confirmar los datos del convenio de camioneros en el acta oficial
 
 - **Qué se usó:** dos datos salen del CCT 40/89 (detalle y fuentes en `procedimiento.md` §1.1).
   - **W = $1.600.000**: básico del conductor de primera de octubre 2026 ($1.126.149,40), más

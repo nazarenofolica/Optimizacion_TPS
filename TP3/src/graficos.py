@@ -315,3 +315,223 @@ def barridos(tabla, definicion, base, cambios, archivo):
     fig.subplots_adjust(left=0.08, right=0.98, top=0.83, bottom=0.07, hspace=0.45, wspace=0.18)
     fig.savefig(archivo, facecolor=FONDO)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Pregunta b): dónde va un único centro
+# ---------------------------------------------------------------------------
+
+COLOR_SUPER = "#2a78d6"
+COLOR_PLANTA = "#1b8a4a"
+COLOR_OPTIMO = "#0b0b0b"
+
+
+def mapa_punto_b(ubic, grilla, puntos, titulo, archivo,
+                 cortes=(1, 3, 6, 10), radio_zona=None):
+    """Mapa completo (plantas, centros candidatos, supermercados) con los puntos candidatos de la
+    etapa 2 de la pregunta b), coloreados según cuánto más caro que el mejor sale ubicar ahí el
+    centro (distancias por calle).
+
+    `grilla`: DataFrame con lat, lon y sobrecosto_pct. `puntos`: [(etiqueta, lat, lon, marcador)];
+    se identifican en la leyenda para no encimar rótulos.
+    """
+    from matplotlib.lines import Line2D
+
+    fig, ax = plt.subplots(figsize=(9, 7.6), dpi=150)
+    fig.patch.set_facecolor(FONDO)
+    ax.set_facecolor(FONDO)
+    ax.axis("off")
+    ax.set_aspect(1 / math.cos(math.radians(ubic["lat"].mean())))
+    ax.set_xlim(ubic["lon"].min() - 0.03, ubic["lon"].max() + 0.03)
+    ax.set_ylim(ubic["lat"].min() - 0.025, ubic["lat"].max() + 0.03)
+
+    # Candidatos por calle, en escalones de sobrecosto (más oscuro = más barato).
+    limites = [-1e-9, *cortes, float("inf")]
+    tonos = [RAMPA(t) for t in np.linspace(0.95, 0.12, len(limites) - 1)]
+    rotulos = [f"hasta +{cortes[0]} %"] + [f"+{a} a +{b} %" for a, b in zip(cortes[:-1], cortes[1:])]         + [f"más de +{cortes[-1]} %"]
+    manijas = []
+    for (a, b), tono, rotulo in zip(zip(limites[:-1], limites[1:]), tonos, rotulos):
+        g = grilla[(grilla["sobrecosto_pct"] > a) & (grilla["sobrecosto_pct"] <= b)]
+        ax.scatter(g["lon"], g["lat"], s=34, marker="s", color=tono, lw=0, zorder=1)
+        manijas.append(Line2D([], [], marker="s", ls="", color=tono, markersize=7, label=rotulo))
+
+    for s, p in ubic[ubic["tipo"] == "supermercado"].iterrows():
+        ax.scatter(p.lon, p.lat, s=55, marker="s", color=FONDO, edgecolor=COLOR_SUPER, lw=1.8, zorder=4)
+        ax.annotate(s, (p.lon, p.lat), xytext=(7, 0), textcoords="offset points", va="center",
+                    fontsize=8.5, color=TINTA, path_effects=HALO, zorder=5)
+    for pl, p in ubic[ubic["tipo"] == "planta"].iterrows():
+        ax.scatter(p.lon, p.lat, s=70, marker="^", color=COLOR_PLANTA, edgecolor=FONDO, lw=1.2, zorder=4)
+        ax.annotate(pl.replace("P_", "").replace("_", " "), (p.lon, p.lat), xytext=(0, 8),
+                    textcoords="offset points", ha="center", va="bottom", fontsize=8, color=COLOR_PLANTA,
+                    path_effects=HALO, zorder=5)
+    for j in COLOR_CENTRO:
+        p = ubic.loc[j]
+        ax.scatter(p.lon, p.lat, s=260, color=FONDO, edgecolor=APAGADO, lw=1.5, zorder=4)
+        ax.text(p.lon, p.lat, j, color=TINTA_3, fontsize=9, ha="center", va="center", zorder=5)
+
+    marcas = []
+    for etiqueta, lat, lon, marcador in puntos:
+        relleno = FONDO if marcador == "o" else COLOR_OPTIMO
+        ax.scatter(lon, lat, s=260 if marcador == "*" else 85, marker=marcador, color=relleno,
+                   edgecolor=COLOR_OPTIMO, lw=1.4, zorder=6)
+        marcas.append(Line2D([], [], marker=marcador, ls="", markerfacecolor=relleno,
+                             markeredgecolor=COLOR_OPTIMO, color=COLOR_OPTIMO,
+                             markersize=13 if marcador == "*" else 8, label=etiqueta))
+
+    km5 = 5 / (111.32 * math.cos(math.radians(ubic["lat"].mean())))
+    x0, y0 = ax.get_xlim()[0] + 0.01, ax.get_ylim()[0] + 0.01
+    ax.plot([x0, x0 + km5], [y0, y0], color=TINTA_2, lw=2, solid_capstyle="butt")
+    ax.text(x0 + km5 / 2, y0 + 0.005, "5 km", ha="center", va="bottom", fontsize=8.5, color=TINTA_2)
+
+    ley1 = ax.legend(handles=marcas, loc="lower left", bbox_to_anchor=(0.0, 0.07), frameon=False,
+                     fontsize=8.5, title="Ubicaciones", title_fontsize=9, alignment="left")
+    ax.add_artist(ley1)
+    ax.legend(handles=manijas, loc="lower right", frameon=False, fontsize=8.5,
+              title="Candidatos por calle: costo sobre el mejor", title_fontsize=9, alignment="left")
+
+    _titulo(fig, titulo, "▲ plantas · □ supermercados · ○ centros candidatos A–D")
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.88, bottom=0.02)
+    fig.savefig(archivo, facecolor=FONDO)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Pregunta c): precio de Goyito a partir del cual no conviene el centro propio
+# ---------------------------------------------------------------------------
+
+
+def umbral_goyito(tabla, umbral_global, archivo):
+    """Una barra por producto con el precio umbral de Goyito ($ por pallet). El punto marca lo que
+    costaría el viaje directo planta -> súper con la tarifa de mercado; la línea, el umbral para
+    tercerizar todo a un precio único."""
+    from matplotlib.lines import Line2D
+
+    t = tabla.sort_values("umbral").reset_index(drop=True)
+    fig, ax = plt.subplots(figsize=(8.5, 5.0), dpi=150)
+    fig.patch.set_facecolor(FONDO)
+    ax.set_facecolor(FONDO)
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color(APAGADO)
+    ax.grid(axis="x", color=GRILLA, lw=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=TINTA_2, labelsize=9, length=0, pad=6)
+
+    y = np.arange(len(t))
+    ax.barh(y, t["umbral"], height=0.55, color=COLOR_SERIE, zorder=2)
+    ax.scatter(t["costo_directo_tarifa"], y, s=60, color=FONDO, edgecolor=TINTA, lw=1.6, zorder=3)
+    for yi, v in zip(y, t["umbral"]):
+        ax.text(v - 15, yi, f"$ {_miles(v)}", ha="right", va="center", fontsize=9, color=FONDO,
+                fontweight="bold", zorder=4)
+    ax.axvline(umbral_global, color=TINTA_2, lw=1, ls=(0, (4, 3)), zorder=1)
+    ax.text(umbral_global, len(t) - 0.35, f" todo junto: $ {_miles(umbral_global)}", fontsize=8.5,
+            color=TINTA_2, va="bottom")
+    ax.set_yticks(y, t["producto"])
+    ax.set_ylim(-0.6, len(t) - 0.1)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"$ {_miles(v)}"))
+    ax.set_xlabel("$ por pallet entregado", color=TINTA_2, fontsize=9.5, labelpad=8)
+    ax.legend(handles=[
+        Line2D([], [], marker="s", ls="", color=COLOR_SERIE, markersize=9,
+               label="Precio de Goyito por debajo del cual conviene tercerizar el producto"),
+        Line2D([], [], marker="o", ls="", markerfacecolor=FONDO, markeredgecolor=TINTA, color=TINTA,
+               markersize=7, label="Costo del viaje directo a $ 500/km (referencia)"),
+    ], loc="lower left", bbox_to_anchor=(-0.01, 1.04), frameon=False, fontsize=8.5)
+    _titulo(fig, "¿Desde qué precio conviene dejarle cada producto a Goyito?",
+            "Ahorro de la red propia por pallet del producto, con A+C+D abierta")
+    fig.subplots_adjust(left=0.13, right=0.97, top=0.7, bottom=0.13)
+    fig.savefig(archivo, facecolor=FONDO)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Preguntas d) y e): comparación de escenarios
+# ---------------------------------------------------------------------------
+
+#: Grupos de rubros del costo, con un color por grupo (categórica, sin rojo/verde juntos).
+GRUPOS_COSTO = [
+    ("Fijos y operación", ("apertura", "gerente", "operacion"), APAGADO),
+    ("Planta → centro", ("tramo1_tercerizado", "tramo1_combustible"), "#2a78d6"),
+    ("Centro → súper (combustible)", ("tramo2_combustible",), "#1baf7a"),
+    ("Conductores", ("conductores",), "#6250d6"),
+    ("Penalidad por km", ("penalidad_km",), "#eb6834"),
+]
+
+
+def comparacion_escenarios(tabla, titulo, subtitulo, archivo):
+    """Barras apiladas del costo por grupo de rubros, una por escenario (`tabla` con la columna
+    `escenario` y las columnas costo_<rubro> de reportes.fila_resumen), con el total y el CO2."""
+    t = tabla.reset_index(drop=True)
+    alto = 0.9 + 0.62 * len(t)
+    fig, ax = plt.subplots(figsize=(9, alto + 1.5), dpi=150)
+    fig.patch.set_facecolor(FONDO)
+    ax.set_facecolor(FONDO)
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color(APAGADO)
+    ax.grid(axis="x", color=GRILLA, lw=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=TINTA_2, labelsize=9, length=0, pad=6)
+
+    y = np.arange(len(t))[::-1]
+    izquierda = np.zeros(len(t))
+    for nombre, rubros, color in GRUPOS_COSTO:
+        v = sum(t.get(f"costo_{r}", 0) for r in rubros) / 1e6
+        if np.allclose(v, 0):
+            continue
+        ax.barh(y, v, left=izquierda, height=0.56, color=color, label=nombre, edgecolor=FONDO, lw=0.8)
+        izquierda = izquierda + np.asarray(v)
+    for yi, total, co2 in zip(y, t["costo_total"] / 1e6, t["co2_kg"] / 1000):
+        ax.text(total + izquierda.max() * 0.01, yi, f"$ {total:.1f} M · {co2:.1f} t CO₂".replace(".", ","),
+                va="center", fontsize=9, color=TINTA, fontweight="bold")
+    ax.set_yticks(y, t["escenario"])
+    ax.set_xlim(0, izquierda.max() * 1.3)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"$ {v:.0f} M"))
+    ax.set_xlabel("Costo por mes", color=TINTA_2, fontsize=9.5, labelpad=8)
+    ax.legend(loc="lower left", bbox_to_anchor=(-0.01, 1.02), ncol=3, frameon=False, fontsize=8.5)
+    _titulo(fig, titulo, subtitulo)
+    fig.subplots_adjust(left=0.2, right=0.97, top=1 - 1.25 / (alto + 1.5), bottom=0.45 / (alto + 1.5) + 0.08)
+    fig.savefig(archivo, facecolor=FONDO)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Tests de supuestos
+# ---------------------------------------------------------------------------
+
+
+def tests_supuestos(tabla, base, archivo):
+    """Variación del costo (sin el término del carbono) de cada test respecto del caso base.
+    Las barras de los tests que cambian la configuración óptima llevan su nueva configuración."""
+    t = tabla[tabla["test"] != "—"].reset_index(drop=True)
+    var = 100 * (t["costo_sin_carbono"] / base["costo"] - 1)
+    etiquetas = [f"{f.test} · {f.alternativa}" for f in t.itertuples()]
+    alto = 0.32 * len(t) + 1.6
+    fig, ax = plt.subplots(figsize=(9, alto), dpi=150)
+    fig.patch.set_facecolor(FONDO)
+    ax.set_facecolor(FONDO)
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color(APAGADO)
+    ax.grid(axis="x", color=GRILLA, lw=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=TINTA_2, labelsize=8.5, length=0, pad=5)
+
+    y = np.arange(len(t))[::-1]
+    colores = [COLOR_CENTRO["C"] if c else COLOR_SERIE for c in t["cambia_configuracion"]]
+    ax.barh(y, var, height=0.62, color=colores, zorder=2)
+    ax.axvline(0, color=TINTA_2, lw=0.8, zorder=3)
+    for yi, v, f in zip(y, var, t.itertuples()):
+        texto = f"{v:+.1f} %".replace(".", ",") + (f"  → {f.configuracion}" if f.cambia_configuracion else "")
+        ax.text(v + (0.6 if v >= 0 else -0.6), yi, texto, va="center", ha="left" if v >= 0 else "right",
+                fontsize=8, color=TINTA, path_effects=HALO, zorder=4)
+    ax.set_yticks(y, etiquetas)
+    lim = max(abs(var.min()), abs(var.max())) * 1.35
+    ax.set_xlim(-lim, lim)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f} %"))
+    ax.set_xlabel(f"Variación del costo respecto del caso base ({base['configuracion']}, "
+                  f"$ {base['costo'] / 1e6:.1f} M)".replace(".", ","), color=TINTA_2, fontsize=9, labelpad=8)
+    _titulo(fig, "¿Cuánto mueve cada supuesto el resultado?",
+            f"Azul: sigue óptima {base['configuracion']} · naranja: cambia la configuración")
+    fig.subplots_adjust(left=0.33, right=0.97, top=1 - 1.0 / alto, bottom=0.7 / alto)
+    fig.savefig(archivo, facecolor=FONDO)
+    plt.close(fig)

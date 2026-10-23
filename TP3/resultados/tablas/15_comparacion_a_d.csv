@@ -1,0 +1,4 @@
+escenario,configuracion,costo_total,costo_apertura,costo_gerente,costo_operacion,costo_tramo1_tercerizado,costo_tramo1_combustible,costo_tramo2_combustible,costo_conductores,costo_penalidad_km,costo_goyito,costo_carbono,conductores,exceso_km,km_tramo1,km_tramo2,km_total,litros,co2_kg,variacion_pct
+a) Tercerizado + propio,A+C+D,56055516.2984,5100000.0,2000000.0,446654.051,23893862.2466,0.0,15015000.0007,9600000.0,0.0,0.0,0.0,6,0.0,95710.1211,46200.0,141910.1211,35477.5303,95079.7811,
+d) Flota propia en los dos tramos,A+C+D,80948592.25,5100000.0,2000000.0,434560.0,0.0,24441491.375,20172540.875,28800000.0,0.0,0.0,0.0,18,0.0,75204.5888,62069.3565,137273.9454,34318.4863,91973.5434,
+Diferencia d − a,,24893075.9516,0.0,0.0,-12094.0511,-23893862.2466,24441491.375,5157540.8743,19200000.0,0.0,0.0,0.0,12,0.0,-20505.5322,15869.3565,-4636.1757,-1159.0439,-3106.2377,44.4079

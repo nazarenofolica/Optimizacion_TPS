@@ -4,7 +4,9 @@
 > resolver el modelo, incluyendo **en qué se apartó del plan y por qué**. El plan está en
 > [`plan_de_trabajo.md`](plan_de_trabajo.md) y **no se reescribe** para que coincida con esto.
 >
-> **Estado:** F0 a F3 hechas (datos, código base, modelo, pregunta a y sensibilidad). Próximo: F4 (preguntas b a e).
+> **Estado:** trabajo completo. Las 31 tareas están hechas: preguntas a) a e), sensibilidad, tests
+> de supuestos e informe (`informe/informe.pdf`, 21 páginas). Pendiente fuera del alcance del código:
+> confirmar el CCT 40/89 en el acta oficial (P2, ver §4.3).
 
 ---
 
@@ -30,6 +32,7 @@
 - **Portafolio de redes (T05).** Consultado el 20/10/2026: la página `https://mim.com.ar/redes/`
   es el "Hub de Recursos" de Web QSB y muestra *"Aún no hay herramientas en este Hub"*. No aporta
   nada al plan por ahora. Volver a mirar antes de entregar, por si la cátedra sube algo.
+  **Revisado otra vez el 23/10/2026:** sigue sin herramientas.
 
 ---
 
@@ -82,9 +85,16 @@ cubierto por el test C (Q de 20 a 30).
 ### 1.2. Base de código (F1)
 
 Entorno: Python 3.10.11, PuLP 3.3.2, pandas 2.3.3, numpy 1.26.4, scipy 1.12.0, requests 2.34.2.
+F4 a F6 se corrieron además en Python 3.12.4 (PuLP 3.3.2, scipy 1.15.3, numpy 2.2.4, highspy): los
+scripts 00, 02 y 03 reprodujeron los mismos resultados en los dos entornos.
 
 | Archivo | Qué hace |
 |---|---|
+| `src/modelo.py` | `resolver(...)`: el único modelo (a, d, e, d + e, configuración fija, frontera, Goyito) |
+| `src/sensibilidad.py` | PL de flujos en highspy: rangos de lado derecho, de costos y costos reducidos |
+| `src/weber.py` | Pregunta b): función de Weber, grilla + Nelder–Mead, Weiszfeld, centro de gravedad |
+| `src/reportes.py`, `src/graficos.py` | Tablas y gráficos |
+| `scripts/02_punto_a.py` … `08_tests_supuestos.py` | Un script por pregunta, más sensibilidad y tests (§3 y §4) |
 | `src/config.py` | Datos de la consigna + supuestos con defaults (§1.1). `construir_params(**overrides)` falla con `KeyError` (supuesto inexistente) o `ValueError` (opción inválida o fuera de rango) |
 | `src/datos.py` | Ubicaciones, plantas por producto, matrices de distancia (OSRM / haversine × factor), coeficientes por arco, enumeración de configuraciones |
 | `scripts/01_distancias.py` | Baja la matriz de OSRM una vez y la guarda; calcula haversine y el factor de ruta |
@@ -112,14 +122,20 @@ decidir la configuración.
 |---|---|---|---|
 | D1 | S11: `K_max` = 9.000 km (22 días × 400 km) | **7.700 km** (22 días × 350 km) | 350 km/día es el mínimo que toma el propio CCT 40/89; 400 no tenía fuente. Sigue dentro del test E (6.000–12.000) |
 | D2 | §8, e): R6 se **reemplaza** por R7 | R6 se **mantiene** y se **agrega** R7 (aplicado en `modelo.py`) | Con W ≈ $1,6 M > $500.000, sin R6 el óptimo de e) es `n = 0` y todos los km como exceso: no tiene sentido físico. Con R6, `n` lo fija la capacidad real y la penalidad cae sobre los km por encima de 500·n |
-| D3 | §10: PL de flujos con `y` fija | *(propuesto)* fijar también `n = n*` | `n` es entera; con `n` libre el problema de flujos no es un PL y highspy no da rangos |
+| D3 | §10: PL de flujos con `y` fija | Se fija también `n = n*` (aplicado con `fijar_n`) | `n` es entera; con `n` libre el problema de flujos no es un PL y highspy no da rangos |
 | D4 | §6.2: km físicos = `2·d` | km físicos = `d(ida) + d(vuelta)` de OSRM; la tarifa del tercerizado sigue sobre `d(ida)` | La matriz de OSRM no es simétrica (hasta 7,7 km). Con haversine las dos fórmulas coinciden |
 | D5 | §4.2 y §9: fijos de B+C+D = $8,6 M y de A+C+D = $9,1 M | **B+C+D = $6,6 M, A+C+D = $7,1 M** (y A+B+C = 8,7, A+B+D = 8,4, A+B+C+D = 9,6) | **Error de cuenta del plan**: la columna "Apertura" ya incluía el gerente y "Fijo total" lo volvió a sumar. Lo detectó `00_verificar_datos.py`. La diferencia con A+C ($4,2 M) baja de $4,4 M a $2,4 M: las configuraciones de 3 centros están más cerca de competir |
 | D6 | §9: con el test B "la tabla crece a 8 configuraciones" | Son **7** (A+C, A+B, B+C+D, A+C+D, A+B+C, A+B+D, A+B+C+D) | Error de conteo del plan |
 | D7 | §12 a.4: frontera con ~10 valores de ε y gráfico de línea | 30 valores de ε, se dejan las soluciones distintas (7) y se grafica **en escalones** | Con `n` entera, muchos ε dan la misma solución y entre dos puntos no hay soluciones intermedias: una línea recta sugeriría combinaciones que no existen |
+| D8 | §11: un mapa con flechas proveedor → CD y CD → súper, con etiquetas de pallets | El tramo 2 va en un **mapa** ampliado a la zona de los súper (color = centro, grosor = pallets, sin números). El tramo 1 va como **tabla de calor** planta × centro (`03_tabla_tramo1_a.png`), con lo que recibe cada centro, su capacidad y el uso | Con todo en un mapa, las ~30 flechas se cruzaban y los números se pisaban. Los 15 flujos planta → centro se leen mejor como tabla; el mapa queda para lo geográfico: qué centro atiende a cada súper |
 | D9 | §10.3: armar el PL de flujos en highspy "desde los coeficientes de `datos.py`" | Se exporta a MPS el mismo modelo de PuLP con `config_fija`, `fijar_n` y **sin la restricción fuerte** (`fuerte=False`) | Un solo modelo, sin duplicar código. La restricción fuerte es redundante con y fija y, si queda, al perturbar la demanda cada flujo sigue atado a la demanda vieja: daba precios distintos al subir (p. ej. $1.415) y al bajar ($566). Sin ella coinciden (lo confirma el control cruzado) |
 | D10 | §10.3: control cruzado "re-resolver perturbando un coeficiente, 2 o 3 casos"; T17: `03_barridos.png` | 9 casos (capacidad dentro/fuera del rango, km, demanda ±5, costo de arco dentro/fuera); umbrales afinados por bisección. El gráfico es `04_barridos.png` (el 03 pasó a ser la tabla del tramo 1) | Más casos cuestan segundos. Con ±1 pallet el ruido de CBC sobre $56 M pesa ~$0,05; con ±5 se diluye |
-| D8 | §11: un mapa con flechas proveedor → CD y CD → súper, con etiquetas de pallets | El tramo 2 va en un **mapa** ampliado a la zona de los súper (color = centro, grosor = pallets, sin números). El tramo 1 va como **tabla de calor** planta × centro (`03_tabla_tramo1_a.png`), con lo que recibe cada centro, su capacidad y el uso | Con todo en un mapa, las ~30 flechas se cruzaban y los números se pisaban. Los 15 flujos planta → centro se leen mejor como tabla; el mapa queda para lo geográfico: qué centro atiende a cada súper |
+| D11 | §12 b: Weber con línea recta × factor de ruta; "al final, verificar el punto elegido con OSRM" | La verificación **no confirmó** el punto: por calle, el Weber económico sale +10,7 % sobre el mejor. Se agregó una **etapa 2**: grilla de 336 candidatos cada 0,01° (≈ 1 km) en la zona central, evaluada con OSRM (`table`, en lotes de 80); 33 descartados por quedar a más de 300 m de una calle. La respuesta de b) es el mejor punto por calle | El factor de ruta (1,27) es una mediana: alrededor del Weber las calles dan 1,49 veces la línea recta y alrededor del óptimo por calle, 1,24. La red real no es uniforme y decide el punto concreto. Las consultas quedan en `datos/osrm_grilla_punto_b.csv` y `datos/osrm_zonas_punto_b.json` |
+| D12 | §12 b: pesos "económicos" = $ por km de cada tramo | El tramo propio pesa $325 + W/K_max = **$533 por km físico** (conductor como costo por km) | Sin los conductores, el criterio económico ignoraría el 17 % del costo. Como función de una ubicación continua, el entero `n` es escalonado y no se puede minimizar con Nelder–Mead; se informa el `n` entero del punto elegido |
+| D13 | §12 c.2: "barrer `g_k`" hasta que `u_k` cambie | El umbral se calcula **exacto**: `(Z* − Z*(sin k)) / dem_k`, con `Z*(sin k)` = `resolver(goyito={k: 0})`. La bisección queda como control (±$2 alrededor del umbral) | El costo con Goyito es `min(Z*, Z*(sin k) + g·dem_k)`: lineal en `g`, el quiebre se calcula directo. Barrer costaba ~30 corridas por producto para obtener lo mismo |
+| D14 | §12 c.3: el viaje directo "puede hacer menos km o más" | Hace **18,2 % menos km** que la red (116.152 vs. 141.910) | Resultado, no desvío de método. Va al informe como advertencia: el centro propio no se justifica por eficiencia de transporte |
+| D15 | §13 test F: precio del carbono en $/kg "con un tipo de cambio citado" | Dólar oficial BNA venta 23/10/2026 = **$1.550** → USD 10/t = **$15,5 por kg**. Se agregaron USD 50 y 100 por t | Mostrar que el óptimo no cambia ni con 10 veces el precio de la ley |
+| D16 | §13 test G: apertura ×0,5 a ×2 | **×0,05 a ×2** | Cierra el pendiente P1 (apertura como inversión amortizada en muchos meses): la configuración no cambia en ningún valor |
 
 ## 3. Resultados por pregunta
 
@@ -127,8 +143,9 @@ decidir la configuración.
 
 `src/modelo.py` → `resolver(params, escenario, config_fija, epsilon_co2, goyito, objetivo, fijar_n)`.
 Un solo modelo para todo: escenarios `"a"`, `"d"`, `"e"`, `"de"`; `config_fija` deja el PL de
-flujos; `epsilon_co2` arma la frontera; `goyito` queda listo para la pregunta c). 239 variables
-(6 enteras/binarias + `u_k` si hay Goyito), resuelve en menos de 1 s con CBC.
+flujos; `epsilon_co2` arma la frontera; `goyito` queda listo para la pregunta c). 234 variables
+(5 binarias, 1 entera y 228 continuas; + `u_k` si hay Goyito) y 277 restricciones; resuelve en
+menos de 1 s con CBC.
 
 - Se incluyó la **formulación fuerte** `z_jik <= dem_ik · y_j` (plan §8, nota). El óptimo coincide
   con la enumeración, que no la necesita (la configuración ya está fija).
@@ -241,14 +258,184 @@ fuera: cambian.
   (122 a 80 t), pero no la configuración.
 - Lo que falta barrer (W, K_max) es el test E de F5.
 
-## 4. Tests de supuestos
+### 3.3. Pregunta b) — un único centro (F4, T18)
 
-*(por hacer)*
+`python scripts/04_punto_b.py` → tablas 13, 13b, 13c, gráfico `05_mapa_punto_b.png`. Módulo
+`src/weber.py` (el único cálculo que no usa `modelo.resolver`).
+
+**Etapa 1 — Weber continuo** (línea recta × 1,268, grilla de 0,004° + Nelder–Mead desde los 8
+mejores puntos):
+
+| Criterio | Punto | Zona | Control Weiszfeld |
+|---|---|---|---|
+| Económico ($; conductor = $208/km) | −34,5729; −58,5270 | Villa Maipú (Gral. San Martín), a 0,4 km de S4 | a 10 m |
+| Ambiental (km físicos) | −34,5297; −58,5454 | Villa Adelina | a 15 m |
+| Centro de gravedad | −34,5740; −58,5509 | 2,2 km al oeste del Weber económico | — |
+
+Con la misma métrica, A sale +10,2 %, B +7,2 %, C +45,9 % y D +37,3 % sobre el Weber económico.
+
+**Etapa 2 — por calle (D11).** 336 candidatos, 303 válidos. Costo con conductores enteros:
+
+| Ubicación | Costo $/mes | Sobre el mejor | Conductores | km | kg CO₂ |
+|---|---:|---:|---:|---:|---:|
+| **Óptimo por calle (−34,57; −58,48), Villa Urquiza** | **61.019.265** | — | 10 | 157.684 | 105.649 |
+| Óptimo ambiental por calle (−34,51; −58,54), Villa Adelina | 65.501.331 | +7,3 % | 13 | 150.697 | 100.967 |
+| Weber económico de la etapa 1 | 67.573.202 | +10,7 % | 11 | 175.607 | 117.656 |
+| Centro A | 64.916.011 | +6,4 % | 10 | 172.771 | 115.757 |
+| Centro B | 75.268.449 | +23,4 % | 12 | 195.775 | 131.169 |
+| Centro C | 83.578.568 | +37,0 % | 17 | 188.332 | 126.183 |
+| Centro D | 85.584.233 | +40,3 % | 13 | 232.012 | 155.448 |
+
+- 4 candidatos quedan a menos de 1 % del mejor (lat −34,58 a −34,54; lon −58,50 a −58,47): la
+  respuesta es una **zona** (noroeste de la Ciudad, límite con el conurbano norte), no un punto exacto.
+- Desde el óptimo por calle los recorridos son 1,24 veces la línea recta; desde el Weber, 1,49.
+- **Comparación con a):** el centro único, sin costos fijos, gasta en transporte $61,0 M contra
+  $48,5 M de A+C+D (+25,8 %), 15.774 km más y 10,6 t más de CO₂ por mes. Aun sumándole a A+C+D sus
+  $7,6 M de fijos y operación, la red de tres centros es más barata.
+- Nota de nombres: Nominatim devolvió "Partido de Vicente López" para el Weber ambiental y "Partido
+  de San Isidro" para el ambiental por calle (Villa Adelina está repartida entre los dos partidos).
+  En el informe se nombra solo la localidad.
+
+### 3.4. Pregunta c) — precio mínimo de Goyito (F4, T19)
+
+`python scripts/05_punto_c.py` → tablas 14 y 14b, gráfico `06_umbral_goyito.png`.
+
+| Producto | Umbral $/pallet | Con carbono | Directo a $500/km | Red sin el producto |
+|---|---:|---:|---:|---|
+| Gaseosas | 630 | 637 | 437 | A+C+D, 6 conductores |
+| Fideos | 784 | 791 | 407 | A+C+D, 4 |
+| Leche | 881 | 890 | 408 | A+C+D, 5 |
+| Galletitas | 1.027 | 1.033 | 608 | A+C+D, 5 |
+| Arroz | 1.520 | 1.527 | 1.089 | A+C+D, 5 |
+| **Todo a Goyito, precio único** | **1.081** | 1.086 | 555 | sin centro |
+
+- Bisección (±$2) con la binaria `u_k`: OK en los 5 productos.
+- **La predicción del plan no se cumplió:** sacar Fideos deja 31.550 pallets y "alcanza A solo", pero
+  el modelo **sigue abriendo A+C+D** en los cinco casos: el transporte manda más que los fijos.
+- Suma de umbrales × demanda = $49,3 M < $56,1 M: los $6,8 M de diferencia ≈ apertura + gerente
+  ($7,1 M), que no se pueden asignar a un producto.
+- Ambiental: el viaje directo hace **116.152 km contra 141.910 (−18,2 %)** y 17,3 t CO₂ menos por mes
+  (de −3,3 % en Gaseosas a −31,8 % en Leche). Con $15,5/kg, los umbrales suben $6 a $10.
+- El costo del viaje directo a la tarifa de mercado queda por debajo del umbral en todos los
+  productos (total $28,8 M/mes): un operador podría cobrar menos que el umbral y cubrir su
+  transporte. El centro propio no se justifica por eficiencia de transporte.
+
+### 3.5. Pregunta d) — flota propia en el tramo 1 (F4, T20)
+
+`python scripts/06_punto_d.py` → tablas 15 y 15b, gráficos 07 a 09.
+
+| | a) | d) | Variación |
+|---|---:|---:|---:|
+| Configuración | A+C+D | A+C+D | — |
+| Costo | $56.055.516 | **$80.948.592** | **+44,4 %** |
+| Conductores | 6 | 18 | +12 |
+| km | 141.910 | 137.274 | −3,3 % |
+| kg CO₂ | 95.080 | 91.974 | **−3,3 %** |
+
+- Por km físico: tercerizado $250 (500 por km de ida) contra propio $325 + $208 de conductor = $533.
+- El CO₂ de d) coincide con el mínimo de la frontera de a) (91.973 kg), que con el tercerizado cuesta
+  $60,9 M: la misma reducción sale $20 M más barata sin flota propia. Con flota propia, cada t de CO₂
+  evitada cuesta ≈ $8 M.
+- Enumeración: A+C queda a $94.586 de A+C+D (0,1 %); B+C+D a $4,1 M.
+- Se confirma la predicción del plan §12 d (más caro por km; el CO₂ cambia solo por las rutas).
+
+### 3.6. Pregunta e) — tope de 500 km (F4, T21)
+
+`python scripts/07_punto_e.py` → tablas 16, 16b, 16c, gráficos 10 y 11.
+
+| Escenario | Costo $/mes | Variación | Conductores | Exceso km | kg CO₂ |
+|---|---:|---:|---:|---:|---:|
+| a) Sin tope | 56.055.516 | — | 6 | 0 | 95.080 |
+| **e) Con tope, se paga la penalidad** | **98.842.374** | **+76,3 %** | 6 | 42.608 | 95.665 |
+| e) Con tope, cumplido contratando | 193.699.969 | +245,6 % | 92 | 0 | 95.236 |
+| e) 500 km por día (11.000/mes) | 56.055.516 | 0 | 6 | 0 | 95.080 |
+| d) Flota propia | 80.948.592 | +44,4 % | 18 | 0 | 91.974 |
+| d + e) | 209.222.470 | +273,2 % | 18 | 128.273 | 91.973 |
+
+- Formulación: `TOPE_KM: km_prop − 500·n ≤ exc` y `+1.000·exc` en el funcional (meta con desvío,
+  Clase 05). R7 (capacidad real) se mantiene (D2).
+- **Barrido de W:** con W ≤ $490.000 se contratan 91 conductores (queda un exceso residual de 108 km,
+  menos que un conductor); con W ≥ $510.000 se queda en 6 y se paga la penalidad. El umbral es
+  exactamente 500 km × $1.000 = $500.000.
+- **La predicción del plan §12 e.3 no se cumplió:** el plan esperaba que el tope acortara km y bajara el
+  CO₂. En el caso base el modelo **pasa km al tramo tercerizado** (que no está alcanzado por el tope):
+  tramo 2 de 46.200 a 45.608 km, tramo 1 de 95.710 a 97.175 km → **CO₂ +0,6 %**. En d + e no hay
+  tramo al cual desviar y el CO₂ no cambia.
+- Enumeración en e): A+C+D, B+C+D (+$6,6 M), A+C (+$12,7 M).
+
+## 4. Tests de supuestos (F5, T22)
+
+`python scripts/08_tests_supuestos.py` → tabla 17, gráfico `12_tests_supuestos.png`.
+
+### 4.1. Tabla resumen (plan §13 completa)
+
+| Test | Supuesto | Alternativa | Configuración | Costo | CO₂ | ¿Cambia la conclusión? |
+|---|---|---|---|---:|---:|---|
+| A | S1 distancias | Línea recta × 1,268 | A+C+D | +1,8 % | +2,7 % | No |
+| B | S2 principal | Al menos uno de A y B | A+C+D | 0 | 0 | No: A y B juntos nunca conviene |
+| C | S8 camión | Q = 20 / 22 / 24 / 28 / 30 | A+C+D | +26,0 / +15,9 / +7,9 / −5,6 / −10,0 % | +28,8 a −15,7 % | No en la configuración; sí mucho en costo y CO₂ |
+| D | S10 tarifa | Ida y vuelta | **A+C** | +38,9 % | +0,3 % | **Sí**: equivale a T = $1.000 > umbral $891 |
+| E | S11 sueldo | W ±30 % | A+C+D | ±5,1 % | 0 | No |
+| E | S11 km por conductor | K_max 6.000 / 7.000 / 9.000 / 10.000 / 12.000 | A+C+D | +5,1 / +2,2 / −0,8 / −3,6 / −6,3 % | −1,2 a −2,8 % | No (8 a 4 conductores) |
+| F | S13 carbono | USD 10 / 50 / 100 por t | A+C+D | 0 (sin el término de carbono) | 0 | No: ni los flujos cambian |
+| G | §7.1 apertura | ×0,05 / 0,1 / 0,25 / 0,5 / 2 | A+C+D | −8,6 a +9,1 % | 0 | No |
+
+### 4.2. Propiedades verificadas (8 de 8 OK)
+
+Relajar S2 nunca sube el costo · más pallets por camión nunca lo suben · la tarifa ida y vuelta nunca
+lo baja · con precio del carbono el CO₂ nunca sube · más precio del carbono, CO₂ no creciente · más km
+por conductor nunca suben el costo · más sueldo nunca lo baja · más apertura nunca lo baja.
+
+### 4.3. Pendientes de `lo_que_queda_por_hacer.md` §5
+
+- **P1 (apertura mensual o inversión): cerrado.** El test G llega a ×0,05 (una inversión amortizada en
+  unos 20 meses) y A+C+D sigue óptima. Va al informe como supuesto S10 con el test G de respaldo.
+- **P2 (convenio en el acta oficial): no se pudo confirmar** contra el acta homologada; se mantienen
+  los valores de §1.1. El test E muestra que la conclusión no depende de ellos (W ±30 %, K_max 6.000 a
+  12.000: siempre A+C+D). Si se confirma otro valor, cambia el costo, no la recomendación.
 
 ## 5. Verificaciones
 
-*(por hacer)*
+### 5.1. Asserts por script
+
+| Script | Qué verifica |
+|---|---|
+| `00_verificar_datos.py` | 27 chequeos de datos (demanda, puntos, centros, distancias, coeficientes, validación de supuestos) |
+| `02_punto_a.py` | Demanda exacta en 50 pares, capacidad, centros cerrados sin flujo, balance de plantas; enumeración = entero |
+| `03_sensibilidad.py` | Costo HiGHS = PuLP; 9 controles cruzados |
+| `04_punto_b.py` | Weiszfeld a menos de 50 m del óptimo; refinamiento ≤ grilla; óptimo ≤ todos los candidatos; el ambiental minimiza km; óptimo por calle fuera del borde de la zona; centro único más caro que el transporte de a) |
+| `05_punto_c.py` | Goyito gratis siempre se lleva el producto; bisección en los 5 productos; km por producto suman los de a) |
+| `06_punto_d.py` | Demanda, capacidad, conductores suficientes, km propios = km totales; enumeración = entero |
+| `07_punto_e.py` | `exc` = exceso real; R7 respetada; con penalidad prohibitiva no hay exceso; 500 km/día no limita; umbral de W en $500.000; enumeración = entero |
+| `08_tests_supuestos.py` | Las 8 propiedades de §4.2 |
+
+### 5.2. Predicciones del plan contra resultados
+
+| Predicción del plan | Sección | Resultado |
+|---|---|---|
+| El transporte domina sobre los fijos | §6.2 | ✔ 86,5 % del costo |
+| "A + C es la cota" (la más barata en fijos) | §4.2 | ✘ gana A+C+D por $1,67 M |
+| Sacar Fideos podría permitir cerrar centros | §12 c | ✘ sigue A+C+D |
+| El viaje directo puede hacer más o menos km | §12 c.3 | Hace 18,2 % menos |
+| Flota propia: más cara por km; el CO₂ solo cambia por las rutas | §12 d | ✔ +44,4 %, CO₂ −3,3 % |
+| e): si W > $500.000 se paga la penalidad | §12 e.2 | ✔ umbral exacto en $500.000 |
+| e): el tope acorta km y baja el CO₂ | §12 e.3 | ✘ CO₂ +0,6 % (desvío al tercerizado) |
+| b): el Weber con factor de ruta es la respuesta, verificada con OSRM | §12 b | ✘ por calle sale +10,7 %; hizo falta la etapa 2 (D11) |
 
 ## 6. Conclusiones para el informe
 
-*(por hacer)*
+1. **Abrir A, C y D** (gerente, 6 conductores): $56,06 M/mes, 35.478 l y 95,1 t CO₂ por mes. Es a la vez
+   la configuración más barata y la de menos emisiones.
+2. **La decisión es robusta**: solo cambia (a A+C) si la tarifa del tercerizado supera $891/km. No
+   depende de los datos externos (camión, conductores, emisiones) ni del período de la apertura.
+3. **Los cuellos de botella son la capacidad de D ($266 por pallet) y los km de los conductores
+   ($222 por km).** La restricción de conductores está activa en todas las configuraciones.
+4. **Reducir emisiones es caro y acotado**: −3,3 % como máximo, desde $420/kg.
+5. **b)** Un centro único iría en el noroeste de la Ciudad (Villa Urquiza); aun gratis, cuesta más en
+   transporte que la red de tres centros.
+6. **c)** Goyito tendría que cobrar menos de $1.081 por pallet en promedio (umbrales por producto de
+   $630 a $1.520) para que el centro no convenga. El viaje directo es más corto y contamina menos.
+7. **d)** La flota propia cuesta +44 % y baja el CO₂ 3,3 %; la misma reducción sale $20 M más barata
+   con el tercerizado.
+8. **e)** El tope de 500 km por mes cuesta $42,6 M de penalidad (+76 %) y sube el CO₂: conviene
+   renegociarlo en términos diarios.
