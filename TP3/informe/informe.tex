@@ -26,6 +26,8 @@
 \usepackage{enumitem}
 \usepackage{caption}
 \captionsetup{font=small,skip=4pt}
+\usepackage{subcaption}
+\usepackage{needspace}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
 \usepackage{tikz}
@@ -390,11 +392,8 @@ $d$ distancias$^\ast$                & 21 × 21   & km                  & OSRM \
 Las distancias determinan los coeficientes por pallet de cada arco de la red.
 En la mediana, un pallet viaja 28\,km de la planta al centro, a un costo de
 \$\,531 con el tercerizado, y 22\,km del centro al supermercado, a \$\,597 de
-combustible. Frente a esos valores, el costo de operación de un centro —entre
-\$\,5 y \$\,12 por pallet— es prácticamente irrelevante: \textbf{la ubicación
-de los centros, y no su costo de operación, es la que decide la
-configuración}. Esa observación anticipa el resultado de la
-Sección~\ref{sec:resolucion}.
+combustible, frente a los \$\,5 a \$\,12 por pallet que cuesta operar un
+centro.
 
 \subsection{Restricciones}
 \label{sec:restricciones}
@@ -744,11 +743,10 @@ cuatro parámetros (Figura~\ref{fig:barridos}).
 \label{sec:tests}
 
 Cada supuesto con lectura alternativa se evaluó cambiándolo de a uno y
-resolviendo el modelo entero completo (Tabla~\ref{tab:tests} y
-Figura~\ref{fig:tests}).
+resolviendo el modelo entero completo (Tabla~\ref{tab:tests}).
 
 \begin{table}[H]
-\centering\small
+\centering\footnotesize
 \caption{Resultado de los tests de supuestos.}
 \label{tab:tests}
 \begin{tabularx}{\linewidth}{@{}llllX@{}}
@@ -769,7 +767,7 @@ G & S10 Apertura         & ×0,05 a ×2             & A+C+D & De $-$8,6\,\% a +9
 
 La configuración A+C+D resiste todos los supuestos salvo uno. El test~D
 duplica el costo del tramo tercerizado, lo que equivale a una tarifa de
-\$\,1.000 por kilómetro de ida, por encima del umbral de \$\,891 de la
+\$\,1.000 por kilómetro de ida, por encima del umbral hallado en la
 Sección~\ref{sec:barridos}: en ese caso conviene A+C, coherente con el
 barrido. \textbf{La recomendación de abrir A, C y D no depende, por lo tanto,
 de los datos externos incorporados} —el camión, el sueldo y el recorrido de
@@ -783,21 +781,13 @@ cambia. La razón está en la frontera de la Sección~\ref{sec:frontera}: evitar
 un kilogramo de CO$_2$ cuesta al menos \$\,420, y USD\,100 por tonelada son
 \$\,155 por kilogramo al tipo de cambio oficial \cite{bna}.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.62\linewidth]{../resultados/graficos/12_tests_supuestos.png}
-\caption{Variación del costo bajo cada supuesto alternativo. En naranja, el
-único caso que cambia la configuración óptima.}
-\label{fig:tests}
-\end{figure}
-
 % ============================================================================
 \section{Representación gráfica del flujo de los transportes}
 \label{sec:grafica}
 
 La Figura~\ref{fig:esquema} resume la estructura de la red y las tres
-decisiones del modelo; las Figuras~\ref{fig:mapa_a} y~\ref{fig:tramo1_a}
-muestran los flujos de la solución óptima.
+decisiones del modelo; la Figura~\ref{fig:flujos_a} muestra los flujos de la
+solución óptima.
 
 \begin{figure}[H]
 \centering
@@ -825,21 +815,22 @@ tramo, sus costos y sus emisiones en la solución óptima.}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.64\linewidth]{../resultados/graficos/02_mapa_flujos_a.png}
-\caption{Tramo centro $\to$ supermercado de la solución óptima. Cada
-supermercado toma el color del centro que lo abastece; el grosor de cada línea
-es proporcional a los pallets por mes. Las plantas no se muestran para no
-cruzar flujos; su abastecimiento está en la Figura~\ref{fig:tramo1_a}.}
-\label{fig:mapa_a}
-\end{figure}
-
-\begin{figure}[H]
+\begin{subfigure}[b]{0.55\linewidth}
 \centering
-\includegraphics[width=0.46\linewidth]{../resultados/graficos/03_tabla_tramo1_a.png}
-\caption{Tramo planta $\to$ centro de la solución óptima, en pallets por mes.
-Quince flujos de siete plantas a tres centros se leen mejor como tabla que
-como flechas sobre un mapa.}
+\includegraphics[width=\linewidth]{../resultados/graficos/02_mapa_flujos_a.png}
+\caption{Centro $\to$ supermercado: color del centro que abastece, grosor
+proporcional a los pallets.}
+\label{fig:mapa_a}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.42\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../resultados/graficos/03_tabla_tramo1_a.png}
+\caption{Planta $\to$ centro, en pallets por mes.}
 \label{fig:tramo1_a}
+\end{subfigure}
+\caption{Flujos de la solución óptima. Los quince flujos de planta a centro se
+leen mejor como tabla que como flechas sobre el mapa.}
+\label{fig:flujos_a}
 \end{figure}
 
 Los mismos gráficos para la pregunta~d) se presentan en su sección.
@@ -1251,8 +1242,8 @@ e) Tope de 500\,km                    & A+C+D        & 98,8  & 95,7  & 6 \\
 
 \textbf{La localización óptima es robusta.} A, C y D es la mejor configuración
 en el caso base, en todos los escenarios de las preguntas, en la frontera
-costo–emisiones y bajo todos los supuestos evaluados, con una sola excepción:
-que la tarifa del tercerizado supere los \$\,891 por kilómetro. La decisión
+costo–emisiones y bajo todos los supuestos evaluados; solo cambia si se
+encarece mucho la tarifa del tercerizado (recomendación~3). La decisión
 depende de la geografía —D acorta la entrega a los supermercados del sur— y no
 de los datos externos que fue necesario incorporar.
 
@@ -1272,6 +1263,7 @@ viaje directo recorre un 18\,\% menos. Se justifica si Goyito cobra más de
 \$\,1.081 por pallet en promedio —con umbrales por producto entre \$\,630 y
 \$\,1.520— o por el control de la cadena de suministro que motivó el análisis.
 
+\needspace{6\baselineskip}
 \paragraph{Recomendaciones.}
 \begin{enumerate}
   \item \textbf{Abrir los centros A, C y D}, con el gerente de coordinación, y
@@ -1280,7 +1272,7 @@ viaje directo recorre un 18\,\% menos. Se justifica si Goyito cobra más de
   Tabla~\ref{tab:goyito} como referencia}: si ofrece el conjunto por menos de
   \$\,1.081 por pallet, el centro propio no es conveniente desde el punto de
   vista económico.
-  \item \textbf{Pactar la tarifa del tercerizado por debajo de \$\,890 por
+  \item \textbf{Pactar la tarifa del tercerizado por debajo de \$\,891 por
   kilómetro}, el umbral a partir del cual cambia la configuración óptima.
   \item \textbf{Reformular el tope del sindicato} en términos diarios: 500\,km
   por mes cuesta \$\,42,6 millones mensuales y aumenta las emisiones.
@@ -1293,33 +1285,20 @@ viaje directo recorre un 18\,\% menos. Se justifica si Goyito cobra más de
 \section*{Anexo — Verificación}
 \addcontentsline{toc}{section}{Anexo — Verificación}
 
-Los resultados se validaron por vías independientes entre sí:
+Además de los controles descriptos en el cuerpo —la enumeración de
+configuraciones en a), d) y e), el control cruzado de la sensibilidad
+(Sección~\ref{sec:b2}), Weiszfeld en b) y la bisección en c)—, cada script
+verifica antes de aceptar un resultado:
 
 \begin{itemize}
-  \item \textbf{27 controles sobre los datos}: totales de demanda por producto
-  y por supermercado, clasificación de los 21 puntos del mapa, capacidades y
-  costos de los centros, simetría aproximada y coherencia de las distancias
-  (toda distancia por calle mayor o igual a la línea recta), coeficientes por
-  arco recalculados a mano y rechazo de supuestos inexistentes.
-  \item \textbf{Enumeración de configuraciones}: en los escenarios a), d) y
-  e), el mínimo sobre las configuraciones factibles, resuelto como problema de
-  flujos sin variables enteras, coincide con el óptimo del modelo entero.
-  \item \textbf{Controles sobre cada óptimo}: demanda cumplida exactamente en los
-  50 pares de supermercado y producto, ningún centro sobre su capacidad, centros
-  cerrados sin flujo, balance entre plantas y demanda, conductores suficientes.
-  \item \textbf{Control cruzado de la sensibilidad}: los nueve casos de la
-  Sección~\ref{sec:b2}, en los que el precio de HiGHS se reproduce cambiando
-  el dato en el modelo de PuLP.
-  \item \textbf{Pregunta b)}: el algoritmo de Weiszfeld reproduce el óptimo de
-  la grilla y Nelder–Mead a menos de 15\,m; el óptimo por calle no está en el
-  borde de la zona evaluada.
-  \item \textbf{Pregunta c)}: la fórmula del umbral se verificó con la variable
-  binaria del modelo, por bisección, en los cinco productos.
+  \item \textbf{27 controles sobre los datos}: totales de demanda, clasificación
+  de los 21 puntos del mapa, datos de los centros, coherencia de las distancias
+  y coeficientes por arco recalculados a mano.
+  \item \textbf{Controles sobre cada óptimo}: demanda cumplida exactamente,
+  capacidades respetadas, centros cerrados sin flujo y conductores suficientes.
   \item \textbf{Propiedades de los tests}, que todo resultado correcto debe
-  cumplir: relajar S2 nunca sube el costo; más pallets por camión o más
-  kilómetros por conductor nunca lo suben; cobrar la tarifa ida y vuelta nunca
-  lo baja; un precio del carbono nunca aumenta las emisiones; con un sueldo de
-  conductor menor a \$\,500.000 el modelo contrata para cumplir el tope de e).
+  cumplir: por ejemplo, relajar S2 nunca sube el costo y un precio del carbono
+  nunca aumenta las emisiones.
 \end{itemize}
 
 El código, las tablas de resultados y una bitácora del desarrollo con los

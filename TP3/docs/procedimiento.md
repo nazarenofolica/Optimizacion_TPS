@@ -5,7 +5,7 @@
 > [`plan_de_trabajo.md`](plan_de_trabajo.md) y **no se reescribe** para que coincida con esto.
 >
 > **Estado:** trabajo completo. Las 31 tareas están hechas: preguntas a) a e), sensibilidad, tests
-> de supuestos e informe (`informe/informe.pdf`, 20 páginas). Pendiente fuera del alcance del código:
+> de supuestos e informe (`informe/informe.pdf`, 19 páginas). Pendiente fuera del alcance del código:
 > confirmar el CCT 40/89 en el acta oficial (P2, ver §4.3).
 
 ---

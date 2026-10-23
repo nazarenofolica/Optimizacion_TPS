@@ -10,7 +10,7 @@ Investigación de Operaciones I · UCA · 2026 2C
 
 ## Estado: terminado, listo para entregar
 
-El informe está en [`informe/informe.pdf`](informe/informe.pdf) (20 páginas con carátula e índice; fuente:
+El informe está en [`informe/informe.pdf`](informe/informe.pdf) (19 páginas con carátula e índice; fuente:
 [`informe/informe.tex`](informe/informe.tex)).
 
 | Pregunta | Respuesta |
