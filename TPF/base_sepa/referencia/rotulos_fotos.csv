@@ -1,0 +1,607 @@
+﻿clave_producto;legible;coincide;base;porcion;energia_kcal;carbohidratos_g;azucares_g;proteinas_g;grasas_totales_g;grasas_saturadas_g;grasas_trans_g;fibra_g;sodio_mg;otros;nota
+0000040084107;si;si;100;;552;52.3;52.1;8.1;34.2;22.6;;;129;;rotulo aleman, sal 0.323 g
+0000077911018;no;;;;;;;;;;;;;;la foto muestra solo los ingredientes
+0000077946812;si;si;100;;226;95;0;0;0;0;0;0;1;;caramelos sin azúcar: los carbohidratos son polialcoholes (2,4 kcal/g)
+0000077948496;no;;;;;;;;;;;;;;foto demasiado chica
+0000077949707;si;si;porcion;25 g;139;13;13;2.4;8.5;5.5;0;0;35;;
+0000077954411;si;si;porcion;15 g;76;9.4;;0.7;4;1.7;0;0;20;;
+0000077955159;si;si;porcion;28 g;155;8.5;2.9;5;11;2.1;0;1.4;0;;monoinsaturadas 6.8 g, poliinsaturadas 2.2 g, colesterol 0
+0000077969088;si;si;porcion;3.3 g;7;1.9;0;0;0;0;0;0;0;;carbohidratos = polialcoholes, no aporta azúcares
+0000077969101;parcial;si;porcion;3.3 g;5;2.0;0;0;0;0;0;0;0;;carbohidratos = polialcoholes, tabla cortada a la derecha
+0000077969361;si;si;porcion;25 g;136;15;;1.4;7.8;4.2;0;0;61;;chocolate blanco mal clasificado como postre_lacteo
+0000077980267;parcial;no;;;;;;;;;;;;;la tabla no cierra con la porción declarada (59 g de macronutrientes en 35 g)
+0000077980274;si;no;;;;;;;;;;;;;la tabla no cierra con la porción declarada (59 g de macronutrientes en 35 g)
+0000077987686;si;si;porcion;3.3 g;5;1.3;0;0;0;0;0;0;0;;chicle: los carbohidratos son polialcoholes
+0000077989499;no;;;;;;;;;;;;;;foto demasiado chica
+0000078600010;parcial;si;porcion;16 g;63;16;;0;0;0;0;0;0;;rotulo en portugues, texto chico
+0000080052487;parcial;si;100;;628;38.3;33.3;7.2;48.6;29.7;;;122;;rótulo europeo chico, sal 0,305 g
+0008295661012;si;si;porcion;15 ml;13;2;2;0;0;0;0;0;0;;etiqueta EE.UU., porción 15 ml
+0011210000155;si;si;100;;16;1.6;0;1;0.7;0.2;;1.3;720;;sal 1,8 g
+0011210009219;si;si;100;;11;1.8;0;0.6;0;0;;1.2;2960;;sal 7,4 g
+0011210697003;si;si;100;;121;27;19;2.1;0.5;0.1;;;2680;;grasas <0,5 g, sal 6,7 g
+0034000008483;si;si;porcion;2.3 g;5;2;0;0;0;0;0;0;0;;tabla en inglés, chicle sin azúcar: los 2 g de carbohidratos son polialcoholes
+0041331013758;no;si;;;;;;;;;;;;;foto borrosa
+0041570030851;no;si;;;;;;;;;;;;;foto borrosa
+0041570052341;si;si;porcion;28 g;170;3;2;6;15;1;0;3;115;calcio_mg=80|hierro_mg=1|potasio_mg=180|vitamina_e_mg=7.1;tabla en inglés: carbohidratos 6 g totales menos 3 g de fibra, monoinsaturadas 10 g, poliinsaturadas 3,5 g
+0041570057254;si;si;porcion;28 g;170;2;1;6;16;1;0;3;40;calcio_mg=80|hierro_mg=1|potasio_mg=190|vitamina_e_mg=7.4|magnesio_mg=75;tabla en inglés, carbohidratos sin fibra, monoinsaturadas 10 g, poliinsaturadas 4 g, colesterol 0
+0072736034017;si;si;porcion;5 g;0;0;0;0;0;0;0;0;55;;tabla en inglés por cucharadita de 5 g (lo menor a 0,5 g se declara 0)
+0072736034420;si;si;porcion;33 g;70;17;15;1;0;0;0;0;210;;rotulo EE.UU.
+0076397030234;si;si;100;;24;7.2;4.2;1;0.3;0;;;240;;rótulo alemán por 100 ml, sal 0,6 g
+0076625280103;si;si;porcion;30 g;51;6;;2;2;0.3;0;1.8;58;;hummus de garbanzos
+0648260490188;si;si;porcion;20 g;60;16;;0;0;0;0;;6;;miel: no aporta proteínas ni grasas
+0681131411332;si;no;;;;;;;;;;;;;la foto es de muffins de frutilla, no de polenta
+0681131411738;si;no;;;;;;;;;;;;;la foto es de galletitas de chocolate blanco, no de porotos
+0688264913054;si;si;porcion;57 g;120;0;0;13;7;1.5;0;0;600;vitamina_d_ug=2|calcio_mg=8;rotulo EE.UU., salmon ahumado
+0714604171874;si;si;porcion;67 g;147;24;7.1;4;3.9;0.5;0;2.6;;;sodio declarado 0 mg (inverosimil en pan), queda el generico
+0714604229568;parcial;si;porcion;22 g;84;14;12;0.8;2.8;2.3;0;1.3;0;;bocadito de datiles y coco clasificado como milanesa_soja, energia desde 353 kJ
+0714604451662;parcial;si;porcion;60 g;326;26;8.4;8.3;21;5.6;0;6.3;24;;alfajor vegano de pistacho, texto borroso leído ampliando
+0732064773711;parcial;si;100;;590;28;15;21;47;6;0;7;380;;maní tostado con miel: energía borrosa (unos 590 kcal, 4 %VD por porción de 15 g), monoinsaturadas 21 g, poliinsaturadas 14 g
+0745853848781;parcial;si;porcion;20 g;67;;;1.3;2.5;2;0;0.8;6;;carbohidratos tapados por el lote, snack de coco y almendra clasificado como snacks_maiz
+0754697490513;si;si;porcion;60 g;281;30;23;11;13;3;0;1.3;22;;alfajor proteico
+0754697505125;si;si;porcion;50 g;159;28;0.9;3.9;3.5;1.1;0;0.2;265;;tortilla de trigo
+0754697505255;si;si;porcion;50 g;157;27;1.4;4.3;3.6;0.3;0;3.2;343;;
+0754697505262;si;si;porcion;50 g;159;28;0.9;3.9;3.5;1.1;0;0.2;313;;tortilla de trigo
+0791466298468;si;si;porcion;30 g;118;18;2.8;2.6;3.9;0.6;0;1.4;400;;filas corridas, alineadas por el %VD
+3800205875307;si;si;100;;453;71;5.5;9.1;14;1.2;;3.3;800;;rotulo europeo, sal 2.0 g
+5304000222284;si;si;100;;355;71;3.8;12;1.5;0.3;;2.9;1.6;;rotulo europeo, sal 0.004 g
+5760466911986;si;si;100;;259;0.2;0.2;15;22;14;0.7;0;1200;calcio_mg=230;columna por 100 g, el rotulo dice sodio en g por error (son mg)
+7500810034354;si;si;porcion;25 g;130;15;0;1.6;7.1;1.1;0;1.2;185;;
+7501003105431;si;si;porcion;15 g;23.8;0.9;0.4;0.1;2.2;0.3;;0.2;98;;rótulo de México
+7501003115843;parcial;si;100;;22;4.7;;0.7;0;0;;;753;;energía declarada 91,8 kJ, foto borrosa leída ampliando
+7501003115881;no;si;;;;;;;;;;;;;foto lejana
+7501017005925;si;si;100;;29;4;4;1;1;0;;2;728;;rotulo europeo, sal 1.82 g
+7501017006403;si;si;porcion;5 g;0;0;0;0;0;0;0;0;100;;
+7613287149145;si;si;porcion;10 g;37;9;8.4;0.3;0;0;0;0.5;23;;cacao azucarado en polvo
+7622201421496;si;si;porcion;3.8 g;7;2.4;0;0;0;0;0;0;0;;chicle sin azúcar: los carbohidratos son polialcoholes
+7622201457334;si;si;porcion;3.8 g;7;2.4;0;0;0;0;0;0;0;;chicle sin azúcar: los carbohidratos son polialcoholes
+7622201802592;si;si;porcion;20 g;79;17;12;0.3;1;0.4;0;0;3;;tabla en inglés
+7622202805554;parcial;si;porcion;70 g;278;40;29;5.3;10;5.7;0;0.6;130;;foto con reflejos: valores coherentes con el %VD
+7622210745224;si;si;porcion;40 g;210;24;23;3;12;7;0;0;45;;tabla colombiana: el colesterol figura como 10 g (son 10 mg)
+7630486401461;si;si;100;;240;100;0;0;0;0;;;0;;xilitol (edulcorante) clasificado como azucar
+7640110708552;si;si;100;;0;100;0;0;0;0;;;0;;eritritol: los 100 g de carbohidratos son polialcoholes sin energía
+7715807930131;si;si;porcion;180 g;230;38;36;5.4;6.1;2.5;0;1.1;83;;
+7730430001973;si;si;porcion;55 g;193;41;0;6;0.5;0;0;1;0;calcio_mg=20|hierro_mg=1|potasio_mg=230;rotulo EE.UU.
+7730430004554;si;si;porcion;55 g;193;39;0;7;0.5;0;0;3;10;calcio_mg=20|hierro_mg=1|potasio_mg=60;rotulo EE.UU., carbohidratos sin fibra
+7790036000565;si;si;porcion;200 ml;91;22;;0.8;0;0;0;0;32;vitamina_c_mg=6.8;azúcares no declarados
+7790036000596;si;si;porcion;200 ml;96;24;;0;0;0;0;1.4;17;vitamina_c_mg=6.8;
+7790036002545;si;si;porcion;200 ml;90;22;22;0.6;0;0;0;0;28;vitamina_c_mg=6.8;
+7790036002576;si;si;porcion;200 ml;99;24;24;0.8;0;0;0;1;12;vitamina_c_mg=6.8;
+7790040139893;si;si;100;;484;67;24;7.5;21;5.6;0;1.5;265;;columna por 100 g
+7790040139923;si;si;100;;484;67;24;7.5;21;5.6;0;1.5;265;;columna por 100 g
+7790045823209;parcial;si;porcion;31 g;120;17;1;;4;0;0;3;160;;tabla en inglés, la proteína queda fuera de la foto, carbohidratos sin fibra
+7790045823865;si;si;porcion;30 g;140;18;1;3;7;0.5;0;1;190;hierro_mg=1.6;rotulo EE.UU.
+7790045826095;parcial;si;100;;400;62;;11;12;0.9;0;9.9;24;;foto chica, columna por 100 g
+7790045826101;si;si;100;;409;62;3.2;11;13;1;0;10;12;;tabla argentina cada 100 g (la de inglés difiere): monoinsaturadas 10 g, poliinsaturadas 1.1 g, la energía no cuenta la fibra
+7790045826309;si;si;porcion;30 g;120;19;1;4;3.5;0;0;2;0;calcio_mg=30|hierro_mg=1.2;tabla en inglés: carbohidratos 21 g totales menos 2 g de fibra
+7790045826965;si;si;100;;375;86;;6.9;0.4;0.1;0;3.2;108;;columna por 100 g, sodio parcialmente tapado (32 mg por 30 g)
+7790045827535;si;si;porcion;30 g;130;20;3;3;4;0;0;2;85;hierro_mg=0.8;tabla en inglés: carbohidratos 22 g totales menos 2 g de fibra
+7790070104304;si;si;porcion;13 ml;108;0;0;0;12;2.2;0;0;0;vitamina_e_mg=2;
+7790070265104;si;si;porcion;13 ml;108;0;0;0;12;2.2;0;0;0;vitamina_e_mg=2;
+7790070318114;parcial;si;porcion;80 g;277;54;;10;2.3;0.4;0;2.4;173;;foto borrosa
+7790070320308;si;si;porcion;80 g;267;57;0;8;0.8;0.2;0;2.4;11;vitamina_b2_mg=0.2|vitamina_b3_niacina_mg=2.4|hierro_mg=2.8|zinc_mg=1.1;valores corridos una fila, verificado por Atwater
+7790070412478;si;si;porcion;9 g;33;8.2;;0;0;0;0;0;57;;postre en polvo (sin preparar)
+7790070412485;parcial;no;;;;;;;;;;;;;la foto muestra solo la tabla del postre preparado con leche
+7790079019692;parcial;si;porcion;130 g;274;17;0;21;14;1.5;0;0;603;;foto con reflejo: energía por los kJ (1147), sodio coherente con el 25 %VD
+7790080018240;parcial;si;porcion;30 g;104;0;;7.8;8.1;5.2;;;;;tabla cortada debajo de saturadas
+7790130000713;parcial;si;porcion;200 ml;44;12;;0;0;0;0;0;51;vitamina_c_mg=60;jugo de limón: foto borrosa, proteínas y grasas no declaradas
+7790130002748;si;no;;;;;;;;;;;;;la tabla es de una versión reducida en grasas, el producto es la original
+7790130002779;si;si;porcion;12 g;29;1;0;0;2.8;0.3;0;0;93;;mayonesa reducida en grasa
+7790130002823;si;si;porcion;12 g;14;1.6;;0;0.8;0;0;0;200;;monoinsaturadas 0.3 g, poliinsaturadas 0.4 g, colesterol 0
+7790130003615;si;si;porcion;12 g;32;0.9;0;0;3.1;0.3;0;0;92;;mayonesa liviana (62 % menos aceite)
+7790130003639;si;si;porcion;12 g;32;0.9;0;0;3.1;0.3;0;0;92;;mayonesa reducida en grasa
+7790139003593;si;si;;;;;;;;;;;;;porcion de 10 ml sin valores significativos, queda el generico
+7790139100582;si;si;porcion;12 g;;0.6;;0;0;0;0;0.5;93;;la energía declarada (0 kcal) es un redondeo por porción: no sirve
+7790139101169;no;;;;;;;;;;;;;;la foto muestra solo la acidez
+7790150460474;si;si;porcion;12 g;78;0.9;0.9;0.9;8;6.9;0;1.9;0;;valores corridos una fila, verificado por Atwater, coco rallado clasificado como nueces
+7790150610305;no;no;;;;;;;;;;;;;esencia de vainilla mal clasificada como galletitas_dulces (no es alimento del modelo)
+7790150611029;parcial;si;porcion;15 g;64;0;0;3.5;5.5;0.6;0;4.8;5.1;;foto borrosa
+7790199603757;si;no;;;;;;;;;;;;;14 g de grasa en 13 ml no es posible (más que el aceite puro)
+7790199604174;si;no;;;;;;;;;;;;;rótulo de Brasil con valores imposibles: 107 g de grasa en 100 ml de aceite
+7790263110846;si;si;100;;432;72;20;7.4;12;3.1;0;2.1;195;calcio_mg=484;monoinsaturadas 7,7 g, poliinsaturadas 1,3 g, colesterol 7,1 mg
+7790263119337;si;si;100;;455;68;21;7.6;17;1.9;0;5.2;160;;monoinsaturadas 12 g, poliinsaturadas 2.8 g, colesterol 0 (foto chica, leída ampliando)
+7790315001047;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;40;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;texto corrido
+7790315100184;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;30;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;línea cero endulzada con acesulfame K y sucralosa
+7790380020004;si;si;porcion;23 g;90;15;4;0.9;2.8;1.1;0;0.8;24;;azúcares de la tabla en inglés
+7790380020349;si;si;porcion;24 g;100;17;8.3;0.8;3.1;1.6;0;1;29;;
+7790380025177;no;;;;;;;;;;;;;;la foto es del código de barras
+7790380029083;si;si;porcion;40 g;160;36;19;0;1.5;1;0;0;22;potasio_mg=4;tabla en inglés
+7790412000271;si;si;porcion;30 g;109;25;0;2.2;0;0;0;0;148;;
+7790427000051;parcial;si;porcion;80 g;297;60;;9.6;2.1;0.5;0;3.2;27;;foto chica, energia desde 1242 kJ
+7790427000167;parcial;si;porcion;80 g;289;59;;9.5;2;0.4;0;2.9;22;;foto borrosa
+7790427005155;si;si;porcion;80 g;285;56;;10;2.4;0.4;0;3.2;16;;
+7790503000029;parcial;si;porcion;45 g;160;35;5;3;0;0;0;0.5;5;;rotulo EE.UU. chico
+7790503460182;si;si;porcion;25 g;110;19;0;1.7;3.2;0.3;0;0;138;;snack de arroz y maíz
+7790538010413;si;si;porcion;30 g;98;20;0.6;2.5;0.9;0;0;1.2;139;;
+7790580118075;si;no;;;;;;;;;;;;;suplemento de fibra en gomitas (ya excluido por góndola no alimentaria)
+7790580126148;si;si;100;;477;71;69;5;19;11;0;2.8;70;;sodio cada 100 g calculado de la porción (14 mg en 20 g), el de la columna cada 100 g está cortado
+7790580131272;si;si;100;;341;82;63;3.6;0;0;0;0;28;;recorte ampliado, verificado por Atwater
+7790580160807;si;si;porcion;100 g;900;0;0;0;100;15;0;0;0;vitamina_e_mg=25;columna por 100 g
+7790580602000;no;si;;;;;;;;;;;;;captura de app sin porcion, no se usa
+7790606086005;si;si;porcion;50 g;131;25;;4.7;1.3;0.6;0;1.6;220;;
+7790606086036;si;si;porcion;50 g;114;24;;5;1.4;0.3;0;2.5;220;;
+7790625005308;parcial;si;porcion;40 g;29;0.6;;5;0.8;0.3;0;1.7;417;;carbohidratos bajo un reflejo (cierran con la energía)
+7790625005315;parcial;si;porcion;40 g;69;1.9;0;4.7;4.8;;0;;361;;letra chica, saturadas y fibra no se leen con certeza
+7790625011040;parcial;si;porcion;40 g;39;2.8;0;4.3;1.2;1;0;2.2;;;texto chico: el sodio queda tapado (18 %VD)
+7790625014263;parcial;si;;;;;;;;;;;;;porcion y proteinas tapadas
+7790639003437;si;si;porcion;200 ml;85;21;21;0;0;0;0;0;14;;
+7790639003451;si;si;porcion;200 ml;85;21;21;0;0;0;0;0;42;;
+7790639003581;si;si;porcion;200 ml;85;21;21;0;0;0;0;0;42;;no aporta proteínas, grasas ni fibra
+7790639003819;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;31;;
+7790639003826;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;28;;
+7790670050780;si;si;porcion;80 g;193;0.5;0;14;15;7.7;0.5;1.4;502;;
+7790742436108;si;si;porcion;26 g;129;11;11;6.4;6.8;4;0.3;0;96;calcio_mg=234|vitamina_a_ug=133|vitamina_d_ug=2|vitamina_b6_mg=0.2|vitamina_b9_folato_ug=36;la porción son 26 g de polvo (200 ml preparados)
+7790748266204;si;si;porcion;60 g;76;0;0;15;2;0.5;0;0;137;;atún al natural escurrido
+7790787000654;si;si;porcion;20 g;65;11;11;1.6;1.6;1;0;0;34;;
+7790790120257;si;si;porcion;130 g;120;22;3.9;7.8;0;0;0;7.6;45;;
+7790790120271;si;si;porcion;130 g;100;21;3.3;3.6;0;0;0;4.5;45;;jardinera (papa, arveja y zanahoria)
+7790790120332;si;si;porcion;130 g;81;10;;9.1;0;0;0;13;481;;porotos listos (escurridos)
+7790790124293;si;si;porcion;130 g;121;23;;6.1;0.7;0;0;8.2;59;;lentejas listas (agua y sal): azúcares menos de 1,3 g
+7790847000044;si;si;100;;379;84;;9.6;0.2;0;0;0.4;401;;columna por 100 g
+7790847000235;si;no;;;;;;;;;;;;;la energía declarada (512 kcal cada 100 g) no cierra con los macronutrientes (unas 410 kcal)
+7790847000242;si;no;;;;;;;;;;;;;la energía declarada (128 kcal en 25 g) no cierra con los macronutrientes (unas 103 kcal)
+7790847000266;si;no;;;;;;;;;;;;;la energía declarada (129 kcal en 25 g) no cierra con los macronutrientes (unas 103 kcal)
+7790847060543;si;si;porcion;50 g;172;38;;5;0;0;0;0.6;5;;
+7790895000430;si;si;porcion;200 ml;60;15;15;0;0;0;0;0;12;;mezcla de azucar y sucralosa
+7790895001000;parcial;si;porcion;200 ml;40;10;10;0;0;0;0;0;34;;resumen frontal + texto chico
+7790895001017;parcial;si;porcion;200 ml;96;24;24;0;0;0;0;0;;;texto chico, sodio ilegible
+7790895001482;no;si;;;;;;;;;;;;;foto de la botella, sin tabla
+7790895006036;si;si;porcion;200 ml;50;12;12;0;0;0;0;0;90;vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2|potasio_mg=24;
+7790895006715;si;si;porcion;200 ml;70;17;17;0;0;0;0;0;18;;no aporta proteinas grasas ni fibra
+7790895006951;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;42;;texto corrido
+7790895007385;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;46;;version sin azucar clasificada como gaseosa_lima_limon
+7790895009815;si;si;porcion;200 ml;107;26;26;0;0;0;0;0;30;vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2;no aporta proteínas ni grasas
+7790895009846;si;si;porcion;200 ml;94;24;24;0;0;0;0;0;104;vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2;no aporta proteínas, grasas ni fibra
+7790895010095;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;33;;
+7790895012259;parcial;si;porcion;200 ml;0;0;0;0;0;0;0;0;28;;solo sellos frontales
+7790895065217;si;si;porcion;200 ml;97;24;24;0;0;0;0;0;37;vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2;
+7790895067532;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;28;;
+7790895068096;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;28;;texto corrido
+7790895641183;parcial;si;porcion;200 ml;50;12;12;0;0;0;0;0;90;vitamina_b3_niacina_mg=2.3|vitamina_b6_mg=0.2|potasio_mg=24;foto borrosa, valores consistentes
+7790895641541;parcial;no;;;;;;;;;;;;;la foto corta la energía y las proteínas
+7790895641596;si;si;porcion;200 ml;98;24;24;0;0;0;0;0;18;vitamina_c_mg=45|vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2;
+7790895641794;si;si;porcion;300 ml;156;38;38;0;0;0;0;0;51;vitamina_c_mg=90|vitamina_e_mg=2.25|zinc_mg=1.58;bebida de naranja con azúcar agregada y fortificada
+7790895642081;no;si;;;;;;;;;;;;;lata, texto ilegible
+7790895642104;si;si;porcion;220 ml;0;0;0;0;0;0;0;0;31;;texto corrido, no aporta proteínas ni grasas
+7790895643019;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;42;;sin azúcar (aspartamo y acesulfame K)
+7790895644320;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;21;;sin azúcar (aspartamo)
+7790895646935;no;si;;;;;;;;;;;;;texto de la etiqueta ilegible
+7790895648267;si;si;porcion;200 ml;107;26;26;0;0;0;0;0;30;vitamina_b3_niacina_mg=2.5|vitamina_b6_mg=0.2;
+7790895648656;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;18;;coca sin azucar clasificada como gaseosa_cola
+7790895648670;si;si;porcion;200 ml;40;9.8;9.8;0;0;0;0;0;20;;
+7790895649394;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;17;;versión sin azúcar, proteínas, grasas y fibra no significativas
+7790895650840;no;si;;;;;;;;;;;;;texto demasiado chico
+7790903001060;no;si;;;;;;;;;;;;;foto borrosa
+7790950003444;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;40;;
+7790950133257;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;21;;
+7790950133271;si;si;porcion;200 ml;23;4.5;;0;0;0;0;0;24;;azucares no declarados
+7790950133288;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;43;;
+7790950133318;si;si;porcion;200 ml;69;16;;0;0;0;0;0;29;;azúcares no declarados
+7790950133325;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;29;;
+7790950133332;si;si;porcion;200 ml;36;7.5;;0;0;0;0;0;25;;azucares no declarados
+7790957000101;si;si;porcion;45 g;232;29;18;2.7;12;7.6;0.3;1.9;39;;alfajor mal clasificado como postre_lacteo
+7791078023376;si;si;100;;377;80;15;8.8;2.4;0.8;0;2.9;154;;columna por 100 g
+7791100000481;si;si;porcion;5 g;20;5;;0;0;0;0;0;0;;azúcar: no aporta proteínas, grasas, fibra ni sodio
+7791100046137;no;;;;;;;;;;;;;;foto fuera de foco
+7791113000959;si;si;100;;120;30;;0;0;0;0;5;250;;columna por 100 g
+7791113001192;si;si;100;;120;30;;0;0;0;0;5;250;;mermelada light: la energía no cuenta la fibra
+7791113001239;parcial;si;100;;120;30;;0;0;0;0;5;250;;foto con reflejo, columna cada 100 g
+7791113001284;si;si;100;;120;30;;0;0;0;0;5;250;;mermelada light: la energía no cuenta la fibra
+7791113002458;si;si;100;;250;65;;0;0;0;0;5;420;;columna por 100 g, sodio alto declarado
+7791113002748;si;si;100;;120;30;;0;0;0;0;5;250;;
+7791113003783;parcial;no;;;;;;;;;;;;;tabla idéntica a la versión light de la marca, no se puede confirmar
+7791113004612;si;si;100;;120;30;;0;0;0;0;5;250;;columna por 100 g
+7791120001369;si;si;porcion;50 g;180;38;;4.1;0.7;0;0;1.7;0;;
+7791287001646;parcial;si;;;;;;;;;;;;;porcion cortada en la foto (52 kcal, 5.8 g grasa)
+7791324000052;si;si;porcion;30 g;140;20.5;;1.95;5.58;2.61;0.18;0.54;120;calcio_mg=150;
+7791324000069;si;si;porcion;30 g;140;20;10;1.7;5.9;2.8;0;0.6;86;calcio_mg=150;
+7791324156834;si;si;porcion;30 g;142;20;;2;6;3.3;0.3;0.5;66;;
+7791324157084;si;si;porcion;30 g;145;21;11;2;5.9;2.7;0;0.6;88;calcio_mg=150;
+7791337008212;si;si;porcion;120 g;74;14;12.4;4.5;0;0;0;0;66;vitamina_a_ug=182|vitamina_d_ug=1.5|vitamina_b9_folato_ug=74|calcio_mg=145;yogur batido mal clasificado como leche_chocolatada
+7791337009615;parcial;si;porcion;95 g;108;21;19.7;2.7;1.5;0.9;0;0;75;calcio_mg=83;texto chico, verificado por Atwater
+7791376000994;si;si;porcion;30 g;163;19;;2.4;6.1;3;0.3;0.7;13;;
+7791473002761;no;;;;;;;;;;;;;;texto demasiado chico: no se lee la energía
+7791479001034;si;si;porcion;12 g;11;0.6;0;0;0;0;0;0;88;;
+7791620001708;si;si;100;;153;11.5;6.5;0;11.5;1.2;0;0.5;820;;mayonesa reducida en calorías, foto girada leída ampliando
+7791664000453;si;si;porcion;100 g;176;36;1.1;5.3;1.2;0.1;0;1.5;390;;
+7791664000651;si;si;porcion;100 g;270;51;1.1;7;4.2;1.9;0;3.4;208;;texto corrido
+7791672014930;si;si;porcion;100 g;394;62;39;6.8;13;7.9;0.3;1.9;228;;
+7791696009011;si;si;porcion;60 g;232;25.18;;3.14;13.19;1.49;0.08;;217.72;;fibra ilegible
+7791696010956;si;si;porcion;40 g;138;21;;2;5.1;3;0;0.4;32;;la porción dice 1/2 unidad (40 g): la foto puede ser de la versión de 80 g
+7791720002872;si;si;porcion;30 g;137;20;7.9;1.7;5.6;3.6;0.3;0;20;;
+7791720002964;si;si;porcion;30 g;141;20;;1.7;5.8;3.4;0;0;53;;
+7791720003442;si;si;porcion;30 g;123;20;2.8;3.3;3.3;1.2;0;2;134;;
+7791720003596;parcial;si;porcion;30 g;137;18;;2.8;5.8;0.6;0;1.2;216;;texto borroso: monoinsaturadas 4.4 g, poliinsaturadas 0.2 g
+7791720003862;parcial;si;porcion;60 g;146;0;0;14;10;3;0;0;262;;atún escurrido: no aporta carbohidratos, trans ni fibra (foto movida)
+7791720003886;si;si;porcion;60 g;45;0;;9;1;0.5;0;0;260;;atún al natural escurrido
+7791720016114;si;si;porcion;28 g;90;21;0.5;1.5;0;0;0;0.6;83;;tostadas de arroz
+7791720017173;si;si;porcion;36 g;146;20;;2.2;6.3;1.3;0;0.9;89;;madalenas rellenas
+7791720017272;si;no;;;;;;;;;;;;;la foto es de una pasta de maní, no de la mermelada
+7791720017852;si;si;porcion;22 g;73;17;1.6;1.4;0;0;0;1.1;33;;puré en copos, sin preparar
+7791720018217;si;si;porcion;25 g;105;20;0;1.6;2.2;0.5;0;0;202;;
+7791720023655;si;si;porcion;30 g;163;18;;1.8;9.3;5.1;0;0;74;;chocolate blanco
+7791720023662;si;si;porcion;30 g;156;19;;2.1;8.1;3.6;0;0;62;;
+7791720023815;si;si;porcion;130 g;26;4.9;;1;0;0;0;1;8;;no aporta grasas
+7791720024515;si;si;porcion;30 g;160;14;10;3.6;10;1.8;0;0.9;5.4;;postre de maní (barra)
+7791720025529;si;si;porcion;13 ml;105;0;0;0;12;0.8;0;0;0;vitamina_e_mg=9.2;
+7791720026021;si;si;porcion;50 g;198;34;24;3;5.5;4.2;0;0.7;44;;
+7791720026069;si;si;porcion;50 g;200;33;23;3.6;6;4.2;0;0.7;41;;
+7791720028018;si;si;porcion;100 g;62;13;0;2.7;0;0;0;1.6;12;;papas bastón crudas (no prefritas)
+7791720028469;si;si;100;;24;6;6;0;0;0;0;0;7;;guaraná con azúcar reducida
+7791720028483;si;si;porcion;30 g;68;2;0.9;0.7;6.3;3.9;0.3;0;20;;
+7791720029404;si;si;100;;57;4.5;4.5;3;3;1.8;0;0;49;calcio_mg=105|vitamina_a_ug=64|vitamina_d_ug=1;por 100 ml
+7791720029411;si;si;100;;40;4.8;4.8;3;1;0.6;0;0;49;calcio_mg=105|vitamina_a_ug=64|vitamina_d_ug=1;por 100 ml
+7791720029466;si;si;porcion;200 ml;116;9.6;9.6;6;6;3.8;0;0;90;calcio_mg=220|fosforo_mg=190|vitamina_a_ug=150|vitamina_d_ug=1.5;leche entera fortificada
+7791720029473;si;si;porcion;200 ml;80;9.6;9.6;6;2;1.3;0;0;90;calcio_mg=220|fosforo_mg=190|vitamina_a_ug=150|vitamina_d_ug=1.5;leche parcialmente descremada fortificada
+7791720029671;si;si;porcion;30 g;125;21;8.3;2.1;3.6;0.3;0;1;99;;
+7791720032411;si;si;porcion;130 g;283;2.2;2.2;21;21;4.9;0;0.3;437;;merluza rebozada a la romana clasificada como merluza fresca
+7791720032619;parcial;si;porcion;55 g;140;23;1.9;4.8;3.2;0.4;0;2.7;256;;foto chica
+7791720032787;parcial;si;porcion;10 g;17;0.6;;1.1;1.3;0.5;0;0;53;;texto corrido, algo borroso
+7791720032855;parcial;si;porcion;10 g;18;0.8;0;1;1.2;0.6;0;0;63;;texto corrido
+7791720033074;si;si;porcion;50 g;174;38;0;4.4;0;0;0;0.5;0;;
+7791720036518;si;si;porcion;60 g;222.1;37;0;12;2.9;0;0;6.6;0.02;;la energía no cuenta la fibra
+7791720037003;si;si;porcion;30 g;139;18;1.6;2.1;6.6;3.3;0;0.7;274;;bizcochos de grasa
+7791720037065;no;;;;;;;;;;;;;;foto demasiado chica
+7791720040003;si;si;100;;394;68;26;9.5;9.2;1.3;;5.2;282;;columna por 100 g
+7791720040850;si;si;porcion;50 g;125;23;1;3.1;2.3;0;0;1;237;;
+7791720044605;si;si;porcion;25 g;115;18;1.7;2.1;3.8;0.3;0;0;238;;snack de pan tostado sabor jamón
+7791720044629;si;si;porcion;100 g;265;49;0.8;8.9;3.8;1.3;0;2.7;318;;
+7791720049693;si;si;100;;37;4.8;4.8;3;0.6;0.4;0;0;45;calcio_mg=110|fosforo_mg=95|vitamina_a_ug=75|vitamina_d_ug=0.75;por 100 ml
+7791813050056;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;15;;sin azúcar
+7791813333043;parcial;si;porcion;200 ml;54;14;14;0;0;0;0;0;12;;foto movida
+7791813420057;no;;;;;;;;;;;;;;la foto muestra los ingredientes, no la tabla
+7791813421054;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;15;;sin azúcar
+7791813421368;no;si;;;;;;;;;;;;;foto lejana
+7791813423522;si;si;porcion;200 ml;80;21;21;0;0;0;0;0;18;;proteínas, grasas y fibra no significativas
+7791813444411;si;si;porcion;200 ml;52;13;13;0;0;0;0;0;18;;
+7791813555025;si;si;porcion;200 ml;55;15;14;0;0;0;0;0;10;;
+7791813828419;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;15;;
+7791813828464;parcial;si;porcion;200 ml;0;0;0;0;0;0;0;0;15;;foto chica, igual a 7791813828419
+7791813888406;si;si;porcion;200 ml;37;9.2;9.2;0;0;0;0;0;5.4;;
+7791813900115;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;17;;proteínas, grasas y fibra no significativas
+7791813969488;si;si;porcion;200 ml;52;13;13;0;0;0;0;0;18;;
+7791885005206;si;si;porcion;15 g;5;0.6;;0.3;0.1;0;0;0;351;;producto escurrido
+7791913001040;si;si;porcion;200 ml;97;23;22;0;0;0;0;0;14;;texto invertido, leído rotando la foto
+7791913001170;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;32;;texto rotado, leído ampliando
+7792052072144;si;si;porcion;10 g;15;3.5;2.2;0;0;0;0;0;119;;
+7792070001614;si;si;100;;831;0;0;0;92;15;0;0;0;;por 100 ml, colesterol 0
+7792070011606;parcial;si;porcion;13 ml;117;0;0;0;13;2;0;0;0;;foto chica, leída ampliando: monoinsaturadas 8 g, poliinsaturadas 2 g
+7792070053767;si;si;porcion;13 ml;117;0;0;0;13;2.1;0;0;0;;
+7792170042029;si;si;porcion;200 ml;48;12;12;0;0;0;0;0;90;potasio_mg=24;no aporta proteínas ni grasas
+7792170042258;si;si;porcion;200 ml;48;12;12;0;0;0;0;0;90;potasio_mg=24;no aporta proteínas ni grasas
+7792180004963;si;si;porcion;80 g;273;58;;7.6;1.1;0;0;2.4;8;;
+7792180004987;parcial;si;porcion;80 g;273;58;;7.6;1.1;0;0;2.4;8;;fideos secos forma ñoquis clasificados como noquis (frescos)
+7792180006455;parcial;si;porcion;30 g;131;17.6;0;2.8;5;0.4;0;1.4;210;hierro_mg=2.38|calcio_mg=3;rotulo EE.UU. recortado, carbohidratos totales 19 menos fibra 1.4
+7792180006462;si;si;porcion;30 g;131;22;;3.3;3.4;0.3;0;0.8;222;;monoinsaturadas 2.7 g, poliinsaturadas 0.3 g
+7792180141644;si;si;porcion;80 g;275;57;2.9;9;1.3;0;0;5.8;8;;
+7792180146304;si;si;porcion;64 g;246;45;21;7.2;4.1;2;0;2.2;82;;producto seco (sin preparar)
+7792260231043;si;si;porcion;20 g;52;13;;0;0;0;0;0;0;;
+7792260619391;parcial;si;100;;250;62;40;0;0;0;0;2;0;;reflejos tapan celdas confirmadas por la columna por porción, azúcares de la tabla en inglés (8 g en 20 g)
+7792260639788;si;si;porcion;20 g;30;7;;;0;0;0;;0;;tabla en inglés, fibra, azúcares y proteínas declarados como menos de 1 g
+7792280006201;si;si;100;;333;83;55;1;0;0;0;11;18;;
+7792360094302;si;si;porcion;25 g;131;17;;1;6.5;3.5;0;2;6;;
+7792360094470;si;si;porcion;60 g;187;35;19;5;3;1.4;0;0.3;177;;
+7792360096597;no;;;;;;;;;;;;;;foto demasiado chica
+7792540250450;si;si;porcion;5 g;20;5;5;0;0;0;0;0;0;;porcion deducida de 20 kcal = 5 g
+7792540293808;si;si;porcion;0.8 g;3;0.8;;0;0;0;0;0;0;;edulcorante en sobres (sacarosa con sucralosa)
+7792540294607;si;si;porcion;5 g;20;5;;0;0;0;0;0;0;;azúcar mascabo, azúcares no declarados aparte
+7792684000485;si;si;porcion;30 g;136;21;;1.6;5.1;2.4;0;0.4;25;;
+7792684001628;parcial;si;porcion;30 g;118;22;;2.3;2.3;1.2;0;0.1;11;;foto con reflejo: valores coherentes con la energía y el %VD
+7792710001523;si;si;porcion;50 g;172;40;0;2.9;0;0;0;2;0;;la energía no cuenta la fibra
+7792900990941;si;si;;;;;;;;;;;;;porcion de 10 ml, solo declara sodio 258 mg, queda el generico
+7793046002215;si;si;porcion;40 g;96;24;;0;0;0;0;0;0;;azúcares no declarados
+7793046007210;si;si;100;;128;32;;0;0;0;0;12;0;;sin azúcar agregada
+7793046007296;si;si;100;;128;32;;0;0;0;0;12;0;;mermelada light: la energía no cuenta la fibra
+7793046007715;si;si;100;;116;29;;0;0;0;0;0.9;13;;mermelada light: no aporta proteínas ni grasas
+7793046007777;si;si;100;;116;29;;0;0;0;0;1;11;;mermelada light: no aporta proteínas ni grasas
+7793046007869;si;si;100;;116;29;;0;0;0;0;1.2;12;;proteínas y grasas no significativas
+7793046008019;parcial;si;porcion;20 g;53;13;;0;0;0;0;0.5;0;;porción tapada por un reflejo: 20 g por las 25 porciones y los carbohidratos
+7793046008095;parcial;no;;;;;;;;;;;;;la foto corta el tamaño de la porción
+7793046008613;si;si;100;;120;30;30;0;0;0;0;1;0;;
+7793046008699;si;si;100;;128;32;;0;0;0;0;1;0;;columna por 100 g
+7793123160012;si;si;100;;503;66;38;3.6;25;11;1.2;1.6;75;;columna por 100 g
+7793209000331;si;si;porcion;25 g;126;17;9.5;0.9;6;2.8;0.3;0;41;;
+7793323004994;no;si;;;;;;;;;;;;;solo aminoacidos
+7793360106002;si;si;100;;21;5;5;0;0;0;0;0;9;vitamina_c_mg=4.5;columna cada 100 ml
+7793360106033;parcial;si;100;;21;5;5;0;0;0;0;0;6;vitamina_c_mg=4.5;filas corridas, columna por 100 ml
+7793360106040;si;si;100;;21;5;5;0;0;0;0;0;3.6;vitamina_c_mg=4.5;columna por 100 ml
+7793360106064;si;si;100;;21;5;5;0.2;0;0;0;0;9;vitamina_c_mg=4.5;columna cada 100 ml
+7793551002380;si;si;porcion;20 g;40;1;;0;3.8;0.8;0;0;322;;aceitunas negras en rodajas
+7793591040144;si;si;100;;900;0;0;0;100;51;6;0;0;;grasa bovina: monoinsaturadas 37 g, poliinsaturadas 6 g, colesterol 80 mg
+7793806000109;si;si;porcion;50 g;128;25;0.6;3.3;1.7;0;0;0.8;110;;
+7793890257984;si;si;porcion;30 g;114;22;14;2.2;1.9;0.5;0;0;66;;vainillas
+7793893001973;no;;;;;;;;;;;;;;salamín: la foto corta el tamaño de la porción y los carbohidratos
+7793913013436;no;;;;;;;;;;;;;;foto demasiado chica
+7793913013658;parcial;si;porcion;30 g;80;1.4;1.4;2.1;7.3;4.9;0.3;0;135;calcio_mg=87;foto borrosa, leída ampliando
+7794055001879;si;si;porcion;100 g;214;40;1;6.5;3.1;0.9;0;2.2;493;;foto chica, valores coherentes con el %VD
+7794396004515;si;si;100;;58;4.7;;3.2;3;1.7;0;0;39;vitamina_a_ug=61|vitamina_d_ug=1|vitamina_c_mg=9;columna por 100 ml
+7794529041653;si;si;porcion;24 g;89;16;;2.8;1.5;0;0;0.9;188;;
+7794580000019;parcial;si;porcion;50 g;162;37;;3.6;0;0;0;0.7;0;;foto chica
+7794820000489;no;si;;;;;;;;;;;;;foto lejana
+7794903232431;si;si;porcion;30 g;140;23;;2.4;4.5;3.3;0;0;30;;
+7794903232615;si;si;porcion;40 g;156;27;14;1.9;4.5;2.2;0;0.8;33;;monoinsaturadas 1,8 g, colesterol 6,9 mg
+7794990879960;si;si;100;;215;3.9;3.9;12;17;11;0.7;0;913;;columna por 100 g, queso cheddar untable
+7794990880201;parcial;si;100;;247;8;;4.3;22;14;0.9;0;257;;foto chica, columna por 100 g, verificado por Atwater
+7794990880225;si;si;porcion;30 g;102;0;0;6.9;8.3;5.1;0.3;0;155;;
+7795157002207;si;si;porcion;30 g;102;0.6;;7.7;7.6;4.5;0;0;213;calcio_mg=299;queso danbo
+7795165000035;si;si;porcion;40 g;88;2.3;0.6;5.6;6.3;2.7;0;0;198;;
+7795165000080;si;si;porcion;40 g;88;2.3;0.6;5.6;6.3;2.7;0;0;198;;salchicha cocida tipo Debreczin
+7795165001407;si;si;porcion;50 g;121;4.3;2.3;5.5;9.2;3.6;0;0.5;370;;
+7795293000297;si;si;100;;240;37;;9;6.4;3.2;0;10.7;315;;columna por 100 g
+7795293202103;si;si;porcion;50 g;138;26;;4.3;1.8;1;0;1;176;;
+7795522003624;parcial;si;100;;493;76;72;2.3;20;10;0;0;29;;foto roja y borrosa leída ampliando, cierra con la energía
+7795643003626;si;si;porcion;30 g;125.3;20.9;10;1.4;3.5;1.7;;0.6;15.3;;
+7795711000038;si;si;100;;252;47;0.8;8.8;3.4;1.2;0;2.6;304;;monoinsaturadas 0.6 g, poliinsaturadas 1.2 g, colesterol 1.8 mg
+7795711000199;si;si;100;;249;42;0.8;9.1;4.8;2;0;2.4;350;;columna por 100 g
+7795733001075;si;si;porcion;30 g;123;18;5.9;1.7;4.7;2.3;0;0.4;0.4;;
+7795792000422;si;no;;;;;;;;;;;;;la foto es de aceitunas negras, no de langostinos
+7795917816952;si;si;porcion;40 g;184;0;0;7.8;17;5.9;0;0.9;642;;
+7795947000154;no;si;;;;;;;;;;;;;texto chico, sandwich mal clasificado como queso_cremoso
+7795947005128;si;si;porcion;120 g;359;45;;12;14;8;0.6;1.7;603;;sándwich de miga triple de jamón y queso
+7795947006002;si;si;porcion;120 g;236;25;9.7;10;7.5;5;0;3;529;;sandwich de miga mal clasificado como queso_cremoso
+7795947006378;no;si;;;;;;;;;;;;;sandwich de bagel con panceta clasificado como pan_frances, texto chico
+7795947006491;si;no;;;;;;;;;;;;;bocadito de huevo cocido: comida preparada, fuera de alcance
+7795947006507;si;no;;;;;;;;;;;;;bocadito de huevo con queso: comida preparada, fuera de alcance
+7796373000657;si;si;porcion;12 g;17;4.3;;0;0;0;0;0;189;;
+7796373002934;si;si;porcion;10 g;0;0;0;0;0;0;0;;205;;salsa picante: la fibra (1,7 g con 1 %VD) no cierra
+7796373002941;si;si;porcion;10 g;5;1;0.8;0;0;0;0;0;68;;
+7796373003184;si;si;porcion;10 ml;14;0;0;0;1.5;0;0;0;78;;
+7796953311319;parcial;si;porcion;40 g;99;4.2;0;4.3;7.2;2.8;0;0.9;410;;texto borroso: valores coherentes con la energía y el %VD
+7796953311500;si;si;porcion;40 g;169;0;0;7.9;15;6.4;0.5;2.1;560;;
+7797234000052;parcial;si;porcion;50 g;170;40;;1.2;0.3;0;0;0.2;1;;foto chica, valores coherentes con la energía
+7797394001265;no;si;;;;;;;;;;;;;solo ingredientes, sin tabla
+7797470129586;si;no;;;;;;;;;;;;;la tabla tiene errores: 3 g de azúcares sobre 1,1 g de carbohidratos
+7798001562605;si;si;porcion;200 ml;70;9.4;9.4;6;0.9;0.5;0;0;68;vitamina_a_ug=122|vitamina_d_ug=1;
+7798001562834;parcial;si;;;;;;;;;;;;;energia tapada (8 % VD), carbohidratos 30 g por 150 g
+7798001563060;si;si;porcion;200 g;156;26;26;6.4;2.9;1.7;0;0;80;vitamina_a_ug=120|vitamina_d_ug=2;
+7798008191013;si;si;porcion;22 g;87;0.5;;17;1.9;0.4;0;0.6;233;magnesio_mg=78|zinc_mg=5.4|selenio_ug=20;suplemento de proteína de arveja con cacao
+7798024290301;si;si;porcion;30 g;128;18;;1.5;6;2.3;0;0.4;31;;azúcares totales impresos 17 g con 6,3 g añadidos: imposible en un polvorón, se dejan en blanco
+7798024290332;parcial;si;porcion;30 g;143;19;;1.9;6.3;2.9;;0;81;;foto con reflejo: las trans no se leen
+7798024760354;no;si;;;;;;;;;;;;;texto ilegible, sandwich mal clasificado como queso_cremoso
+7798024760361;si;si;porcion;280 g;343;20;;34;14;6.2;0.4;3.7;470;;plato preparado (pechuga con vegetales) clasificado como pollo_pechuga
+7798024760798;si;si;porcion;90 g;279;21;;13;16;8;0;0;720;;croque monsieur mal clasificado como queso_untable
+7798024766417;parcial;si;porcion;270 g;310;12;2.2;27;13;6;0;2.5;350;;ensalada con pechuguitas mal clasificada como pollo_pechuga
+7798031150049;si;si;100;;331;69;1.2;12;0.8;0;0;3.6;12;;
+7798031470086;si;si;porcion;80 g;276;63;;6.4;0.1;0;0;2.4;3.2;;foto chica: los kJ declarados (1330) no cierran con las kcal, valen las kcal
+7798031470796;si;si;porcion;80 g;289;65;0;6;0.6;0;0;0.4;2;;fideos sin TACC de arroz y maíz
+7798031470833;si;si;porcion;100 g;361;79;0;7.5;1.9;0;0;2;25;;columna por 100 g, sin TACC
+7798033331224;si;si;porcion;50 g;13;2.3;0.6;1;0;0;0;0.9;107;;palmitos escurridos
+7798033333891;parcial;si;porcion;60 g;98;0;0;16.6;3.4;0.8;0;0;244;;foto movida, valores coherentes con la energía
+7798033333907;si;si;porcion;60 g;70;0;0;16;0.6;0.3;0;0;240;;atún al natural escurrido
+7798033336410;si;si;porcion;30 g;137;20;;1.7;5.6;3.6;0.3;0;20;;
+7798033337080;si;si;porcion;30 g;119;22;;3.5;1.7;0;0;1.1;235;;monoinsaturadas 1.2 g, poliinsaturadas 0.2 g
+7798033337110;si;si;porcion;24 g;95;18;;2.8;1.4;0;0;2.4;188;;monoinsaturadas 1 g, poliinsaturadas 0.2 g
+7798033337288;si;si;porcion;30 g;146;20;11;1.2;6.8;3.7;0;0;29;;
+7798033337851;si;si;porcion;40 g;104;26;21;0;0;0;0;0;24;;
+7798033338759;si;si;porcion;13 ml;107;0;0;0;12;2.2;0;0;0;;monoinsaturadas 7.9 g, poliinsaturadas 1.8 g, colesterol 0
+7798033339275;si;si;porcion;30 g;146;20;11;1.2;6.8;3.7;0;0;29;;
+7798033900406;si;si;porcion;30 g;130;20;;3;3.8;1.7;0;1.9;207;;
+7798036830151;si;si;porcion;30 g;146;19;6.1;1.9;6.7;4.2;0.7;0.4;9.9;;
+7798036830168;si;si;porcion;30 g;146;19;6.1;1.9;6.7;4.2;0.7;0.4;9.9;;
+7798036830175;si;si;porcion;30 g;146;19;6.1;1.9;6.7;4.2;0.7;0.4;9.9;;
+7798039600027;si;si;porcion;10 g;74;0;0;0.1;8.2;5.2;0.3;0;14;;manteca clasificada como pan_frances (MANTECA ... PAN)
+7798039600034;si;si;100;;58;4.8;;3;3;1.9;0;0;45;vitamina_a_ug=75|vitamina_d_ug=0.75|calcio_mg=110|fosforo_mg=95;columna por 100 ml
+7798040464823;si;si;porcion;30 g;129;22;15;2.5;3.4;1.1;0;1;35;;texto rotado, leído ampliando
+7798040890264;si;si;porcion;5 g;0;0;0;0;0;0;0;0;0;;humo líquido: no aporta cantidades significativas de ningún nutriente
+7798044150555;no;si;;;;;;;;;;;;;solo ingredientes, pipas de girasol clasificadas como quinoa
+7798048720129;si;si;porcion;60 g;209;35;2.5;15;1;0;0;2;0;;porotos secos
+7798048730395;no;;;;;;;;;;;;;;tabla en inglés sin el tamaño de la porción (150 kcal por porción)
+7798048730555;si;si;100;;489;77;26.7;7.6;16;7.4;0.1;0.3;303;;columna por 100 g, azucares del rotulo en ingles (8 g por 30 g)
+7798048730722;si;si;100;;452;73;29;6.6;15;9.7;1;0;219;;
+7798052362308;si;si;100;;563;56;0;6;35;5.6;0.4;0;512;;monoinsaturadas 9,6 g, poliinsaturadas 20 g, colesterol 0
+7798052363169;si;si;porcion;30 g;110;25;6;1.6;0;0;0;0.3;8;;cereal de arroz inflado
+7798054220804;si;si;porcion;30 g;126;21;7.5;1.3;4.2;1.7;0;0.7;12;;azúcares de la tabla en inglés (colesterol 6.3 mg)
+7798054220811;si;si;porcion;30 g;123;18;6.5;1.6;4.9;2.3;0;0.8;12;;
+7798060610118;si;si;porcion;30 g;100;0;0;5.7;8.6;5.6;0;0;277;;
+7798061190312;si;si;100;;823;0;0;0;91;17;0;0;0;;por 100 ml: monoinsaturadas 61 g, poliinsaturadas 14 g, colesterol 0
+7798061190596;si;si;100;;899;0;0;0;100;19;0;0;0;;columna cada 100 ml (que en un aceite es cada 100 g): monoinsaturadas 67 g, poliinsaturadas 14 g, colesterol 0
+7798061190763;si;si;porcion;13 ml;107;0;0;0;12;2.2;0;0;0;;
+7798062540253;si;si;porcion;200 ml;38;9;9;0;0;0;0;0;40;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;
+7798062540260;si;si;porcion;200 ml;38;9;9;0;0;0;0;0;25;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;azucares del frontal
+7798062548648;si;si;porcion;200 ml;35;9;8;0;0;0;0;0;35;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;texto corrido, edulcorada
+7798062548716;si;si;porcion;200 ml;35;9;8;0;0;0;0;0;35;vitamina_b9_folato_ug=36|vitamina_b12_ug=0.36;146 kJ = 35 kcal
+7798066070756;si;si;porcion;25 g;129;11;0;1.5;8.8;1.3;0;0;190;;
+7798075740107;si;si;porcion;50 g;75;0.6;;6.2;5;1.5;0;0;63;;
+7798080521715;si;si;porcion;20 g;41;0.6;0.6;0;4.2;0.9;0;0.8;231;;
+7798080521722;si;si;porcion;20 g;38;0;0;0;3.9;0.8;0;0;577;;aceitunas verdes: no aporta carbohidratos, proteínas ni fibra
+7798083730374;si;si;porcion;200 ml;34;8.4;;0.4;0.2;0;0;1.4;0.6;calcio_mg=3.6|vitamina_c_mg=5.8;
+7798085370073;si;si;porcion;10 g;76;0;0;0;8.2;4.1;0;0;4.5;;
+7798085681216;si;si;100;;20;5;;0;0;0;0;0;10;vitamina_c_mg=4.5;por 100 ml: no aporta grasas
+7798094340555;si;si;porcion;25 g;99;25;25;0;0;0;0;0;30;;
+7798096030850;si;si;porcion;60 g;27.3;6;;0.83;0;0;0;1.1;68;;la columna cada 100 g está mal calculada (multiplica la porción por 0,6): vale la porción
+7798096031055;si;si;porcion;130 g;120;21;5.5;8.2;0.4;0;0;7.4;110;;
+7798096031208;si;si;porcion;130 g;129;19;0.3;11;1;0;0;8.7;110;;foto chica, leída ampliando
+7798096031253;parcial;si;porcion;130 g;129;19;;11;1;0;0;8.7;399;fosforo_mg=118;la foto corta el tamaño de la porción: 130 g como el resto de la línea (mismos valores que los porotos negros)
+7798096881131;si;si;porcion;13 ml;49;2.2;;0;4.4;0.4;0;0;52;;
+7798105510083;si;si;porcion;30 g;107;15;;2.1;4.1;2.2;0;0.2;153;;monoinsaturadas 1.4 g, poliinsaturadas 0.2 g, colesterol 7.4 mg
+7798105510168;si;si;porcion;30 g;107;15;;2.1;4.1;2.2;0;0.2;153;;
+7798108347891;si;si;porcion;140 g;120;29;28;0;0;0;0;1;0;;ananá en almíbar
+7798111061562;si;si;porcion;200 ml;88;9.4;;5.8;3;1.8;0;0;;calcio_mg=214|vitamina_a_ug=150|vitamina_d_ug=1.25;sodio 0 declarado (inverosimil en leche), queda el generico. 1.5 % de grasa
+7798111062194;parcial;si;porcion;230 g;259;47;;6.8;;2.8;;0;;calcio_mg=234;grasas totales y sodio tapados por el borde del pote
+7798112608162;si;si;porcion;25 g;140;13;0.6;1.6;9;0.9;0;1.1;138;;
+7798113300010;no;si;;;;;;;;;;;;;foto espejada, no se lee
+7798113300027;si;si;porcion;200 ml;88;22;;0;0;0;0;0;26;;texto corrido, azúcares no declarados
+7798113300041;si;si;porcion;200 ml;104;26;;0;0;0;0;0;17;;texto corrido, azúcares no declarados
+7798113301833;si;si;porcion;200 ml;104;25;;0;0;0;0;1.2;17;vitamina_c_mg=6.8;azúcares no declarados
+7798116251128;si;si;porcion;12 g;7;0.6;;0.24;0;0;0;0.6;90;;
+7798116253122;si;si;porcion;12 g;12;1;;0.5;0;0;0;0.46;140;;
+7798125100530;parcial;si;;;;;;;;;;;;;tabla con filas corridas e inconsistente (293 kcal por 100 g en chia), no se usa
+7798126073055;si;si;porcion;30 g;140;17;1;2;7;3;0.2;;260;hierro_mg=0.6;bizcochos salados: tabla en inglés, fibra menor a 1 g
+7798126291114;si;si;porcion;5 g;12;0.5;0;0.1;1.1;0.1;0;0.4;59;;monoinsaturadas 0.2 g, poliinsaturadas 0.6 g, colesterol 0
+7798130951776;parcial;si;porcion;12 g;40;10;;0;0;0;0;0;0;;foto chica: carbohidratos tapados por el brillo, 10 g por la energía (40 kcal = 168 kJ)
+7798133020042;parcial;si;porcion;50 g;126;23;0;4.5;1.8;0.2;0;5.1;116;calcio_mg=170;foto chica
+7798133510055;si;no;;;;;;;;;;;;;la porción declarada (40 g) no cierra con un grisín: 85 kcal y 16 g de carbohidratos
+7798133510116;si;si;porcion;30 g;101;20;;2.9;1.1;0.4;0;0.9;27;;azúcares totales no se leen
+7798140257431;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;60;potasio_mg=55|calcio_mg=17|fosforo_mg=20|magnesio_mg=7.1|zinc_mg=2.2;bebida de electrolitos sin calorías
+7798141972364;no;si;;;;;;;;;;;;;foto chica
+7798141972388;no;;;;;;;;;;;;;;foto dada vuelta y demasiado chica
+7798143357275;si;si;porcion;20 g;119;2.2;1.7;5.2;10;1;0;1.5;78;;
+7798144510556;parcial;si;porcion;130 g;104;19;2.1;7;0;0;0;;74;;fibra declarada 19 g inverosimil, se deja en blanco
+7798144510563;si;si;porcion;130 g;113;21;3.4;7.3;0;0;0;;82;;fibra declarada 21 g inverosimil, se deja en blanco
+7798146700320;si;si;porcion;125 g;120;0.3;;15;1.3;0.3;0;0;185;;
+7798147780055;si;no;;;;;;;;;;;;;la porción son 3 unidades sin el peso en gramos
+7798152223417;si;si;porcion;30 g;128;21;0.9;3.3;3.3;1.4;0;1.3;169;;energia tapada por reflejo, verificada por Atwater
+7798152226326;parcial;si;porcion;10 g;75;0;;0;8.4;5.3;0;0;9.2;;foto con reflejo: valores coherentes con el %VD
+7798156260289;parcial;si;porcion;40 g;75;0;0;14.2;2.0;0.8;0;0;1352;;letra chica
+7798156760024;si;si;100;;73;12;0;6.6;0;0;0;6;13;;columna por 100 g
+7798159715021;si;si;porcion;50 g;127;25;0;4.7;1.3;0.6;0;1.6;235;;
+7798159715052;si;si;porcion;50 g;110;19;1.5;4.5;1.7;0.5;0;2.5;104;;la energía no cuenta la fibra
+7798159715106;si;si;porcion;30 g;104;0;0;7.8;8.1;5.2;0.3;0;144;calcio_mg=264|vitamina_a_ug=78;
+7798159715120;si;si;porcion;50 g;131;25;0;4.7;1.4;0.7;0;1.7;235;;
+7798159717483;no;;;;;;;;;;;;;;foto demasiado chica
+7798159717612;si;si;porcion;30 g;142;20;;1.9;6;3.6;0.2;0;104;;
+7798159717766;si;si;porcion;21 g;84;14;;0.9;2.7;0.5;0;0.8;38;;
+7798159719593;si;si;porcion;30 g;91;0;;9.3;6;3.9;0;0;144;calcio_mg=264;
+7798159719715;no;;;;;;;;;;;;;;la foto muestra el paquete sin la tabla
+7798164190202;si;si;100;;252;46;;9.6;3.2;0;0;4.6;448;;columna por 100 g
+7798164190608;si;si;porcion;50 g;122;25;1.4;4.5;0.5;0.1;0;0.6;271;;pan lacteado
+7798165591268;si;si;porcion;14 g;130;0;0;0;14;9;0;0;0;;manteca clarificada: colesterol 30 mg
+7798170290200;si;si;porcion;20 g;53;13.33;;0;0;0;0;0.16;0.62;;proteínas y grasas no significativas
+7798171732914;si;si;porcion;19 g;91;12;8.3;0.8;4.4;3.1;0;0.3;42;;
+7798174970016;si;si;porcion;5 g;20;5;5;0;0;0;0;0;0;;no aporta proteínas, grasas ni sodio
+7798177401272;si;si;porcion;30 g;91;15;0.1;2.2;2.4;0.2;0;0.8;168;;
+7798177401289;parcial;no;porcion;30 g;91;15;0.1;2.2;2.4;0.2;0;0.7;170;;la foto es de la variedad barbacoa, no de la de jamón
+7798179070797;parcial;si;porcion;30 g;102;0.5;0.5;7.4;7.8;5.2;;;;;la foto corta el sodio, la fibra y las trans
+7798181511356;si;si;porcion;50 g;105;21;2;0.4;2;0.1;0;0.8;238;;pan sin TACC (casi sin proteínas)
+7798186030593;si;si;100;;336;81;;3;0;0;0;1;40;;malvaviscos
+7798186032641;si;si;porcion;30 g;81;19;;1.2;0;0;0;0;0;;gomitas
+7798186032924;parcial;si;porcion;25 g;99;18.5;10;1.7;2;0.3;;0.4;18;;texto corrido con reflejos (trans y monoinsaturadas tapadas), poliinsaturadas 0,6 g, colesterol 0
+7798186034584;si;si;porcion;20 g;67;16;16;1;0;0;0;0;0;;
+7798187761113;si;si;porcion;49 g;201;12;6.3;16;9.9;1.5;0;8.3;80;;monoinsaturadas 4,8 g, poliinsaturadas 2,4 g, colesterol 0
+7798224211557;si;si;porcion;10 g;4;0.6;0;0;0;0;0;0;216;;
+7798224212905;si;si;porcion;5 g;13;2.5;0.1;1;0.2;0.1;0;1.2;85;;pesto deshidratado en sobre
+7798256540212;si;si;porcion;40 g;40;2.6;0;6;0.6;0;0;0.5;35;calcio_mg=104;
+7798258110109;si;si;porcion;50 g;160;26;;4.3;4.3;0.4;0;2.8;283;;tortillas de quinoa integral
+7798260740530;si;si;porcion;50 g;145;1.6;0;6.5;13;5;0;0.7;426;;chorizo fresco tipo chistorra (texto rotado, leído ampliando)
+7798261760308;parcial;si;porcion;13 ml;108;0;0;0;12;2;0;0;0;;foto chica
+7798270243861;si;si;porcion;30 g;134;20;;4;4.5;2.1;0;1;153;;
+7798270244066;si;si;porcion;30 g;127;19;6;1.6;5;2.5;0;0.7;8.1;;
+7798270245124;parcial;si;porcion;80 g;273;57;2.2;9;0.9;0;0;2.4;8;;foto chica, verificado por Atwater y por la tabla frontal
+7798290580120;si;si;100;;8;2.05;;0;0;0;0;0;11;vitamina_c_mg=4.5|vitamina_a_ug=60|vitamina_b2_mg=0.13|vitamina_b3_niacina_mg=1.6|vitamina_b6_mg=0.13|vitamina_b9_folato_ug=24;jugo light fortificado
+7798290581691;si;si;100;;20;4.8;4.8;0.15;0;0;0;0;7.5;vitamina_a_ug=60|vitamina_b2_mg=0.13|vitamina_b3_niacina_mg=1.6|vitamina_b6_mg=0.13|vitamina_b9_folato_ug=24|vitamina_c_mg=22.5;columna por 100 ml
+7798294150220;si;si;porcion;30 g;124;19;7.7;0.7;5;2.3;0;0.2;83;;
+7798309870389;si;si;100;;390;87;40;5.5;2;2;0;0;13;;
+7798334803017;si;si;porcion;15 g;28;1;;0.5;2.6;0.5;0;0.3;57.4;;
+7798338290073;si;si;100;;37;4.8;4.8;3;0.6;0.4;0;0;45;calcio_mg=110|fosforo_mg=95|vitamina_a_ug=75|vitamina_d_ug=0.75|vitamina_b2_mg=0.14|vitamina_b12_ug=0.15;columna por 100 ml
+7798338290110;si;si;100;;37;4.8;;3;0.6;0.4;0;0;62;calcio_mg=110|fosforo_mg=95|vitamina_a_ug=75|vitamina_d_ug=0.75|vitamina_b9_folato_ug=27|vitamina_b2_mg=0.14|vitamina_b12_ug=0.15;columna cada 100 ml
+7798338291711;si;si;porcion;30 g;107;0;0;7.8;8.4;5.4;0.3;0;150;;queso danbo sin lactosa
+7798342150639;si;si;porcion;80 g;188;2.5;;13;14;8;0;4.2;344;;medallón de base vegetal
+7798343751675;si;si;porcion;41 g;133;15;6;10;3.7;1.4;0;8;70;;barra proteica: la energía no cuenta la fibra
+7798343751729;no;si;;;;;;;;;;;;;foto sin tabla
+7798343751972;si;si;porcion;43 g;153;12;6.6;15;5;1;0;6;115;;
+7798344910279;si;si;porcion;10 g;75;0;0;0;8.3;4.6;0.3;0;9.5;;
+7798349430048;si;si;100;;40.5;9.5;;0.65;0;0;0;0.2;1;vitamina_c_mg=22.5;jugo exprimido
+7798355100027;si;si;porcion;25 g;83;14;;2.3;2;1.1;0;2.9;300;;pochoclo salado: la energía no cuenta la fibra
+7798355480563;no;;;;;;;;;;;;;;foto demasiado chica
+7798355480570;si;si;porcion;50 g;131;23;;3.3;2.9;0.3;0;1;269;calcio_mg=56;tortilla de trigo con espinaca: monoinsaturadas 1.3 g, poliinsaturadas 1.2 g
+7798355480587;si;si;porcion;50 g;120;20;;3.3;3;0.3;0;2.2;250;calcio_mg=53;monoinsaturadas 1.2 g, poliinsaturadas 1.1 g
+7798359370099;si;si;porcion;85 g;250;44;0;7;5;1.7;0;2.7;360;;
+7798375610247;si;si;porcion;40 g;168;1;0.2;8.9;14.5;6.8;0.4;0.2;730;;
+7798378750056;si;si;porcion;25 g;89;14;0;2.2;2.8;0.9;0;2.9;227;;
+7798403210081;parcial;si;porcion;30 g;112;0.8;0.8;7.9;8.6;5.8;0;;;;la foto corta la fibra y el sodio
+7798407710099;parcial;si;porcion;200 ml;10;2.6;;0.2;0;0;0;0.28;6;;texto chico leído ampliando, proteínas según el %VD
+7798417060085;si;si;porcion;25 g;128;10;10;6.8;6.8;5.5;0;0;80;vitamina_a_ug=124|vitamina_d_ug=2;
+7798424300051;no;si;;;;;;;;;;;;;foto chica
+7798433140013;parcial;si;;;;;;;;;;;;;torta de coco y dulce de leche mal clasificada como dulce_de_leche, energia del rotulo no cierra
+7798456650179;parcial;si;;;;;;;;;;;;;premezcla keto de pancakes clasificada como pan_frances, porcion ilegible
+7799120000856;no;si;;;;;;;;;;;;;foto lejana
+7799120001020;si;si;100;;58;4.8;4.8;3;3;1.9;0;0;45;vitamina_a_ug=75|vitamina_d_ug=0.75|vitamina_b2_mg=0.14|vitamina_b12_ug=0.15|calcio_mg=110|fosforo_mg=95;columna por 100 ml
+7799155000791;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;34;;agua saborizada sin azúcar
+7841503001797;si;si;100;;397;57;7;8.6;14;5;1.6;5;830;;columna por 100 g
+7841503001803;si;si;100;;440;63;3.8;10;16;1.1;0;5.2;895;;monoinsaturadas 11 g, poliinsaturadas 4,1 g, colesterol 0
+7841503002220;si;si;100;;488;69;28;5.8;20;3.9;0;2.4;115;;columna por 100 g
+7841503002299;si;si;100;;419;61;0;7.6;16;1.1;0;1.8;151;;sin azúcar: monoinsaturadas 12 g, poliinsaturadas 2,5 g
+7841503002312;si;si;100;;477;63;0;6.3;22;5.7;0;2.6;227;;columna por 100 g
+7841503002855;no;si;;;;;;;;;;;;;foto del frente, sin tabla
+7841503031671;parcial;si;porcion;25 g;128;14;0.9;1.5;7.2;2.9;0;1.4;145;;reflejos, la lectura cierra con la energía
+7842520000428;si;si;porcion;25 g;121;14;;1.6;6.5;1.7;0;0.9;187;;
+7842520000527;si;si;porcion;25 g;123;13;0.7;1.2;7.2;0.6;0;1;187;;
+7842520000824;si;si;porcion;25 g;121;14;;1.6;6.5;1.7;0;0.9;187;;
+7861002901855;si;si;porcion;20 g;80;20;;0;0;0;0;0;0;;pastillas: no aportan proteínas, grasas, fibra ni sodio
+7891000455708;si;si;100;;560;58;58;5.1;34;20;0.4;1;62;;
+7891079012444;si;si;porcion;85 g;386;53;2.5;7.4;16;7.7;0;1.5;2122;hierro_mg=3.6;hierro desde el 20 % VD del rotulo en ingles
+7891167831094;si;si;porcion;60 g;100;0;0;10;6.5;1.2;0;0;308;;atún en aceite escurrido (foto chica, leída ampliando)
+7891330012244;si;si;porcion;25 g;124;8.2;;2.5;9.1;5.8;0;4.3;6;;chocolate amargo
+7891330018178;si;si;porcion;22.5 g;119;11;;0.8;8.2;5.5;0;1.7;4.4;;
+7891330019991;si;si;porcion;26.6 g;152;14;10;2.2;9.7;5.7;0;0;24;;
+7891330020010;si;si;porcion;26.6 g;147;16;13;1.5;8.4;5.7;0;0.6;15;;
+7896022086343;si;si;porcion;30 g;144;20;;1.7;6.3;3.2;0;0;75;;
+7896022086374;si;si;porcion;30 g;152;20;;1.9;7.2;3.7;0;0;77;;
+8004275060068;si;si;100;;358;73;3;12.5;1.3;0.2;;;0;;rotulo europeo, sal menor a 0.01 g
+8004275060129;parcial;si;100;;479;12;6.5;5.2;45;7.4;;;1400;;rótulo europeo, sal 3,5 g, la foto corta la fibra
+8008857112862;si;si;100;;366;73;3;14;1.3;0.2;;2.9;;;rotulo europeo, sal no visible
+8014941052754;si;si;porcion;28 g;120;18;1;3;3.5;0.5;0;1;300;;rotulo EE.UU., carbohidratos sin fibra
+8032754438848;si;si;porcion;100 ml;236;55;50;1;0;0;0;0;8;;crema de aceto balsámico: tabla alemana cada 100 ml (sal 0,02 g)
+8410255911556;si;no;;;;;;;;;;;;;los ingredientes de la foto son de un relleno sabor nata con cacao, no de coco (y el sodio dice 0,06 mg)
+8413376022965;si;si;100;;330;1;0;16;29;21;0;;480;;columna por 100 g, queso de cabra
+8434165453715;si;si;100;;415;69;1.5;6.1;15;3.6;;5;208;;rótulo europeo, sal 0,52 g, incluye 19 g de polialcoholes
+8434165466142;parcial;si;;;;;;;;;;;;;galletitas sandwich de queso mal clasificadas como queso_semiduro, carbohidratos y proteinas cortados
+8434165653061;si;si;porcion;30 g;150;18;2.6;1.9;7.8;3.6;0;0.8;204;;
+8437000757436;si;si;100;;589;45;0.5;5.4;43;10.44;;3.1;1184;;rótulo europeo, sal 2,96 g, monoinsaturadas 23,25 g, poliinsaturadas 9,31 g
+8437006958332;si;no;;;;;;;;;;;;;la foto es de un pure de manzana y pera, no de jardinera
+8437008383767;si;si;100;;248;2.5;2.5;5.5;24;14.6;;0;480;;columna por 100 g, sal 1.2 g
+8445290900654;si;si;porcion;20 g;54;11;11;1.6;0.8;0.5;0;0;23;;monoinsaturadas 0.2 g, poliinsaturadas 0.02 g, colesterol 3.4 mg
+8445291046931;no;si;;;;;;;;;;;;;foto lejana
+8480017006134;si;si;porcion;80 g;147;20.7;;4.4;5.2;0.9;0;1.5;374;;croquetas de espinaca
+8480017023520;si;si;porcion;30 g;136;19;9.2;5.7;4.1;1.7;0;1.9;11;;
+8480017034601;no;;;;;;;;;;;;;;foto demasiado chica
+8480017035493;parcial;no;;;;;;;;;;;;;la foto corta las grasas totales y los carbohidratos
+8480017035868;si;si;porcion;200 ml;48;12;;0;0;0;0;0;12;;azúcares no declarados (también lleva aspartamo)
+8480017048165;si;si;porcion;40 g;40;1.8;0;5.2;1.4;0.5;0;0.5;417;;fiambre cocido de paleta de cerdo
+8480017056221;si;si;porcion;50 g;131;25;;4.7;1.4;0.7;0;1.7;117;;azúcares no declarados
+8480017062574;si;si;porcion;30 g;68;0;;3.6;5.7;3.6;0.3;0;262;;queso untable sabor salame
+8480017066626;si;si;porcion;100 g;253;47;0.7;8.5;3.6;1.3;0;2.5;309;;
+8480017083579;si;si;porcion;200 ml;0;0;0;0;0;0;0;0;25;;
+8480017114310;si;si;porcion;25 g;135;14;;1;8;0.9;0;0.9;125;;
+8480017116291;si;no;;;;;;;;;;;;;la tabla tiene errores: 97 kcal = 40 kJ y 1 g de grasas trans sobre 3 g de grasas
+8480017116314;si;si;porcion;50 g;125;22;0;5.2;2;1.1;0;2.5;200;;monoinsaturadas 0.8 g, poliinsaturadas 0.1 g
+8480017118158;si;si;porcion;100 g;260;47;0.9;9.1;4.1;1.6;0;2.7;309;;
+8480017121110;si;si;porcion;30 g;48;2.6;;1.2;3.6;2.1;0;0;18;;sin sal agregada
+8480017135841;si;si;porcion;30 g;112;22;;1.3;3;0.6;;0.2;106;;las grasas trans figuran como 0,6 %
+8480017147523;si;si;porcion;100 g;255;47;0.8;8.5;3.6;1.2;0;2.6;321;;
+8480017148537;si;si;porcion;100 g;257;47;0.8;8.6;3.8;1.3;0;2.6;323;;
+8480017151605;si;si;porcion;30 g;112;25;;2.2;0;0;0;0;218;;tostadas de arroz
+8480017174383;si;si;porcion;25 g;124;16;;1.1;6.2;2.6;0;0;28;;obleas rellenas
+8480017183507;si;si;porcion;40 g;139;24;;1.9;3.9;1.9;0;0;69;;
+8480017191342;parcial;si;porcion;25 g;138;12;;3.5;8.5;2.5;0;0;34;;texto chico, valores coherentes con el %VD
+8480017201973;si;si;porcion;130 g;106;19;;8.1;0;0;0;9;255;;
+8480017204912;si;si;porcion;12 g;18;1.2;0;0;1.5;0;0;0;99;;
+8480017215130;si;si;porcion;30 g;70;14;;2.3;0.6;0;0;1.7;112;;
+8480017241979;parcial;si;porcion;30 g;78;14;;1.7;1.8;0.9;0;0;218;;foto movida: el sodio se lee 218 mg (9 %VD)
+8480017242068;si;si;porcion;100 g;195;36;;6.2;3;1.1;0;1.9;394;;foto chica, valores confirmados con el %VD
+8480017242099;si;si;porcion;100 g;258;47;0.8;8.6;3.8;1.4;;2.6;329;;grasas trans tapadas por un reflejo
+8480017242150;si;si;porcion;100 g;254;47;;8.5;3.6;1.2;0;2.6;367;;
+8480017242167;si;si;porcion;100 g;257;47;;8.8;3.9;1.5;0;2.6;310;;azúcares tapados por un reflejo
+8480017242198;si;si;porcion;100 g;276;49;0.6;9.1;5;2;0;2.7;253;;
+8480017242211;si;si;porcion;100 g;265;55;0;9.6;0.8;0;0;2.9;0;;sodio 0 %VD (valor tapado)
+8480017242983;si;si;porcion;30 g;115;23;;2;1.3;0;0;0.7;76;;
+8480017253538;parcial;si;porcion;50 g;119;4.1;0;5.3;9;2.9;0.1;1;538;;energía tapada por un reflejo: 119 kcal por los macronutrientes (6 %VD)
+8480017254528;si;si;porcion;100 g;227;34;3.2;11;5;1.5;0.2;2.8;441;;
+8480017260130;si;si;porcion;130 g;154;25;2.6;6.9;2.9;0.4;0;6.4;88;;
+8480017260215;si;no;;;;;;;;;;;;;3,4 g de proteínas en 130 g no es posible en lentejas (tendrían unos 9 g): tabla dudosa
+8480017260239;si;si;porcion;130 g;119;16;2.8;11;1.2;0.2;0;17;48;;la energía no cuenta la fibra (rótulo del Mercosur)
+8480017262240;si;si;porcion;130 g;74;12;2.6;4.8;0.7;0;0;7.2;95;;jardinera (arvejas, papa y zanahoria)
+8480017275066;si;si;porcion;30 g;145;18;0;3;6.9;0.5;0;1.5;259;;galletitas con semillas: monoinsaturadas 5.2 g, poliinsaturadas 1.0 g, colesterol 0
+8480017278845;si;si;porcion;25 g;112;13;0.4;1.7;5.9;0.4;0;0.5;223;;
+8480017286413;parcial;si;porcion;30 g;79;0;0;5.4;6.4;4.2;0;0;;;sin lactosa, el sodio queda cortado
+8480017286444;parcial;si;porcion;100 g;220;44;0;8.1;1.2;;0;2.4;212;;energía 220 kcal (924 kJ), las saturadas quedan tapadas
+8480017286772;si;no;;;;;;;;;;;;;12 g de carbohidratos cada 100 g no es posible en un chipá (almidón de mandioca) y los kJ no cierran
+8480017296443;no;;;;;;;;;;;;;;foto demasiado chica
+8480017297747;si;si;100;;113;18;0.2;2.1;3.6;0.3;0;2.4;55;;monoinsaturadas 2.2 g, poliinsaturadas 1.0 g
+8480017297914;si;no;;;;;;;;;;;;;20 g de azúcares cada 100 ml no cierra con los ingredientes (agua y jugo de limón)
+8480017297969;parcial;no;;;;;;;;;;;;;la foto corta casi toda la tabla
+8480017298515;si;si;porcion;5 g;20;5;5;0;0;0;0;0;0;;
+8480017298614;si;si;porcion;24 g;94;19;1.4;2.8;0.9;0.1;0;0.8;71;;monoinsaturadas 0.5 g, poliinsaturadas 0, colesterol 0
+8480017299079;si;si;100;;40;9.5;9.5;0.7;0;0;0;0;0;vitamina_c_mg=23;jugo sin azúcar agregada
+8480017299468;si;no;;;;;;;;;;;;;172 kcal cada 100 g: no es el producto como se vende (parece la pasta cocida)
+8480017301888;si;si;100;;613;16;11;27;49;6;0;6.3;19;;
+8480017317872;si;si;porcion;30 g;107;17;0;4;2.5;0;0;3.2;0;;
+8480017319111;si;si;porcion;13 ml;108;0;0;0;12;1.6;0;0;0;;monoinsaturadas 8.8 g, poliinsaturadas 1.3 g
+8480017383730;si;si;porcion;50 g;141;28;;4;1.4;0.5;0;2.5;220;vitamina_b1_mg=0.35|vitamina_b2_mg=0.35|vitamina_b6_mg=0.5|vitamina_b9_folato_ug=75;pan fortificado
+8480017555342;si;si;porcion;30 g;125;19;;1.8;4.7;3;0.3;0;42;;
+8480017555670;si;si;porcion;30 g;151;21;;1.6;6.8;2.6;0;0;34;;
+8480017558176;si;si;porcion;60 g;108;4.2;0;14;3.8;0.7;0;0;427;;atún desmenuzado escurrido
+8480017592088;si;si;porcion;80 g;261;45;19;3.4;7.5;3.2;0.4;1.4;150;;
+8480017631336;si;si;porcion;100 g;193;35;0;6.2;2.9;1.1;0;1.9;379;;
+8719128110097;si;si;;;;;;;;;;;;;valores de la bebida preparada, no del jarabe concentrado
+8801048941001;no;no;;;;;;;;;;;;;soju (bebida alcoholica 20 %) clasificado como arroz
+8992741970549;si;si;porcion;20 g;70;16;16;1;0;0;0;0;10;;gomitas con forma de hamburguesa clasificadas como hamburguesa

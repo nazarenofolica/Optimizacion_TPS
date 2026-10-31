@@ -1,0 +1,5 @@
+# Valores nutricionales cargados a mano, por 100 g (o 100 ml). Pisan a Open Food Facts.
+# clave_producto: el EAN de 13 dígitos (con ceros a la izquierda) o la clave interna tal como sale en salida/productos.csv (ej. cadena10-2506699000003).
+# fuente: de dónde sale el dato (rótulo, ARGENFOODS, USDA FDC 171287, etc.). Se pueden agregar columnas de nutrientes con los mismos nombres que en productos.csv.
+# Decimales con coma o punto. Las líneas que empiezan con # se ignoran.
+clave_producto;fuente;nota;energia_kcal;proteinas_g;carbohidratos_g;grasas_totales_g;grasas_saturadas_g;grasas_trans_g;fibra_g;sodio_mg;azucares_g;calcio_mg;hierro_mg

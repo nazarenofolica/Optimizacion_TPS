@@ -1,0 +1,7 @@
+# TPF Optimización — El problema de la dieta con precios de SEPA
+# Instalar con:  pip install -r requirements.txt
+
+pandas>=2.2        # leer y cruzar las tablas de la base (datos/sepa/)
+pyarrow>=15        # formato parquet de la base
+
+# Para regenerar la base desde cero hace falta además lo de base_sepa/requirements.txt.

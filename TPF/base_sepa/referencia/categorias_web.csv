@@ -1,0 +1,201 @@
+# Qué alimentos genéricos (referencia/alimentos.csv) son compatibles con cada categoría de góndola de los
+# catálogos online de Jumbo, Disco y Vea. Se usa el prefijo más largo que coincide con la categoría del producto.
+# alimentos: ids separados por "|"; "-" = fuera de alcance (no es comida, o no es un alimento de la canasta:
+# suplementos, hielo, habanos). predeterminado: el alimento que se asigna si las reglas no eligen ninguno de
+# los compatibles (solo en categorías homogéneas). Un producto cuya regla elige un alimento no compatible con
+# su categoría se excluye por clasificación dudosa.
+categoria_web;alimentos;predeterminado
+Almacén > Aceites y Vinagres > Aceites Comunes;aceite|aceite_oliva|grasa|aceite_coco;aceite
+Almacén > Aceites y Vinagres > Aceites Especiales;aceite_oliva|aceite|manteca|aceite_coco;
+Almacén > Aceites y Vinagres > Acetos;aceto_balsamico|vinagre|salsas_varias;aceto_balsamico
+Almacén > Aceites y Vinagres > Jugos de Limón;jugo_limon;jugo_limon
+Almacén > Aceites y Vinagres > Vinagres;vinagre|aceto_balsamico;vinagre
+Almacén > Aderezos > Ketchup;ketchup|salsas_varias|pesto;ketchup
+Almacén > Aderezos > Mayonesas;mayonesa|mayonesa_light|salsas_varias;mayonesa
+Almacén > Aderezos > Mostazas;mostaza|salsas_varias;mostaza
+Almacén > Aderezos > Otros Condimentos;salsas_varias|pesto|especias|salsa_tomate|mayonesa|mostaza|ketchup|sopa_caldo;salsas_varias
+Almacén > Aderezos > Salsas Frías;salsas_varias|pesto|salsa_tomate|mayonesa|mostaza|ketchup;salsas_varias
+Almacén > Aderezos > Salsas Golf;salsas_varias;salsas_varias
+Almacén > Aderezos;salsas_varias|pesto|mayonesa|mostaza|ketchup;
+Almacén > Arroz y Legumbres > Arroz Listos;arroz_preparado|arroz|arroz_integral;arroz_preparado
+Almacén > Arroz y Legumbres > Arroz;arroz|arroz_integral|arroz_preparado;arroz
+Almacén > Arroz y Legumbres > Legumbres;lentejas|garbanzos|porotos|arvejas_secas|soja|polenta|legumbres_lata;
+Almacén > Caldos, Sopas, Puré y Bolsas para Horno > Caldos;sopa_caldo|especias;sopa_caldo
+Almacén > Caldos, Sopas, Puré y Bolsas para Horno > Puré;pure_instantaneo;pure_instantaneo
+Almacén > Caldos, Sopas, Puré y Bolsas para Horno > Sopas;sopa_caldo|fideos_instantaneos;sopa_caldo
+Almacén > Caldos, Sopas, Puré y Bolsas para Horno;sopa_caldo|pure_instantaneo|especias;
+Almacén > Cajas Navidenas;-;
+Almacén > Conservas > Conservas de Carne;pate|jamon_cocido|salchichas|hummus;pate
+Almacén > Conservas > Conservas de Frutas;frutas_almibar|pure_frutas|bebida_vegetal|frutas_tropicales;frutas_almibar
+Almacén > Conservas > Conservas de Pescado;atun_lata|caballa_lata|sardinas_lata|calamar|merluza|surimi|salmon;
+Almacén > Conservas > Conservas de Verduras y Legumbres;arvejas_lata|choclo_lata|legumbres_lata|palmitos|hongos|pickles|pure_tomate|salsa_tomate|verduras_varias|verduras_hoja|remolacha|morron|zapallito|hummus|aceitunas|verduras_conserva|soja;
+Almacén > Desayuno y Merienda > Azúcar y Edulcorantes;azucar|azucar_mascabo|edulcorante|edulcorante_liquido|miel;
+Almacén > Desayuno y Merienda > Bizcochuelos, Budines y Magdalenas;budin_torta|galletitas_dulces|facturas;budin_torta
+Almacén > Desayuno y Merienda > Cacao y Saborizantes;cacao_bebida|cacao_amargo|chocolate_cobertura|chocolate_leche;cacao_bebida
+Almacén > Desayuno y Merienda > Cafés;cafe;cafe
+Almacén > Desayuno y Merienda > Cereales;cereales_desayuno|barritas_cereal|avena|quinoa|semillas|galletitas_arroz|pure_frutas;cereales_desayuno
+Almacén > Desayuno y Merienda > Galletitas Dulces;galletitas_dulces|galletitas_rellenas|galletitas_arroz|alfajor|budin_torta|facturas;galletitas_dulces
+Almacén > Desayuno y Merienda > Galletitas Saladas;galletitas_agua|galletitas_arroz|snacks_maiz;galletitas_agua
+Almacén > Desayuno y Merienda > Leches;leche_polvo|leche_polvo_descremada|leche_infantil|leche_condensada|cacao_bebida;
+Almacén > Desayuno y Merienda > Mermeladas y Jaleas;mermelada|mermelada_light|miel|dulce_membrillo|dulce_de_leche|mantequilla_mani;mermelada
+Almacén > Desayuno y Merienda > Piononos;budin_torta;budin_torta
+Almacén > Desayuno y Merienda > Tés;te|yerba;te
+Almacén > Desayuno y Merienda > Yerbas;yerba|te;yerba
+Almacén > Desayuno y Merienda;azucar|edulcorante|cafe|te|yerba;
+Almacén > Golosinas y Chocolates > Alfajores;alfajor;alfajor
+Almacén > Golosinas y Chocolates > Bocaditos y Postres;chocolate_leche|caramelos|alfajor|galletitas_rellenas|barritas_cereal|mantequilla_mani|dulce_de_leche|postre_lacteo;
+Almacén > Golosinas y Chocolates > Bombones;chocolate_leche;chocolate_leche
+Almacén > Golosinas y Chocolates > Caramelos y Chicles;caramelos|golosinas_sin_azucar|chocolate_leche;caramelos
+Almacén > Golosinas y Chocolates > Chocolates;chocolate_leche|chocolate_cobertura;chocolate_leche
+Almacén > Golosinas y Chocolates > Turrones y Grageas;caramelos|chocolate_leche|mani|nueces;
+Almacén > Harinas > Avenas y Sémolas;avena|semola|polenta|harina_otras;
+Almacén > Harinas > Harinas;harina|harina_integral|harina_otras|polenta|premezcla;
+Almacén > Importados;-;
+Almacén > Mesa Dulce Navideña;budin_torta|caramelos|chocolate_leche|nueces|frutas_secas|mani;
+Almacén > Panificados > Integral y Salvado;pan_lactal_integral|pan_lactal|pan_frances;pan_lactal_integral
+Almacén > Panificados > Lacteados;pan_lactal|pan_lactal_integral|pan_frances;pan_lactal
+Almacén > Panificados > Pan Para Hamburguesas y Panchos;pan_hamburguesa;pan_hamburguesa
+Almacén > Panificados > Pan Rallado y Rebozador;pan_rallado;pan_rallado
+Almacén > Panificados > Tostadas y Grisines;galletitas_agua|galletitas_arroz|pan_frances|galletitas_dulces;galletitas_agua
+Almacén > Para Preparar > Bizcochuelos, Brownies y Tortas;premezcla|budin_torta;premezcla
+Almacén > Para Preparar > Comidas;premezcla|harina|harina_otras|pure_instantaneo|noquis|tapas_empanada|levadura_polvo;
+Almacén > Para Preparar > Flanes;gelatina|gelatina_light;gelatina
+Almacén > Para Preparar > Gelatinas;gelatina|gelatina_light;gelatina
+Almacén > Para Preparar > Helados;gelatina|helado;gelatina
+Almacén > Para Preparar > Mousse;gelatina|gelatina_light;gelatina
+Almacén > Para Preparar > Pastelería;chocolate_cobertura|chocolate_leche|mantequilla_mani|especias|levadura_polvo|gelatina|gelatina_light|salsas_varias|dulce_de_leche|nueces|semillas|azucar|premezcla|caramelos;
+Almacén > Para Preparar > Postres;gelatina|gelatina_light|postre_lacteo;gelatina
+Almacén > Pastas Secas y Salsas > Pastas Listas;fideos_instantaneos|arroz_preparado|sopa_caldo;fideos_instantaneos
+Almacén > Pastas Secas y Salsas > Pastas Secas Guiseras;fideos|fideos_integrales|pastas_rellenas;fideos
+Almacén > Pastas Secas y Salsas > Pastas Secas Largas;fideos|fideos_integrales;fideos
+Almacén > Pastas Secas y Salsas > Salsas;salsa_tomate|pesto|pure_tomate|salsas_varias|sopa_caldo;
+Almacén > Sal, Pimienta y Especias > Especias;especias|sal|sopa_caldo|levadura_polvo;especias
+Almacén > Sal, Pimienta y Especias > Sal;sal|especias;sal
+Almacén > Snacks > Frutas Secas y Disecadas;nueces|frutas_secas|mani|semillas|chocolate_leche|snacks_maiz|caramelos;nueces
+Almacén > Snacks > Maní;mani|mani_salado;mani_salado
+Almacén > Snacks > Nachos;snacks_maiz;snacks_maiz
+Almacén > Snacks > Palitos Salados;snacks_maiz|papas_fritas_snack|galletitas_agua;snacks_maiz
+Almacén > Snacks > Palitos de Maíz;snacks_maiz;snacks_maiz
+Almacén > Snacks > Papas Fritas;papas_fritas_snack|snacks_maiz;papas_fritas_snack
+Almacén > Snacks > Pochoclos;snacks_maiz;snacks_maiz
+Almacén > Snacks > Snacks;snacks_maiz|papas_fritas_snack|galletitas_agua|galletitas_arroz|mani_salado|nueces;
+Bebidas > A Base de Hierbas;agua_saborizada|gaseosa_lima_limon|gaseosa_light|fernet_aperitivos;agua_saborizada
+Bebidas > Aguas > Aguas Con Gas;soda|agua|agua_saborizada;soda
+Bebidas > Aguas > Aguas Saborizadas;agua_saborizada|gaseosa_light;agua_saborizada
+Bebidas > Aguas > Aguas Sin Gas;agua|agua_saborizada;agua
+Bebidas > Aperitivos;fernet_aperitivos|destilados|vino;fernet_aperitivos
+Bebidas > Bebidas Blancas;destilados;destilados
+Bebidas > Cervezas;cerveza|cerveza_sin_alcohol;cerveza
+Bebidas > Energizantes;energizante;energizante
+Bebidas > Espumantes > Chardonnay IV;vino|vino_espumante;vino
+Bebidas > Espumantes;vino_espumante|vino;vino_espumante
+Bebidas > Gaseosas > Cola;gaseosa_cola|gaseosa_light;gaseosa_cola
+Bebidas > Gaseosas > Tónica;tonica|gaseosa_light;tonica
+Bebidas > Gaseosas;gaseosa_lima_limon|gaseosa_light|gaseosa_cola|tonica;gaseosa_lima_limon
+Bebidas > Generosos;vino|vino_espumante|fernet_aperitivos|destilados;vino
+Bebidas > Habanos;-;
+Bebidas > Hielo;-;
+Bebidas > Isotónicas;isotonica;isotonica
+Bebidas > Jugos > En Polvo;jugo_polvo;jugo_polvo
+Bebidas > Jugos > Frescos;jugo;jugo
+Bebidas > Jugos > Granadina;jugo|jugo_polvo;jugo
+Bebidas > Jugos > Listos;jugo|bebida_vegetal;jugo
+Bebidas > Licores;destilados|fernet_aperitivos;destilados
+Bebidas > Sidras;vino_espumante;vino_espumante
+Bebidas > Sin Alcohol;vino_espumante|cerveza_sin_alcohol|jugo;
+Bebidas > Varios espumantes;vino_espumante|vino;vino_espumante
+Bebidas > Vinos;vino|vino_espumante;vino
+Bebidas > Vodka;destilados;destilados
+Bebidas > Whiskys;destilados;destilados
+Bebidas > Ananá/Frutilla/Uva;gaseosa_lima_limon|gaseosa_light;gaseosa_lima_limon
+Bebidas;-;
+Carnes > Carbón y Leña;-;
+Carnes > Carne Vacuna;carne_picada|carne_picada_especial|asado|vacio|tapa_asado|osobuco|nalga|lomo|bife|higado_vacuno|mondongo|lengua|mollejas|rinon|grasa|milanesa_carne|hamburguesa;
+Carnes > Carne de Cerdo;bondiola|pechito_cerdo|carre_cerdo|grasa|chorizo|panceta|rinon;
+Carnes > Carnes Especiales;cordero|carre_cerdo|bife|lomo|vacio|asado|nalga|tapa_asado;
+Carnes > Cordero, Lechón, Chivito y Conejo;cordero;cordero
+Carnes > Embutidos > Chorizos;chorizo;chorizo
+Carnes > Embutidos > Morcilla;morcilla;morcilla
+Carnes > Embutidos > Salchichas;salchichas|chorizo;salchichas
+Carnes > Listos Para Cocinar;nuggets_pollo|milanesa_carne|hamburguesa|pollo_pechuga|pollo_pata_muslo|nalga|carre_cerdo|bondiola|chorizo|cordero;
+Carnes > Menudencias;higado_vacuno|mondongo|lengua|mollejas|rinon|higado_pollo|osobuco;
+Carnes > Pollos > Pavos;pavo;pavo
+Carnes > Pollos;pollo_entero|pollo_pechuga|pollo_pata_muslo|higado_pollo|nuggets_pollo;
+Congelados > Comidas Congeladas > Empanadas y Tartas;empanadas|tarta|tapas_empanada;empanadas
+Congelados > Comidas Congeladas > Pizzas;pizza|prepizza;pizza
+Congelados > Comidas Congeladas;milanesa_soja|pizza|empanadas|tarta|pastas_rellenas|noquis|arroz_preparado|verduras_congeladas|hamburguesa|nuggets_pollo|milanesa_pescado|papas_congeladas|pure_instantaneo;
+Congelados > Frutas;frutas_congeladas|frutilla;frutas_congeladas
+Congelados > Hamburguesas y Milanesas;hamburguesa|milanesa_carne|milanesa_soja|nuggets_pollo|milanesa_pescado;hamburguesa
+Congelados > Helados y Postres;helado|postre_lacteo|budin_torta;helado
+Congelados > Papas;papas_congeladas|verduras_congeladas;papas_congeladas
+Congelados > Pescados y Mariscos;milanesa_pescado|merluza|salmon|trucha|langostinos|calamar|surimi;
+Congelados > Pollo y Carnes;nuggets_pollo|milanesa_carne|hamburguesa|pollo_pechuga|pollo_pata_muslo|pollo_entero|milanesa_pescado;
+Congelados > Vegetales;verduras_congeladas|milanesa_soja|papas_congeladas|frutas_congeladas|choclo|brocoli|verduras_hoja|arvejas_lata;verduras_congeladas
+Congelados;verduras_congeladas|helado|pizza|empanadas|hamburguesa|nuggets_pollo|papas_congeladas;
+Frutas y Verduras > Especias y Hierbas Aromáticas;especias|verduras_aromaticas|ajo|sal;especias
+Frutas y Verduras > Frutas > Frutas Congeladas;frutas_congeladas|frutilla;frutas_congeladas
+Frutas y Verduras > Frutas > Frutas Secas y Desecadas;nueces|frutas_secas|mani|mani_salado|semillas|cereales_desayuno|chocolate_leche|snacks_maiz|caramelos;nueces
+Frutas y Verduras > Frutas;palta|banana|manzana|citricos|limon|pera|frutilla|uva|frutas_tropicales|frutas_carozo|sandia_melon|frutas_secas;
+Frutas y Verduras > Huevos;huevos;huevos
+Frutas y Verduras > Legumbres, Granos y Semillas;quinoa|semillas|lentejas|garbanzos|porotos|arvejas_secas|soja|polenta|arroz|arroz_integral|avena|nueces|mani;
+Frutas y Verduras > Orgánicos;papa|batata|verduras_aromaticas|cebolla|tomate|lechuga|zanahoria|zapallo|zapallito|verduras_hoja|banana|manzana|citricos|limon|huevos;
+Frutas y Verduras > Verduras > Verduras Procesadas y Ensaladas Listas;lechuga|verduras_hoja|zanahoria|repollo|verduras_varias|remolacha|zapallo|choclo|verduras_aromaticas|hongos|brocoli;
+Frutas y Verduras > Verduras > Verduras Secas y Desecadas;hongos|verduras_varias|especias;
+Frutas y Verduras > Verduras;papa|batata|verduras_aromaticas|cebolla|tomate|lechuga|zanahoria|zapallo|choclo|zapallito|repollo|brocoli|coliflor|verduras_hoja|morron|ajo|remolacha|hongos|verduras_varias;
+Huevos de pascua;chocolate_leche;chocolate_leche
+Lácteos > Cremas;crema_leche;crema_leche
+Lácteos > Dulce de Leche;dulce_de_leche;dulce_de_leche
+Lácteos > Leches > Bebidas Vegetales;bebida_vegetal;bebida_vegetal
+Lácteos > Leches > Leches Larga Vida;leche_entera|leche_descremada|leche_chocolatada|leche_infantil_liquida;
+Lácteos > Leches > Leches Refrigeradas;leche_entera|leche_descremada;
+Lácteos > Leches > Leches Saborizadas;leche_chocolatada|yogur|bebida_vegetal;leche_chocolatada
+Lácteos > Mantecas y Margarinas > Manteca;manteca;manteca
+Lácteos > Mantecas y Margarinas > Margarinas;margarina;margarina
+Lácteos > Pastas y Tapas > Fideos y Ñoquis;pastas_frescas|noquis|fideos;pastas_frescas
+Lácteos > Pastas y Tapas > Grasas;grasa;grasa
+Lácteos > Pastas y Tapas > Masas y Levaduras;levadura_polvo|tapas_empanada|prepizza|pan_frances|premezcla;
+Lácteos > Pastas y Tapas > Pastas Rellenas;pastas_rellenas;pastas_rellenas
+Lácteos > Pastas y Tapas > Tapas;tapas_empanada|pan_frances;tapas_empanada
+Lácteos > Postres;postre_lacteo|yogur|helado;postre_lacteo
+Lácteos > Productos Veganos > Hummus y Otros;hummus|milanesa_soja;hummus
+Lácteos > Productos Veganos > Queso;queso_untable|queso_cremoso|queso_semiduro;
+Lácteos > Productos Veganos > Yogurt;yogur|bebida_vegetal;yogur
+Lácteos > Productos Veganos;milanesa_soja|hummus|bebida_vegetal|yogur|queso_untable;
+Lácteos > Yogures > Yogures Descremados;yogur_descremado|yogur|postre_lacteo;yogur_descremado
+Lácteos > Yogures;yogur|yogur_descremado|postre_lacteo;yogur
+Mundo Bebe > Alimentación;leche_infantil|leche_infantil_liquida|pure_frutas|cereales_desayuno;
+Mundo Bebe;-;
+Panaderia y Pasteleria > Panadería Dulce;facturas|budin_torta|galletitas_dulces|alfajor|pan_frances;
+Panaderia y Pasteleria > Panadería Salada > Pizzas y Focaccias;prepizza|pizza|pan_frances;prepizza
+Panaderia y Pasteleria > Panadería Salada > Sandwiches de Miga;-;
+Panaderia y Pasteleria > Panadería Salada;pan_frances|pan_hamburguesa|pan_lactal|pan_lactal_integral|galletitas_agua|prepizza|facturas|budin_torta;
+Panaderia y Pasteleria > Pasteleria;budin_torta|facturas|tarta|galletitas_dulces|alfajor;budin_torta
+Panaderia y Pasteleria;pan_frances|facturas|budin_torta|galletitas_dulces|galletitas_agua;
+Panadería;pan_frances|facturas|budin_torta|pan_lactal|pan_hamburguesa|galletitas_dulces|galletitas_agua|prepizza;pan_frances
+Pastas Frescas > Salsas y Quesos;salsa_tomate|pesto|salsas_varias|queso_rallado;
+Pastas Frescas;pastas_frescas|pastas_rellenas|noquis;pastas_frescas
+Pescados y Mariscos > Mariscos;calamar|langostinos;
+Pescados y Mariscos > Pescados;merluza|salmon|trucha|milanesa_pescado|surimi|atun_lata;
+Quesos y Fiambres > Dulces;dulce_membrillo|frutas_almibar|mermelada|mermelada_light;dulce_membrillo
+Quesos y Fiambres > Encurtidos, Aceitunas y Pickles;aceitunas|pickles|hongos|morron|verduras_varias|verduras_conserva|legumbres_lata|aceite_oliva|salsas_varias;
+Quesos y Fiambres > Fiambres > Jamón Cocido y Crudo;jamon_cocido|jamon_crudo;
+Quesos y Fiambres > Fiambres;salame|mortadela|jamon_crudo|jamon_cocido|panceta|pate|morcilla;
+Quesos y Fiambres > Picadas;salame|queso_semiduro|queso_cremoso|jamon_crudo|jamon_cocido|aceitunas;
+Quesos y Fiambres > Quesos > Queso Muzzarella;queso_mozzarella;queso_mozzarella
+Quesos y Fiambres > Quesos > Quesos Duros;queso_rallado|queso_semiduro;queso_rallado
+Quesos y Fiambres > Quesos > Quesos Rallados;queso_rallado;queso_rallado
+Quesos y Fiambres > Quesos > Quesos Untables;queso_untable|ricota;queso_untable
+Quesos y Fiambres > Quesos > Ricota;ricota;ricota
+Quesos y Fiambres > Quesos;queso_semiduro|queso_cremoso|queso_rallado|queso_untable|queso_mozzarella|ricota;
+Quesos y Fiambres > Salchichas;salchichas;salchichas
+Rotiseria > Platos Principales;pizza|empanadas|tarta|milanesa_carne|nuggets_pollo|milanesa_soja|pollo_entero|arroz_preparado;
+Rotiseria > Postres;postre_lacteo|budin_torta|helado;
+Rotiseria;-;
+Electro;-;
+Felices Fiestas;-;
+Hogar y textil;-;
+Limpieza;-;
+Luces c/toma;-;
+Mascotas;-;
+Perfumería;-;
+Tiempo Libre;-;

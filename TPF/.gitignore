@@ -1,0 +1,34 @@
+__pycache__/
+*.py[cod]
+*.lp
+*.mps
+*-pulp.sol
+.venv/
+.ipynb_checkpoints/
+
+# Configuracion local del agente/editor (Claude Code) - no se comparte
+.claude/
+
+# VS Code: se ignora todo lo personal de la carpeta, MENOS settings.json, que
+# tiene la receta de compilacion de LaTeX y conviene compartirla.
+.vscode/*
+!.vscode/settings.json
+
+# Base de datos: se versionan las tablas en parquet (las que van a leer los modelos), el LEEME y calidad/.
+# Las copias en CSV (~50 MB) se regeneran con el pipeline.
+datos/sepa/*.csv
+datos/sepa/*.csv.gz
+
+# Pipeline de la base: el ZIP de SEPA (~320 MB) y las cachés (Open Food Facts ~1,2 GB, USDA, catálogos web,
+# geografía) se bajan de nuevo con python -m sepa.
+base_sepa/datos/
+
+# LaTeX build artifacts (se compila localmente; solo se versiona el .tex y el .pdf final)
+informe/.aux/
+informe/*.aux
+informe/*.log
+informe/*.out
+informe/*.toc
+informe/*.fls
+informe/*.fdb_latexmk
+informe/*.synctex.gz
