@@ -1,14 +1,14 @@
 # SEPA 2.0 — salida
 
-Precios minoristas del **2026-10-23** (SEPA, `sepa_viernes_2026-10-23.zip`), procesados el 2026-10-27 16:30 en 5.7 min.
+Precios minoristas del **2026-10-23** (SEPA, `sepa_viernes_2026-10-23.zip`), procesados el 2026-11-04 21:36 en 7.1 min.
 
 ## Archivos
 
 | Archivo | Qué es | Filas |
 |---|---|---:|
-| `dim_producto.parquet` / `.csv` | Productos comestibles: clasificación. presentación. nutrientes y composición (sin precio) | 28.036 |
+| `dim_producto.parquet` / `.csv` | Productos comestibles: clasificación. presentación. nutrientes y composición (sin precio) | 28.030 |
 | `dim_tienda.parquet` / `.csv` | Sucursales con ubicación validada. división política y horarios | 2.666 |
-| `fact_precio.parquet` / `.csv.gz` | Precio de cada producto en cada tienda. normalizado | 8.241.172 |
+| `fact_precio.parquet` / `.csv.gz` | Precio de cada producto en cada tienda. normalizado | 8.240.279 |
 | `calidad/` | Lo excluido y por qué, precios descartados, ubicaciones corregidas, verificación | |
 
 Relaciones: `fact_precio.id_producto` → `dim_producto.id_producto` y `fact_precio.id_tienda` → `dim_tienda.id_tienda` (muchos a uno). Los CSV usan `;` y coma decimal; para Power BI, pandas o R conviene el parquet.
@@ -17,18 +17,18 @@ Ejemplos: precio por kg de la banana en cada provincia → `fact_precio` (subcat
 
 ## Resumen de la corrida
 
-- Productos en SEPA ese día: 78.120; comestibles en `dim_producto`: 28.036 en 218 subcategorías y 34 categorías
+- Productos en SEPA ese día: 78.120; comestibles en `dim_producto`: 28.030 en 218 subcategorías y 34 categorías
 - Tiendas: 2.666 en 24 provincias; ubicación exacta 2.648. aproximada 2. dudosa 5. sin ubicación 10
-- Precios: 8.241.172 (con promoción vigente: 727.883); descartados por anormales: 6.337
+- Precios: 8.240.279 (con promoción vigente: 727.880); descartados por anormales: 6.337
 
 | Categoría | Productos |
 |---|---:|
 | Bebidas alcohólicas | 3.573 |
-| Almacén | 2.525 |
-| Golosinas | 2.065 |
-| Galletitas | 1.990 |
+| Almacén | 2.527 |
+| Golosinas | 2.080 |
+| Galletitas | 1.991 |
 | Panificados | 1.796 |
-| Lácteos | 1.778 |
+| Lácteos | 1.777 |
 | Bebidas | 1.504 |
 | Quesos | 1.400 |
 | Infusiones | 1.161 |
@@ -39,7 +39,7 @@ Ejemplos: precio por kg de la banana en cada provincia → `fact_precio` (subcat
 | Cereales | 755 |
 | Conservas | 721 |
 | Snacks | 640 |
-| Frutos secos | 630 |
+| Frutos secos | 607 |
 | Pescados | 484 |
 | Carne vacuna | 482 |
 | Frutas | 412 |
@@ -60,22 +60,22 @@ Ejemplos: precio por kg de la banana en cada provincia → `fact_precio` (subcat
 
 | Grupo alimentario | Productos |
 |---|---:|
-| Alimentos de consumo opcional | 12.771 |
+| Alimentos de consumo opcional | 12.787 |
 | Legumbres. cereales. papa. pan y pastas | 4.318 |
-| Condimentos. aderezos y edulcorantes | 2.383 |
-| Leche. yogur y queso | 2.324 |
+| Condimentos. aderezos y edulcorantes | 2.385 |
+| Leche. yogur y queso | 2.323 |
 | Carnes y huevos | 2.018 |
 | Verduras y frutas | 1.737 |
 | Agua e infusiones | 1.395 |
-| Aceites. frutas secas y semillas | 732 |
+| Aceites. frutas secas y semillas | 709 |
 | Comidas preparadas | 358 |
 
 | Fuente de los nutrientes | Productos |
 |---|---:|
-| generico: usda | 9.246 |
-| rotulo_web | 5.502 |
-| similar | 5.452 |
-| generico: rotulos | 4.982 |
+| generico: usda | 9.233 |
+| rotulo_web | 5.501 |
+| similar | 5.455 |
+| generico: rotulos | 4.987 |
 | rotulo_web+off | 1.610 |
 | rotulo_off | 845 |
 | rotulo_foto | 399 |

@@ -1,0 +1,22 @@
+# Perfiles de ejemplo: cubren las etapas de la vida, los niveles de actividad y las restricciones que la canasta
+# sabe resolver. En la página se cargan con un clic y se pueden modificar; python -m canasta --perfil <id> arma la
+# canasta de uno desde la consola.
+#   sexo: F o M. actividad: sedentaria, liviana, moderada, intensa o muy_intensa. objetivo: mantener, bajar o subir
+#   (subir = ganar masa muscular). etapa: general, embarazo (con trimestre 1, 2 o 3) o lactancia.
+#   restricciones (separadas por "|"): celiaquia, vegetariano, vegano, sin_lactosa, sin_leche, sin_huevo, sin_mani,
+#   sin_frutos_secos, sin_soja, sin_pescado, sin_mariscos, sin_sesamo, sin_ultraprocesados, hipertension, diabetes.
+id;nombre;descripcion;sexo;edad;peso_kg;altura_cm;actividad;objetivo;etapa;trimestre;restricciones
+oficinista;Oficinista;Mujer adulta con trabajo sentado y sin deporte;F;34;63;163;sedentaria;mantener;general;;
+trabajo_fisico;Trabajo físico;Varón adulto con trabajo pesado (construcción, carga);M;42;82;175;intensa;mantener;general;;
+deportista;Deportista;Varón joven que entrena todos los días y quiere ganar músculo;M;24;74;178;muy_intensa;subir;general;;
+adolescente;Adolescente;Varón de 15 años que hace deporte en el club dos o tres veces por semana;M;15;60;170;moderada;mantener;general;;
+escolar;Niña escolar;Nena de 8 años, activa en la escuela y en la plaza;F;8;27;130;moderada;mantener;general;;
+adulta_mayor;Adulta mayor;Mujer de 74 años que camina un rato todos los días;F;74;64;158;liviana;mantener;general;;
+embarazada;Embarazada;Mujer en el segundo trimestre de embarazo;F;30;66;165;liviana;mantener;embarazo;2;
+lactancia;Lactancia;Mujer que amamanta a su bebé;F;29;64;162;liviana;mantener;lactancia;;
+celiaca;Celíaca;Mujer adulta celíaca: todo sin TACC, sin trazas de gluten;F;36;58;160;moderada;mantener;general;;celiaquia
+vegano;Vegano;Varón adulto vegano y moderadamente activo;M;29;70;176;moderada;mantener;general;;vegano
+hipertenso;Hipertensión;Varón de 58 años con hipertensión y sobrepeso, sedentario;M;58;92;172;sedentaria;bajar;general;;hipertension
+diabetes;Diabetes tipo 2;Mujer de 52 años con diabetes tipo 2 que quiere bajar de peso;F;52;78;160;liviana;bajar;general;;diabetes
+alergico;Niño alérgico;Varón de 10 años alérgico al maní, a los frutos secos y al huevo;M;10;34;140;intensa;mantener;general;;sin_mani|sin_frutos_secos|sin_huevo
+vegetariana_sl;Vegetariana sin lactosa;Mujer adulta vegetariana e intolerante a la lactosa;F;41;60;166;moderada;mantener;general;;vegetariano|sin_lactosa

@@ -2029,7 +2029,6 @@ cadena9-0000000196307;torta matilda S/E-1-un.;ELABORACION PROPIA;contenido desco
 7798270241287;CHECK GARBANZOS 300G;CHECK;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
 7798270246466;CHK BAR CER CHOCO;CHECK;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
 0000077973986;CHOC ESTILO DUBAI;COFLE;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
-7790380004776;CONFITURAS PELADILLA DE MANI GEORGALOS X 120 GRS;GEORGALOS;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
 7790742141903;CREM LIVIA P/COCINAR;LASER;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
 7798196040766;Cramberries BSA-100-gr.;SIN MARCA;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
 7791476005806;Crocante de Maní Egran PAQ-85-gr.;EGRAN;el rótulo no es compatible con su alimento genérico (clasificación o rótulo dudoso);;
@@ -2202,6 +2201,7 @@ cadena12-2004145700007;AZOTILLO NOVILLITO X KG;COTO;góndola de comida, pero la 
 7798256540205;AlimSoja Tofu Soyland Finas Hierbas 300g PAQ-300-gr.;SOYLAND;góndola de comida, pero la descripción no identifica el alimento;;
 7798256540014;Alimento Soja Tofu Soyland 300g PAQ-300-gr.;SOYLAND;góndola de comida, pero la descripción no identifica el alimento;;
 7790375245054;BAGOVIT A CLASSIC 200 GR CREMA;BAGOVIT;góndola de comida, pero la descripción no identifica el alimento;;
+7795522003983;BALLCH CHO MANI 30G;BARILOCHE;góndola de comida, pero la descripción no identifica el alimento;;
 7790040151758;BARRA CM CHO 38G;CEREAL MIX;góndola de comida, pero la descripción no identifica el alimento;;
 7790631001288;BERENJENAS NORQUINCO CONDIMENT.220g;BERENJENAS CONDIMENT;góndola de comida, pero la descripción no identifica el alimento;;
 7798290582308;BIBA AVENA 500ML;BIBA;góndola de comida, pero la descripción no identifica el alimento;;
@@ -2426,6 +2426,7 @@ cadena12-2024066000000;JAMON D/CERDO S/HUESO-S/CUERO XKG;;góndola de comida, pe
 7798096880301;MIX BROTES X 100 GR;SUEÑO VERDE;góndola de comida, pero la descripción no identifica el alimento;;
 7797942006315;MIX COLESLAW;ROCKY;góndola de comida, pero la descripción no identifica el alimento;;
 7797942008241;MIX CRIOLLA X 300 GRS ROCKY;S/D;góndola de comida, pero la descripción no identifica el alimento;;
+7798143356759;MIX CROCANTE (THS) 40G;CARREFOUR CRISTAL;góndola de comida, pero la descripción no identifica el alimento;;
 cadena10-2670630000008;MIX DE FRUTAS SECAS X 300 GRS;CARREFOUR CRISTAL;góndola de comida, pero la descripción no identifica el alimento;;
 0636266679508;MIX DE LA PATAGONIA AHUMADO, FUMEE, 40 gr;FUMEE;góndola de comida, pero la descripción no identifica el alimento;;
 7798221741798;MIX DE MEDALLITOS EMPANADOS PREFRITOS X 500 GRS;S/D;góndola de comida, pero la descripción no identifica el alimento;;
@@ -3232,6 +3233,8 @@ cadena11-2044850000009;CAB MATAMBRITO;SIN MARCA;reglas y categoría de góndola 
 7792360090830;CONDES PAN D FR 380G;CONDESA;reglas y categoría de góndola no coinciden;;
 7798010465829;CONDIMENTO CHAMP;NO APLICA MARCA;reglas y categoría de góndola no coinciden;;
 7790580427009;CONEJO BON O BON BCO. 110 GR.;ARCOR S.A.;reglas y categoría de góndola no coinciden;;
+7790380037828;CONFITURAS MANI GEORGALOS CAJA X 80 GRS;GEORGALOS;reglas y categoría de góndola no coinciden;;
+7790380004776;CONFITURAS PELADILLA DE MANI GEORGALOS X 120 GRS;GEORGALOS;reglas y categoría de góndola no coinciden;;
 cadena10-2921072300004;COOKIES DE BROWNIE CON NUEZ X UNI (GA);S/D;reglas y categoría de góndola no coinciden;;
 7791720044292;COPOS DE MAIZ BULNEZ X 160 GRS;BULNEZ;reglas y categoría de góndola no coinciden;;
 7791720038260;COPOS DE MAIZ CARREFOUR CLASSIC X 160 GR;CARREFOUR CLASSIC;reglas y categoría de góndola no coinciden;;

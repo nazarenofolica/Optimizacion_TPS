@@ -42,6 +42,11 @@ class TestReglas(unittest.TestCase):
             "ALF DDL C/BAN REPOST": "alfajor",                                    # alfajor abreviado, no dulce de leche
             "JARRO CHOPP HOLANDES 350cc": None,                                   # vaso, no cerveza
             "GUANTES MEDIANO PATITO PAR 1 UNI": None,                             # guantes, no aceite
+            # Encontrados al armar canastas: abreviaturas que se colaban en alimentos básicos.
+            "GALL.DULC.ROSQ.SAB.LECHE ISABELA PAQ 300 GRM": "galletitas_dulces",  # no es leche (ni en polvo)
+            "BALLCH CHO MANI 70G": None,                                          # chocolate, no maní
+            "EDULC.SAB.AVELLANA SVELTA BOT 110 ML": "edulcorante_liquido",        # no es un fruto seco
+            "GARRAPIÑADA DE ALMENDRA GEORGALOS BOLSA X 80 GRS": "caramelos",      # golosina, no almendras
         }
         for descripcion, esperado in casos.items():
             with self.subTest(descripcion=descripcion):

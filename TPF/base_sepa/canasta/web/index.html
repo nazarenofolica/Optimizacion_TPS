@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canasta saludable</title>
+<meta name="description" content="La compra más barata que cubre lo que necesita tu hogar, en el supermercado de tu zona, con los precios de SEPA.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="estilos.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='6' y='3' width='20' height='26' rx='2' fill='%23fffffe' stroke='%231c2b23' stroke-width='2'/><path d='M10 10h12M10 15h12M10 20h7' stroke='%232e6a4c' stroke-width='2'/></svg>">
+</head>
+<body>
+<header class="cabecera">
+  <h1>Canasta saludable</h1>
+  <p>Cargá quiénes comen en tu casa y dónde comprás: calculamos lo que necesita cada uno y armamos la compra más
+     barata que lo cubre, con los precios del supermercado más conveniente cerca tuyo.</p>
+  <p id="estado-datos" class="estado-datos" role="status">Preparando los precios…</p>
+</header>
+
+<main class="mostrador">
+  <form id="formulario" class="panel" novalidate>
+    <div class="panel-cuerpo">
+
+      <section class="paso" aria-labelledby="t-hogar">
+        <h2 id="t-hogar"><span class="numero" aria-hidden="true">1</span>Quiénes comen</h2>
+        <div id="personas" class="personas" role="tablist" aria-label="Personas del hogar"></div>
+        <button type="button" id="agregar-persona" class="boton-texto">Agregar otra persona</button>
+
+        <div id="editor" class="editor" role="tabpanel">
+          <div class="fila2">
+            <label class="campo"><span class="etiqueta">Nombre</span>
+              <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
+            <label class="campo"><span class="etiqueta">Cargar un perfil de ejemplo</span>
+              <select id="p-perfil"></select></label>
+          </div>
+          <div class="campo">
+            <span class="etiqueta" id="l-sexo">Sexo biológico</span>
+            <div class="segmentado" role="radiogroup" aria-labelledby="l-sexo">
+              <label><input type="radio" name="p-sexo" value="F"><span>Mujer</span></label>
+              <label><input type="radio" name="p-sexo" value="M"><span>Varón</span></label>
+            </div>
+          </div>
+          <div class="fila3">
+            <label class="campo"><span class="etiqueta">Edad</span>
+              <span class="con-unidad"><input type="number" id="p-edad" min="4" max="100" inputmode="numeric"><i>años</i></span></label>
+            <label class="campo"><span class="etiqueta">Peso</span>
+              <span class="con-unidad"><input type="number" id="p-peso" min="12" max="250" step="0.1" inputmode="decimal"><i>kg</i></span></label>
+            <label class="campo"><span class="etiqueta">Altura <small>opcional</small></span>
+              <span class="con-unidad"><input type="number" id="p-altura" min="90" max="230" inputmode="numeric"><i>cm</i></span></label>
+          </div>
+          <div class="campo" id="campo-etapa">
+            <span class="etiqueta" id="l-etapa">Embarazo o lactancia</span>
+            <div class="segmentado" role="radiogroup" aria-labelledby="l-etapa">
+              <label><input type="radio" name="p-etapa" value="general"><span>No</span></label>
+              <label><input type="radio" name="p-etapa" value="embarazo"><span>Embarazo</span></label>
+              <label><input type="radio" name="p-etapa" value="lactancia"><span>Lactancia</span></label>
+            </div>
+            <div class="segmentado trimestre" role="radiogroup" aria-label="Trimestre del embarazo">
+              <label><input type="radio" name="p-trimestre" value="1"><span>1.er trimestre</span></label>
+              <label><input type="radio" name="p-trimestre" value="2"><span>2.º</span></label>
+              <label><input type="radio" name="p-trimestre" value="3"><span>3.º</span></label>
+            </div>
+          </div>
+          <div class="campo">
+            <span class="etiqueta" id="l-actividad">Actividad física</span>
+            <div id="actividades" class="escala" role="radiogroup" aria-labelledby="l-actividad"></div>
+            <p id="actividad-desc" class="ayuda"></p>
+          </div>
+          <div class="campo" id="campo-objetivo">
+            <span class="etiqueta" id="l-objetivo">Objetivo</span>
+            <div id="objetivos" class="segmentado" role="radiogroup" aria-labelledby="l-objetivo"></div>
+          </div>
+          <div class="campo">
+            <span class="etiqueta">Lo que no puede o no quiere comer</span>
+            <div id="restricciones"></div>
+          </div>
+          <p id="errores-persona" class="mensaje" role="alert"></p>
+        </div>
+      </section>
+
+      <section class="paso" aria-labelledby="t-ubicacion">
+        <h2 id="t-ubicacion"><span class="numero" aria-hidden="true">2</span>Dónde comprás</h2>
+        <div class="buscador">
+          <label class="campo"><span class="etiqueta">Dirección o localidad</span>
+            <span class="buscador-fila">
+              <input type="search" id="busqueda" autocomplete="street-address" placeholder="Av. Corrientes 1234, o Villa María">
+              <button type="button" id="buscar" class="boton-secundario">Buscar</button>
+            </span></label>
+          <label class="campo"><span class="etiqueta">Provincia <small>opcional, ayuda a encontrarla</small></span>
+            <select id="provincia"></select></label>
+        </div>
+        <div id="lugares" class="lugares" aria-live="polite"></div>
+        <button type="button" id="mi-ubicacion" class="boton-texto">Usar mi ubicación actual</button>
+        <div id="mapa-ubicacion" class="mapa-ubicacion" aria-label="Mapa para marcar dónde comprás"></div>
+        <p class="ayuda" id="ayuda-mapa">También podés tocar el mapa o arrastrar el punto.</p>
+        <p id="ubicacion-elegida" class="ubicacion-elegida" aria-live="polite"></p>
+      </section>
+
+      <section class="paso" aria-labelledby="t-compra">
+        <h2 id="t-compra"><span class="numero" aria-hidden="true">3</span>La compra</h2>
+        <div class="campo">
+          <span class="etiqueta" id="l-periodo">Para cuánto tiempo</span>
+          <div id="periodos" class="segmentado" role="radiogroup" aria-labelledby="l-periodo"></div>
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" id="listos" role="switch">
+          <span class="perilla" aria-hidden="true"></span>
+          <span><b>Solo alimentos listos para comer</b>
+            <small>Para quien no cocina: sin carnes ni huevos crudos, arroz, fideos, legumbres secas ni harinas.</small></span>
+        </label>
+      </section>
+    </div>
+
+    <div class="panel-pie">
+      <p id="resumen-hogar" class="resumen-hogar"></p>
+      <button type="submit" class="boton-principal" id="armar">Armar la canasta</button>
+      <p id="mensaje" class="mensaje" role="alert"></p>
+    </div>
+  </form>
+
+  <div id="resultado" class="resultado" aria-live="polite">
+    <div class="vacio">
+      <div class="ticket ticket-vacio" aria-hidden="true">
+        <p class="t-centro">SUPERMERCADO</p>
+        <p class="t-centro">Tu sucursal</p>
+        <hr>
+        <p>Tu canasta aparece acá</p>
+        <hr>
+        <p class="t-total"><span>TOTAL</span><span>$ —</span></p>
+      </div>
+      <p>Completá los tres pasos y tocá <strong>Armar la canasta</strong>.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="pie">
+  <p>Precios: SEPA (Precios Claros, Secretaría de Comercio). Nutrientes: rótulos, Open Food Facts y USDA. Requerimientos:
+     FAO/OMS/UNU 2004 y NASEM. Reglas: Guías Alimentarias para la Población Argentina. Ubicación: Georef (Argentina) y
+     OpenStreetMap. Todo se calcula en este navegador. Es una estimación orientativa: no reemplaza la consulta con un
+     profesional de la salud.</p>
+</footer>
+
+<pre id="resultado-json" hidden></pre>
+<!-- DATOS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

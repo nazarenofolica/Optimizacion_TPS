@@ -1,0 +1,21 @@
+# Reglas de las Guías Alimentarias para la Población Argentina (GAPA, Ministerio de Salud, 2016; Res. 693/2019) que
+# la canasta respeta además de los nutrientes. Las GAPA hablan de porciones y platos, no de gramos: la equivalencia
+# en gramos es propia y está en la descripción. Las usa canasta/requerimientos.py.
+#   alimentos: alimento_id de referencia/alimentos.csv separados por "|", o "grupo:<grupo alimentario>".
+#   medida: g (gramos comestibles), porciones (gramos / porcion_g del alimento: taza de leche 200 ml, queso 30 g,
+#           carne 150 g, huevo 50 g) o kcal_pct (porcentaje de la energía del día).
+#   sentido: min o max. por: dia o semana (una regla semanal se cumple en promedio en el período de la compra).
+#   escala_energia: si = la cantidad es para 2.000 kcal y se ajusta a la energía de la persona (un chico come menos
+#                   aceite que un adulto); no = vale igual para todos.
+# Una regla que ningún alimento apto puede cumplir (pescado para un vegetariano, frutos secos para un alérgico) no
+# se aplica, y el resultado dice por qué.
+regla;descripcion;alimentos;medida;sentido;cantidad;por;escala_energia
+verduras;Verduras: medio plato en el almuerzo y medio en la cena (medio plato ≈ 150 g);verduras_hoja|lechuga|brocoli|coliflor|cebolla|hongos|morron|palmitos|pure_tomate|remolacha|repollo|tomate|verduras_congeladas|verduras_conserva|verduras_varias|zanahoria|zapallito|zapallo|verduras_aromaticas|ajo;g;min;300;dia;no
+frutas;Frutas frescas: 2 o 3 por día (fruta mediana ≈ 150 g);banana|frutas_tropicales|frutas_carozo|frutas_congeladas|frutilla|limon|manzana|citricos|palta|pera|sandia_melon|uva;g;min;300;dia;no
+lacteos;Leche, yogur y queso: 3 porciones por día (taza de leche o yogur de 200 ml, 30 g de queso) o bebidas vegetales en su lugar;grupo:Leche, yogur y queso;porciones;min;3;dia;no
+carnes_rojas;Carne roja (vaca, cerdo, cordero, achuras): hasta 3 veces por semana (porción del tamaño de la palma ≈ 150 g);asado|bife|bondiola|carne_picada|carne_picada_especial|carre_cerdo|cordero|hamburguesa|higado_vacuno|lengua|lomo|milanesa_carne|mollejas|mondongo|nalga|osobuco|pechito_cerdo|rinon|tapa_asado|vacio;porciones;max;3;semana;no
+pescado;Pescado: 2 o más veces por semana;merluza|salmon|trucha|atun_lata|caballa_lata|sardinas_lata|calamar|langostinos|milanesa_pescado|surimi;porciones;min;2;semana;no
+huevo;Huevo: hasta uno por día;huevos;porciones;max;1;dia;no
+aceite;Aceite crudo: 2 cucharadas soperas por día (≈ 20 g);aceite|aceite_oliva;g;min;20;dia;si
+frutos_secos;Frutos secos o semillas sin sal: un puñado (≈ 30 g) al menos una vez por semana;mani|nueces|semillas|mantequilla_mani;g;min;30;semana;no
+opcionales;Alimentos de consumo opcional (dulces, fiambres, manteca, crema): no incluirlos a diario, a lo sumo el 5 % de la energía;grupo:Alimentos de consumo opcional;kcal_pct;max;5;dia;no
