@@ -3,7 +3,8 @@ Qué se puede comprar y dónde: lee las tablas del modelo estrella una sola vez 
 
   - qué productos son aptos para una persona (restricciones: celiaquía, vegano, alergias...), con el criterio
     explicado para mostrarlo;
-  - qué sucursales tiene cerca (la más cercana de cada cadena primero, para comparar cadenas);
+  - qué sucursales tiene cerca (la más cercana de cada cadena primero, para comparar cadenas), por distancia o por
+    tiempo caminando (con los tiempos de canasta/rutas.py);
   - qué productos aptos vende cada sucursal y a qué precio, con lo que aporta cada gramo.
 
 Las restricciones son estrictas: "desconocido" no es apto. Para un celíaco o un alérgico, un producto sin rótulo
@@ -209,14 +210,61 @@ def distancia_km(lat1: float, lon1: float, lat2: np.ndarray, lon2: np.ndarray) -
     return 2 * r * np.arcsin(np.sqrt(a))
 
 
-def sucursales_cercanas(d: Datos, lat: float, lon: float, n: int = cfg.SUCURSALES_A_EVALUAR,
-                        radio_km: float = cfg.RADIO_KM) -> pd.DataFrame:
-    """Las n sucursales a evaluar: la más cercana de cada cadena dentro del radio y, si faltan, las que siguen."""
+def _evaluables(d: Datos, lat: float, lon: float) -> pd.DataFrame:
+    """Sucursales que se pueden evaluar (supermercados físicos con ubicación y precios), con su distancia en línea
+    recta, de la más cercana a la más lejana."""
     t = d.tiendas
     t = t[t["formato"].isin(cfg.FORMATOS_SUCURSAL) & ~t["es_web"].astype(bool) & t["lat"].notna()
           & (t["ubicacion_precision"] != "sin_ubicacion") & t.index.isin(list(d.rangos))].copy()
     t["distancia_km"] = distancia_km(lat, lon, t["lat"].to_numpy(), t["lon"].to_numpy())
-    t = t.sort_values("distancia_km", kind="stable")
+    return t.sort_values("distancia_km", kind="stable")
+
+
+def _una_por_cadena_primero(t: pd.DataFrame, n: int) -> pd.DataFrame:
+    """La primera de cada cadena (en el orden de t) y, si faltan, las que siguen; a lo sumo n."""
+    una_por_cadena = t.drop_duplicates("bandera")
+    resto = t.drop(una_por_cadena.index)
+    return pd.concat([una_por_cadena, resto]).head(n)
+
+
+def radio_caminata_km(minutos: float) -> float:
+    """Radio en línea recta que contiene todo lo alcanzable caminando en esos minutos."""
+    return minutos / 60 * cfg.VELOCIDAD_CAMINATA_KMH
+
+
+def minutos_estimados(km: float | np.ndarray) -> float | np.ndarray:
+    """Tiempo caminando estimado sin ruta (respaldo cuando el servicio de rutas no responde)."""
+    return km * cfg.FACTOR_DESVIO_CAMINATA / cfg.VELOCIDAD_CAMINATA_KMH * 60
+
+
+def candidatas_caminando(d: Datos, lat: float, lon: float, minutos: float,
+                         n: int = cfg.CANDIDATAS_MAXIMAS_RUTEO) -> pd.DataFrame:
+    """Sucursales a las que se podría llegar caminando en esos minutos (las que se mandan al servicio de rutas): las
+    que están dentro del radio en línea recta, la más cercana de cada cadena primero; ordenadas por distancia."""
+    t = _evaluables(d, lat, lon)
+    t = t[t["distancia_km"] <= radio_caminata_km(minutos)]
+    return _una_por_cadena_primero(t, n).sort_values("distancia_km", kind="stable")
+
+
+def sucursales_por_tiempo(d: Datos, lat: float, lon: float, tiempos: dict[str, dict], limite_min: float,
+                          n: int = cfg.SUCURSALES_A_EVALUAR_CAMINATA) -> pd.DataFrame:
+    """Las n sucursales a evaluar entre las que se alcanzan caminando dentro del límite: la más cercana (en minutos) de
+    cada cadena y, si faltan, las que siguen. tiempos: id_tienda -> {"minutos", "metros", "fuente"}."""
+    t = _evaluables(d, lat, lon)
+    t = t[t.index.isin(list(tiempos))].copy()
+    t["minutos"] = [float(tiempos[i]["minutos"]) for i in t.index]
+    t["metros"] = [tiempos[i].get("metros") for i in t.index]
+    t["fuente_tiempo"] = [tiempos[i].get("fuente", "ruta") for i in t.index]
+    t = t[t["minutos"] <= limite_min].sort_values(["minutos", "distancia_km"], kind="stable")
+    if t.empty:
+        return t
+    return _una_por_cadena_primero(t, n).sort_values(["minutos", "distancia_km"], kind="stable")
+
+
+def sucursales_cercanas(d: Datos, lat: float, lon: float, n: int = cfg.SUCURSALES_A_EVALUAR,
+                        radio_km: float = cfg.RADIO_KM) -> pd.DataFrame:
+    """Las n sucursales a evaluar: la más cercana de cada cadena dentro del radio y, si faltan, las que siguen."""
+    t = _evaluables(d, lat, lon)
     radio = radio_km
     cerca = t[t["distancia_km"] <= radio]
     while len(cerca) < n and radio < cfg.RADIO_MAXIMO_KM:
@@ -224,10 +272,7 @@ def sucursales_cercanas(d: Datos, lat: float, lon: float, n: int = cfg.SUCURSALE
         cerca = t[t["distancia_km"] <= radio]
     if cerca.empty:
         return cerca
-    una_por_cadena = cerca.drop_duplicates("bandera")
-    resto = cerca.drop(una_por_cadena.index)
-    elegidas = pd.concat([una_por_cadena, resto]).head(n)
-    return elegidas.sort_values("distancia_km", kind="stable")
+    return _una_por_cadena_primero(cerca, n).sort_values("distancia_km", kind="stable")
 
 
 def _podar(o: pd.DataFrame) -> np.ndarray:

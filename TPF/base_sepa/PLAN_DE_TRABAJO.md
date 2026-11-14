@@ -22,10 +22,17 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 - Hogar: hasta 8 personas, cada una con su dieta y sus restricciones, con la compra en común.
 - Modelo de la dieta en dos etapas (primero cumplir, después lo más barato) con envases enteros, en seis sucursales
   cercanas; ticket, cobertura por persona, comparación de sucursales y mapa.
-- Página autosuficiente (`salida/canasta.html`, 4,7 MB): datos del día adentro, motor en JavaScript con HiGHS en
+- Página autosuficiente (`../datos/sepa/canasta.html`, 4,7 MB): datos del día adentro, motor en JavaScript con HiGHS en
   WebAssembly y workers en paralelo, ubicación por Georef, GPS o mapa; funciona sin servidor y se puede embeber en
   Streamlit.
 - Tests: 81 en Python (24 de la canasta) y uno opcional que compara el motor del navegador con el de Python.
+
+**Estabilización del POC (2026-11-14)**: búsqueda por tiempo caminando con rutas reales de OpenRouteService
+(`canasta/rutas.py` y `web/rutas.js`), ampliación del límite con comparación de ahorro, recorrido en el mapa, arreglos
+de mapas (teselas, servidor local, superposición en el celular), ticket rediseñado (minutos caminando, columnas,
+promociones "no aplicadas", resumen nutricional, impresión), página versionada sin clave. Tests: 101 en Python más
+dos de paridad con el navegador (también por tiempo caminando). Lo que sigue está en
+[../docs/ROADMAP.md](../docs/ROADMAP.md).
 
 ## Para revisar
 

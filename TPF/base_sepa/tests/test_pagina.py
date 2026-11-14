@@ -1,7 +1,7 @@
 """Paridad entre el motor de la página (canasta/web/motor.js, en Chrome headless) y el de Python.
 
-Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de salida/; tarda alrededor de un
-minuto. Por eso es opcional:  CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
+Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de ../datos/sepa/; tarda alrededor
+de un minuto. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave). Por eso es opcional:  CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 from canasta import config as cfg
-from canasta import exportar, resultado
+from canasta import exportar, resultado, rutas
 from canasta import requerimientos as rq
 
 NAVEGADORES = [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -56,8 +56,26 @@ class TestParidadPagina(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(getattr(cls, "dir", ""), ignore_errors=True)
 
-    def _pagina(self, ids, lat, lon, dias, listos) -> dict:
-        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&motor=pagina")
+    def test_busqueda_por_tiempo_caminando(self):
+        # La página exportada sin clave estima los tiempos por distancia, igual que rutas.py sin clave: las mismas
+        # sucursales dentro del límite y los mismos costos.
+        ids, (lat, lon), minutos = ["oficinista"], (-34.60386, -58.38419), 15
+        js = self._pagina(ids, lat, lon, 7, False, extra=f"&caminata={minutos}")
+        tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+        py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, 7, tiempos=tiempos,
+                             caminata_minutos=minutos, aviso_tiempos=aviso)
+        self.assertEqual(js["caminata"]["fuente"], "estimado")
+        self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+        for a, b in zip(py["sucursales"], js["sucursales"]):
+            self.assertAlmostEqual(a["minutos"], b["minutos"], delta=0.11)
+            self.assertLessEqual(a["minutos"], minutos)
+            self.assertEqual(a["costo"] is None, b["costo"] is None, f"{a['id']}: {a['mensaje']} | {b['mensaje']}")
+            if a["costo"] is not None:
+                self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+
+    def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0") -> dict:
+        # rutas=0: la página busca las sucursales como resultado.armar sin tiempos (las más cercanas en línea recta).
+        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&motor=pagina{extra}")
         r = subprocess.run([self.navegador, "--headless=new", "--disable-gpu", "--virtual-time-budget=600000",
                             "--dump-dom", f"{self.pagina.as_uri()}?{consulta}"],
                            capture_output=True, text=True, encoding="utf-8", timeout=900)

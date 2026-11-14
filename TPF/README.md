@@ -10,14 +10,29 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 
 ---
 
-## Estado: base de datos lista, modelo pendiente
+## Estado
 
 | Parte | Estado |
 |---|---|
 | Base de datos (precios, productos con nutrientes, tiendas) | ✅ Terminada y verificada: [`datos/`](datos/) |
 | Introducción: el problema de la dieta original y nuestro planteo | ✅ [`docs/introduccion.md`](docs/introduccion.md) |
 | Fuentes | ✅ [`docs/fuentes.md`](docs/fuentes.md) |
-| Consigna, plan, modelo, resultados e informe | ⏳ Pendiente |
+| **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
+| Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
+| Consigna, resultados e informe | ⏳ Pendiente |
+
+## Probar la canasta
+
+```powershell
+cd base_sepa
+pip install -r requirements.txt
+copy .env.example .env          # y poner la clave gratuita de OpenRouteService en ORS_API_KEY
+python -m canasta               # abre la página en http://localhost:8765 (Ctrl+C para cerrar)
+python -m unittest discover -s tests -v
+```
+
+Sin clave, la página funciona igual pero estima los tiempos caminando por distancia y lo avisa. Más opciones en
+[`base_sepa/README.md`](base_sepa/README.md#canasta-saludable-poc).
 
 ## Orden de lectura
 

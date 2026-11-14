@@ -209,6 +209,28 @@ RADIO_MAXIMO_KM = 25.0         # ...y se amplía hasta este si no hay suficiente
 SUCURSALES_A_EVALUAR = 6
 FORMATOS_SUCURSAL = {"Supermercado"}     # las estaciones de servicio no tienen surtido para una canasta
 
+# Búsqueda por tiempo caminando (la página y python -m canasta --caminata). El tiempo máximo es una restricción del
+# espacio de búsqueda, no un objetivo que compita con el precio: primero se eligen las sucursales a las que se llega
+# caminando en ese tiempo (rutas peatonales reales de OpenRouteService) y recién ahí se optimiza la compra. Ampliar el
+# tiempo agrega sucursales y se vuelve a optimizar.
+CAMINATA_MINUTOS = 15                    # valor inicial, provisorio
+CAMINATA_OPCIONES = [15, 30, 45, 60]     # lo que se puede elegir (y el orden en que se amplía)
+# Velocidad de referencia: la de foot-walking en OpenRouteService (5 km/h). Con ella, el radio en línea recta
+# minutos × velocidad contiene todas las sucursales alcanzables (una ruta nunca es más corta que la recta).
+VELOCIDAD_CAMINATA_KMH = 5.0
+# Si el servicio de rutas no responde, el tiempo se estima con la distancia en línea recta por este desvío típico de
+# las calles; se muestra como estimado, nunca como ruta real.
+FACTOR_DESVIO_CAMINATA = 1.3
+# Cuántas sucursales candidatas (dentro del radio) se mandan a la matriz de rutas: la más cercana de cada cadena y las
+# que siguen. El plan gratuito de OpenRouteService admite 3.500 pares origen-destino por consulta.
+CANDIDATAS_MAXIMAS_RUTEO = 50
+# Cuántas de las alcanzables se optimizan: la más cercana de cada cadena (y, si faltan, las que siguen). Es más que
+# SUCURSALES_A_EVALUAR para que ampliar el tiempo sume cadenas nuevas en lugar de dejar todo igual.
+SUCURSALES_A_EVALUAR_CAMINATA = 10
+RUTEO_SERVIDOR = "https://api.openrouteservice.org"
+RUTEO_PERFIL = "foot-walking"
+RUTEO_TIEMPO_ESPERA_S = 12
+
 # ============================================================
 # MODELO
 # ============================================================
