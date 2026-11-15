@@ -696,6 +696,21 @@ details > :not(summary) { margin-top: 8px; }
   th, td { padding: 9px 10px; }
 }
 
+/* Celular: la tabla de sucursales pasa a filas apiladas (nombre, tres cifras, qué no cubre) sin scroll lateral. */
+@media (max-width: 640px) {
+  .tabla-sucursales thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .tabla-sucursales, .tabla-sucursales tbody { display: block; }
+  .tabla-sucursales tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--linea-suave); }
+  .tabla-sucursales tbody tr:last-child { border-bottom: 0; }
+  .tabla-sucursales tr.elegida { background: var(--acento-suave); }
+  .tabla-sucursales td { display: block; padding: 0; border: 0; background: none !important; }
+  .tabla-sucursales .ts-nombre, .tabla-sucursales .ts-falta { grid-column: 1 / -1; }
+  .tabla-sucursales .ts-nombre { margin-bottom: 8px; }
+  .tabla-sucursales td.num { text-align: left; }
+  .tabla-sucursales td.num::before { content: attr(data-etiqueta); display: block; font: 600 0.72rem var(--texto); color: var(--tinta-suave); }
+  .tabla-sucursales .ts-falta { margin-top: 8px; font-size: 0.84rem; color: var(--tinta-suave); }
+}
+
 /* Imprimir: solo el ticket, como sale de la caja. */
 @media print {
   body { background: #fff; }
@@ -705,6 +720,8 @@ details > :not(summary) { margin-top: 8px; }
   .encabezado-resultado { display: block; }
   .ticket { filter: none; -webkit-mask: none; mask: none; margin: 0 auto; border: 1px dashed #999; animation: none !important; }
   .ticket > * { animation: none !important; }
+  .t-item { break-inside: avoid; }
+  .t-grupo { break-after: avoid; }
 }
 
 /* ---------- Ticket de la cabecera: los datos reales del día, impresos al cargar ---------- */

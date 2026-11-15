@@ -827,7 +827,14 @@ function comparacionHTML(d) {
   const masMinutos = ahora.minutos_tienda != null && a.minutos_tienda != null ? Math.round(ahora.minutos_tienda - a.minutos_tienda) : null;
   const dondeAntes = `${esc(a.tienda)}${a.minutos_tienda != null ? `, a ${textoCaminata({ minutos: a.minutos_tienda, fuente_tiempo: a.fuente }, true)}` : ""}`;
   let texto;
-  if (ahora.tienda === a.tienda) {
+  if (ahora.minutos != null && ahora.minutos < a.minutos) {
+    // Se volvió a un límite menor (por ejemplo, de 45 a 15 min) para comparar.
+    texto = ahora.tienda === a.tienda || Math.abs(dif) < 1
+      ? `Con hasta ${ahora.minutos} min llegás a la misma compra: no hace falta caminar más.`
+      : dif < 0
+        ? `Con hasta ${ahora.minutos} min caminás menos, pero pagás <b>${pesos(-dif, 0)}</b> más que en ${dondeAntes} (${pesos(a.costo, 0)}).`
+        : `Con hasta ${ahora.minutos} min la compra cuesta ${pesos(dif, 0)} menos que en ${dondeAntes}.`;
+  } else if (ahora.tienda === a.tienda) {
     texto = `Con hasta ${ahora.minutos} min no aparece nada mejor: ${dondeAntes} sigue siendo la mejor opción.`;
   } else if (dif >= 1) {
     texto = `Caminando hasta ${ahora.minutos} min ahorrás <b>${pesos(dif, 0)}</b> (${fmt(pct, 0)} %)${masMinutos > 0 ? ` a cambio de ${masMinutos} min más de caminata` : ""}.
@@ -851,6 +858,9 @@ function escaleraHTML(d) {
   if (!d.caminata || !CON_RUTAS) return "";
   const calculados = [...estado.escalera.values()].map((v) => v.resumen).filter((v) => v && v.costo != null);
   const max = Math.max(...calculados.map((v) => v.costo)), min = Math.min(...calculados.map((v) => v.costo));
+  // "Más barata" va solo en el menor tiempo que ya consigue el precio mínimo: caminar más no ahorra nada.
+  const mejorMin = calculados.length > 1
+    ? Math.min(...calculados.filter((v) => v.costo - min < 1).map((v) => v.minutos)) : null;
   const filas = estado.P.CAMINATA_OPCIONES.map((m) => {
     const hecho = estado.escalera.get(m), r = hecho && hecho.resumen, actual = m === d.caminata.minutos;
     const etiqueta = `<span class="p-min">${m} min</span>`;
@@ -864,7 +874,7 @@ function escaleraHTML(d) {
     }
     const ancho = 30 + 70 * (r.costo / max);
     const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}`;
-    return `<li class="peldano ${actual ? "actual" : ""} ${r.costo === min && calculados.length > 1 ? "mejor" : ""}">
+    return `<li class="peldano ${actual ? "actual" : ""} ${m === mejorMin ? "mejor" : ""}">
       <button type="button" class="peldano-boton" data-caminata="${m}" ${actual ? 'aria-current="true"' : ""}>${etiqueta}
         <span class="p-barra"><i style="--ancho:${ancho}%"></i></span><span class="p-costo">${pesos(r.costo, 0)}</span>
         <small class="p-donde">${donde}</small></button></li>`;
@@ -959,14 +969,14 @@ function mostrar(d) {
       : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}</p>
     <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
     <p class="ayuda" id="mapa-leyenda"></p>
-    <div class="tabla-envoltorio"><table>
+    <div class="tabla-envoltorio"><table class="tabla-sucursales">
       <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
       <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
-        <td>${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}</div></td>
-        <td class="num">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
-        <td class="num">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
-        <td class="num">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : ""}</td>
-        <td>${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
+        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}</div></td>
+        <td class="num" data-etiqueta="${porTiempo ? "Caminando" : "Distancia"}">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
+        <td class="num" data-etiqueta="Costo">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
+        <td class="num" data-etiqueta="Diferencia">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : "—"}</td>
+        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
   </section>
 
   <section class="bloque"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>

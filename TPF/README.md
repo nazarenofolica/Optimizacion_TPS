@@ -19,6 +19,7 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | Fuentes | ✅ [`docs/fuentes.md`](docs/fuentes.md) |
 | **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
 | Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
+| Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
 | Consigna, resultados e informe | ⏳ Pendiente |
 
 ## Probar la canasta
