@@ -543,9 +543,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   });
 
   // ---------- Demo: la página real de la canasta, embebida ----------
-  // Servida por http (python informe/presentar.py) usa canasta_local.html, con rutas a pie reales.
-  // Abierta como archivo, o si no está la local, usa canasta.html (tiempos estimados por distancia).
-  const BASE = "../datos/sepa/";
+  // Por defecto, la demo publicada en GitHub Pages (canasta.html, tiempos estimados por distancia).
+  // Servida por http (python informe/presentar.py) y con canasta_local.html presente, usa esa, con rutas a pie reales.
+  const PAGES = "https://nazarenofolica.github.io/Optimizacion_TPS/";
+  const LOCAL = "../datos/sepa/canasta_local.html";
   const iframe = document.getElementById("demo");
   const cargandoDemo = document.getElementById("demo-cargando");
   const estado = document.getElementById("demo-estado");
@@ -553,14 +554,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
   async function elegirPagina() {
     if (pagina) return pagina;
-    pagina = "canasta.html";
+    pagina = PAGES;
     if (location.protocol.startsWith("http")) {
       try {
-        const r = await fetch(BASE + "canasta_local.html", { method: "HEAD", cache: "no-store" });
-        if (r.ok) pagina = "canasta_local.html";
-      } catch (_) { /* sin servidor: queda la versionada */ }
+        const r = await fetch(LOCAL, { method: "HEAD", cache: "no-store" });
+        if (r.ok) pagina = LOCAL;
+      } catch (_) { /* sin la local: queda la de GitHub Pages */ }
     }
-    const vivo = pagina === "canasta_local.html";
+    const vivo = pagina === LOCAL;
     estado.textContent = vivo ? "rutas a pie reales" : "tiempos estimados";
     estado.className = `estado ${vivo ? "vivo" : "estimado"}`;
     return pagina;
@@ -569,10 +570,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
   async function cargarCaso(caso) {
     const p = await elegirPagina();
     casoActual = caso;
-    const src = BASE + p + (caso ? `?${caso}` : "");
+    const src = p + (caso ? `?${caso}` : "");
     cargandoDemo.hidden = false;
     iframe.src = src;
-    document.getElementById("demo-url").textContent = `localhost / ${p}${caso ? "?" + caso : ""}`;
+    const rotulo = p === LOCAL ? "localhost / canasta_local.html" : "nazarenofolica.github.io / Optimizacion_TPS";
+    document.getElementById("demo-url").textContent = `${rotulo}${caso ? "?" + caso : ""}`;
     document.getElementById("demo-abrir").href = src;
     document.querySelectorAll(".caso").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.caso === caso)));
   }
