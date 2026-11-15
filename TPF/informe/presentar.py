@@ -26,6 +26,10 @@ class _Silencioso(http.server.SimpleHTTPRequestHandler):
 
 
 def main() -> int:
+    try:                                   # la consola de Windows (cp1252) no imprime todos los caracteres
+        sys.stdout.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
     local = RAIZ / "datos" / "sepa" / "canasta_local.html"
     if not local.exists():
         print("Aviso: no está datos/sepa/canasta_local.html; la demo va a estimar los tiempos caminando.\n"
@@ -36,7 +40,7 @@ def main() -> int:
     except OSError:
         servidor = http.server.ThreadingHTTPServer(("127.0.0.1", 0), manejador)
     url = f"http://localhost:{servidor.server_address[1]}/informe/presentacion.html"
-    print(f"Presentación en {url}  (F: pantalla completa · ← →: diapositivas · Ctrl+C para cerrar)")
+    print(f"Presentacion en {url}  (F: pantalla completa, flechas: diapositivas, Ctrl+C para cerrar)")
     threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:
         servidor.serve_forever()
