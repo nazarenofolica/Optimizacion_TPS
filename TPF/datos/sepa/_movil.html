@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;display:flex;gap:20px;background:#888">
+<iframe id="a" style="width:375px;height:2600px;border:0" src="canasta_local.html?motor=pagina&lat=-34.60386&lon=-58.38419"></iframe>
+<iframe id="b" style="width:375px;height:2600px;border:0" src="canasta_local.html?perfiles=oficinista,escolar&lat=-34.60386&lon=-58.38419&caminata=15&motor=pagina"></iframe>
+<script>
+let hecho = false;
+setInterval(() => { try { const d = document.getElementById('b').contentDocument; const btn = d.querySelector('[data-caminata="30"]');
+  if (btn && !hecho) { hecho = true; btn.click(); } } catch (e) {} }, 1000);
+</script>

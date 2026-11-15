@@ -7,29 +7,53 @@
 <meta name="description" content="La compra más barata que cubre lo que necesita tu hogar, en el supermercado de tu zona, con los precios de SEPA.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="estilos.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='6' y='3' width='20' height='26' rx='2' fill='%23fffffe' stroke='%231c2b23' stroke-width='2'/><path d='M10 10h12M10 15h12M10 20h7' stroke='%232e6a4c' stroke-width='2'/></svg>">
 </head>
 <body>
 <header class="cabecera">
-  <h1>Canasta saludable</h1>
-  <p>Cargá quiénes comen en tu casa y dónde comprás: calculamos lo que necesita cada uno y armamos la compra más
-     barata que lo cubre, con los precios del supermercado más conveniente cerca tuyo.</p>
-  <p id="estado-datos" class="estado-datos" role="status">Preparando los precios…</p>
+  <div class="cabecera-interior">
+   <div class="cabecera-texto">
+    <p class="marca"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h18v26l-3-2-3 2-3-2-3 2-3-2-3 2z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M11 10h10M11 15h10M11 20h6" stroke="currentColor" stroke-width="2.2"/></svg>Canasta saludable</p>
+    <h1>La compra más barata que cubre lo que necesita tu casa.</h1>
+    <p class="lema">Calculamos lo que necesita cada persona, comparamos los supermercados a los que llegás caminando y
+       armamos el ticket con los precios oficiales del día.</p>
+    <p id="estado-datos" class="estado-datos" role="status">Preparando los precios…</p>
+   </div>
+   <div class="impresora impresora-cabecera" aria-hidden="true">
+     <div class="ranura"></div>
+     <div class="ticket ticket-cabecera" id="ticket-cabecera">
+       <p class="t-marca">CANASTA SALUDABLE</p>
+       <p class="t-centro">Preparando los precios…</p>
+     </div>
+   </div>
+  </div>
 </header>
 
 <main class="mostrador">
   <form id="formulario" class="panel" novalidate>
+    <div class="avance-pasos" role="tablist" aria-label="Pasos">
+      <button type="button" role="tab" data-paso="hogar" aria-controls="paso-hogar" aria-selected="true"><span class="paso-n">1</span>
+        <span class="paso-texto">Quiénes comen<small id="sub-hogar"></small></span></button>
+      <button type="button" role="tab" data-paso="ubicacion" aria-controls="paso-ubicacion"><span class="paso-n">2</span>
+        <span class="paso-texto">Dónde comprás<small id="sub-ubicacion"></small></span></button>
+      <button type="button" role="tab" data-paso="compra" aria-controls="paso-compra"><span class="paso-n">3</span>
+        <span class="paso-texto">La compra<small id="sub-compra"></small></span></button>
+    </div>
     <div class="panel-cuerpo">
 
-      <section class="paso" aria-labelledby="t-hogar">
-        <h2 id="t-hogar"><span class="numero" aria-hidden="true">1</span>Quiénes comen</h2>
-        <div id="personas" class="personas" role="tablist" aria-label="Personas del hogar"></div>
-        <button type="button" id="agregar-persona" class="boton-texto">Agregar otra persona</button>
+      <section class="paso" id="paso-hogar" data-panel="hogar" role="tabpanel" aria-labelledby="t-hogar">
+        <h2 id="t-hogar" class="sr-only">Quiénes comen</h2>
+        <div class="personas-fila">
+          <div id="personas" class="personas" role="tablist" aria-label="Personas del hogar"></div>
+          <button type="button" id="agregar-persona" class="boton-agregar">+ Agregar persona</button>
+        </div>
 
         <div id="editor" class="editor" role="tabpanel">
+         <div class="editor-grid">
+          <div class="columna">
           <div class="fila2">
             <label class="campo"><span class="etiqueta">Nombre</span>
               <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
@@ -64,6 +88,8 @@
               <label><input type="radio" name="p-trimestre" value="3"><span>3.º</span></label>
             </div>
           </div>
+          </div>
+          <div class="columna">
           <div class="campo">
             <span class="etiqueta" id="l-actividad">Actividad física</span>
             <div id="actividades" class="escala" role="radiogroup" aria-labelledby="l-actividad"></div>
@@ -77,12 +103,16 @@
             <span class="etiqueta">Lo que no puede o no quiere comer</span>
             <div id="restricciones"></div>
           </div>
+          </div>
+         </div>
           <p id="errores-persona" class="mensaje" role="alert"></p>
         </div>
       </section>
 
-      <section class="paso" aria-labelledby="t-ubicacion">
-        <h2 id="t-ubicacion"><span class="numero" aria-hidden="true">2</span>Dónde comprás</h2>
+      <section class="paso" id="paso-ubicacion" data-panel="ubicacion" role="tabpanel" hidden aria-labelledby="t-ubicacion">
+        <h2 id="t-ubicacion" class="sr-only">Dónde comprás</h2>
+       <div class="ubicacion-grid">
+        <div class="columna">
         <div class="buscador">
           <label class="campo"><span class="etiqueta">Dirección o localidad</span>
             <span class="buscador-fila">
@@ -94,13 +124,23 @@
         </div>
         <div id="lugares" class="lugares" aria-live="polite"></div>
         <button type="button" id="mi-ubicacion" class="boton-texto">Usar mi ubicación actual</button>
-        <div id="mapa-ubicacion" class="mapa-ubicacion" aria-label="Mapa para marcar dónde comprás"></div>
-        <p class="ayuda" id="ayuda-mapa">También podés tocar el mapa o arrastrar el punto.</p>
         <p id="ubicacion-elegida" class="ubicacion-elegida" aria-live="polite"></p>
+        <div class="campo" id="campo-caminata">
+          <span class="etiqueta" id="l-caminata">Hasta cuánto caminar</span>
+          <div id="caminatas" class="segmentado" role="radiogroup" aria-labelledby="l-caminata"></div>
+          <p class="ayuda">Solo comparamos supermercados a los que llegás caminando en ese tiempo. Después podés ver si conviene ir más lejos.</p>
+        </div>
+        </div>
+        <div class="columna columna-mapa">
+          <div id="mapa-ubicacion" class="mapa-ubicacion" aria-label="Mapa para marcar dónde comprás"></div>
+          <p class="ayuda" id="ayuda-mapa">También podés tocar el mapa o arrastrar el punto.</p>
+        </div>
+       </div>
       </section>
 
-      <section class="paso" aria-labelledby="t-compra">
-        <h2 id="t-compra"><span class="numero" aria-hidden="true">3</span>La compra</h2>
+      <section class="paso" id="paso-compra" data-panel="compra" role="tabpanel" hidden aria-labelledby="t-compra">
+        <h2 id="t-compra" class="sr-only">La compra</h2>
+       <div class="compra-grid">
         <div class="campo">
           <span class="etiqueta" id="l-periodo">Para cuánto tiempo</span>
           <div id="periodos" class="segmentado" role="radiogroup" aria-labelledby="l-periodo"></div>
@@ -111,27 +151,41 @@
           <span><b>Solo alimentos listos para comer</b>
             <small>Para quien no cocina: sin carnes ni huevos crudos, arroz, fideos, legumbres secas ni harinas.</small></span>
         </label>
+       </div>
       </section>
     </div>
 
     <div class="panel-pie">
       <p id="resumen-hogar" class="resumen-hogar"></p>
-      <button type="submit" class="boton-principal" id="armar">Armar la canasta</button>
+      <div class="pie-acciones">
+        <button type="button" class="boton-secundario" id="anterior" hidden>← Anterior</button>
+        <button type="button" class="boton-secundario" id="siguiente">Siguiente →</button>
+        <button type="submit" class="boton-principal" id="armar">Armar la canasta</button>
+      </div>
       <p id="mensaje" class="mensaje" role="alert"></p>
     </div>
   </form>
 
   <div id="resultado" class="resultado" aria-live="polite">
-    <div class="vacio">
-      <div class="ticket ticket-vacio" aria-hidden="true">
-        <p class="t-centro">SUPERMERCADO</p>
-        <p class="t-centro">Tu sucursal</p>
-        <hr>
-        <p>Tu canasta aparece acá</p>
-        <hr>
-        <p class="t-total"><span>TOTAL</span><span>$ —</span></p>
+    <div class="vacio inicio">
+      <div class="impresora" aria-hidden="true">
+        <div class="ranura"></div>
+        <div class="ticket ticket-vacio">
+          <p class="t-centro">SUPERMERCADO</p>
+          <p class="t-centro">Tu sucursal, a pocos minutos</p>
+          <hr>
+          <p class="t-linea"><span>Lo que necesita cada uno</span><span>✓</span></p>
+          <p class="t-linea"><span>Al mejor precio de tu zona</span><span>✓</span></p>
+          <p class="t-linea"><span>Con envases enteros</span><span>✓</span></p>
+          <hr>
+          <p class="t-total"><span>TOTAL</span><span>$ —</span></p>
+        </div>
       </div>
-      <p>Completá los tres pasos y tocá <strong>Armar la canasta</strong>.</p>
+      <ol class="como-funciona">
+        <li><span><b>Contanos quiénes comen.</b> Edad, peso, actividad y lo que no pueden comer.</span></li>
+        <li><span><b>Marcá dónde comprás.</b> Buscamos los supermercados a los que llegás caminando.</span></li>
+        <li><span><b>Recibí el ticket.</b> La compra más barata que cubre todo, producto por producto.</span></li>
+      </ol>
     </div>
   </div>
 </main>
@@ -139,13 +193,14 @@
 <footer class="pie">
   <p>Precios: SEPA (Precios Claros, Secretaría de Comercio). Nutrientes: rótulos, Open Food Facts y USDA. Requerimientos:
      FAO/OMS/UNU 2004 y NASEM. Reglas: Guías Alimentarias para la Población Argentina. Ubicación: Georef (Argentina) y
-     OpenStreetMap. Todo se calcula en este navegador. Es una estimación orientativa: no reemplaza la consulta con un
+     OpenStreetMap; rutas a pie: OpenRouteService. La compra se calcula en este navegador. Es una estimación orientativa: no reemplaza la consulta con un
      profesional de la salud.</p>
 </footer>
 
 <pre id="resultado-json" hidden></pre>
 <!-- DATOS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="rutas.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

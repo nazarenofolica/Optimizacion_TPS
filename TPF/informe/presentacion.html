@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canasta saludable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Presentación del TPF. Misma identidad que la página (tinta, papel térmico, resaltador), en clave editorial.
+   Escenario fijo de 1600 × 900 que se escala a la pantalla. ← → / espacio para avanzar, F pantalla completa. */
+:root {
+  --tinta: #0f0f10;
+  --tinta-2: #1b1b1e;
+  --papel: #f3f0e8;
+  --papel-2: #e8e4d8;
+  --amarillo: #f3d03e;
+  --gris: #8b8a84;
+  --gris-claro: #c9c6bb;
+  --azul: #4d86ff;
+  --verde: #3fa463;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --salida: cubic-bezier(0.16, 1, 0.3, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+body { font-family: var(--sans); color: var(--tinta); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--azul); outline-offset: 3px; }
+
+/* ---------- Escenario ---------- */
+.escenario {
+  position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; overflow: hidden;
+  transform: translate(-50%, -50%) scale(var(--escala, 1)); transform-origin: center;
+  background: var(--tinta);
+}
+.slide {
+  position: absolute; inset: 0; padding: 72px 96px 96px; visibility: hidden;
+  display: flex; flex-direction: column;
+}
+.slide.activa { visibility: visible; z-index: 2; }
+.slide.saliendo { visibility: visible; z-index: 1; }
+.tinta { background: var(--tinta); color: var(--papel); }
+.papel { background: var(--papel); color: var(--tinta); }
+.amarilla { background: var(--amarillo); color: var(--tinta); }
+
+/* grano de papel */
+.slide::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.tinta::before { mix-blend-mode: screen; opacity: .05; }
+
+/* transición: la nueva diapositiva sale "impresa" de arriba hacia abajo */
+@media (prefers-reduced-motion: no-preference) {
+  .slide.activa.entra { animation: imprimir .8s var(--salida) both; }
+  .slide.activa.entra-atras { animation: imprimir-atras .8s var(--salida) both; }
+  .slide.activa .r { animation: subir .9s var(--salida) both; animation-delay: calc(var(--d, 0) * 90ms + 180ms); }
+}
+@keyframes imprimir { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes imprimir-atras { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes subir { from { opacity: 0; transform: translateY(28px); } }
+
+/* ---------- Tipografía ---------- */
+.kicker {
+  font: 500 15px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; display: flex; gap: 14px; align-items: center;
+}
+.kicker::before { content: ""; width: 36px; height: 2px; background: currentColor; }
+.tinta .kicker { color: var(--amarillo); }
+.titulo { font: 400 104px/.92 var(--serif); letter-spacing: -.02em; margin: 22px 0 0; }
+.titulo em, .gigante em { font-style: italic; }
+.marca { background: linear-gradient(transparent 58%, var(--amarillo) 58%, var(--amarillo) 92%, transparent 92%); padding: 0 .08em; }
+.tinta .marca { color: var(--tinta); background: var(--amarillo); padding: 0 .12em; }
+.bajada { font: 400 26px/1.4 var(--sans); max-width: 30ch; color: inherit; opacity: .78; }
+.mono { font-family: var(--mono); }
+
+/* ---------- Pie: cinta del ticket ---------- */
+.pie {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 64px; z-index: 5; display: flex; align-items: center;
+  gap: 24px; padding: 0 96px; font: 500 14px var(--mono); letter-spacing: .06em; pointer-events: none;
+  --pie: var(--papel); color: var(--pie);
+}
+.escenario[data-tema="papel"] .pie, .escenario[data-tema="amarilla"] .pie { --pie: var(--tinta); }
+.pie .seccion { text-transform: uppercase; opacity: .6; }
+.pie .cinta { flex: 1; height: 2px; position: relative; }
+.pie .cinta::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, currentColor 0 6px, transparent 6px 12px); opacity: .3; }
+.pie .cinta i { position: absolute; left: 0; top: -1px; height: 4px; width: 0; background: currentColor; transition: width .6s var(--salida); }
+.nav { position: fixed; right: 16px; top: 14px; z-index: 20; display: flex; gap: 6px; opacity: .25; transition: opacity .2s; }
+.nav:hover, .nav:focus-within { opacity: 1; }
+.nav button { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #555; background: #111; color: #eee; font: 600 16px var(--mono); }
+
+/* ---------- Ticket ---------- */
+.ticket {
+  --s: 16px;
+  background: #fffdf7; color: #232323; font: 400 17px/1.55 var(--mono); padding: 30px 30px 44px; width: 400px;
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--s) 100%;
+          mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--s) 100%;
+  box-shadow: 0 30px 60px rgba(0,0,0,.4);
+}
+.ticket p { margin: 0; display: flex; justify-content: space-between; gap: 16px; }
+.ticket .c { justify-content: center; text-align: center; }
+.ticket hr { border: 0; border-top: 2px dashed #b9b6ab; margin: 12px 0; }
+.ticket .total { font-weight: 600; font-size: 22px; }
+.ticket .total b { background: var(--amarillo); padding: 0 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .slide.activa .ticket .l { animation: renglon .35s steps(4) both; animation-delay: calc(var(--i) * 110ms + 500ms); }
+}
+@keyframes renglon { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* ---------- 1 · Portada ---------- */
+.portada { padding-bottom: 64px; }
+.portada .arriba { display: flex; justify-content: space-between; font: 500 15px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--gris); }
+.portada .cuerpo { flex: 1; display: grid; grid-template-columns: 1fr 420px; gap: 60px; align-items: center; }
+.portada h1 { font: 400 156px/.86 var(--serif); letter-spacing: -.03em; margin: 0; }
+.portada h1 em { color: var(--amarillo); }
+.portada h1 .chico { display: block; font-size: 64px; line-height: 1.1; margin-top: 26px; letter-spacing: 0; color: var(--gris-claro); }
+.portada .impresora { position: relative; justify-self: center; transform: rotate(3deg); }
+.portada .impresora::before { content: ""; position: absolute; left: -24px; right: -24px; top: -14px; height: 16px; border-radius: 8px; background: #000; box-shadow: inset 0 3px 4px rgba(255,255,255,.08); }
+.marquesina { margin: 0 -96px; height: 70px; border-top: 1px solid #2a2a2d; display: flex; align-items: center; overflow: hidden; white-space: nowrap; font: 500 18px var(--mono); color: var(--gris-claro); }
+.marquesina div { display: flex; gap: 48px; padding-right: 48px; flex: none; }
+.marquesina span b { color: var(--amarillo); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { .marquesina div { animation: correr 38s linear infinite; } }
+@keyframes correr { to { transform: translateX(-100%); } }
+
+/* ---------- 2 · Introducción ---------- */
+.versus { flex: 1; display: grid; grid-template-columns: 1fr 1px 1fr; gap: 64px; margin-top: 34px; }
+.versus .linea { background: var(--tinta); opacity: .2; }
+.anio { font: 400 112px/.8 var(--serif); letter-spacing: -.04em; }
+.anio em { font-style: italic; }
+.quien { font: 500 15px var(--mono); letter-spacing: .1em; text-transform: uppercase; margin: 16px 0 14px; opacity: .6; }
+.cifras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cifras li { display: flex; align-items: baseline; gap: 18px; font-size: 22px; border-bottom: 1px solid rgba(15,15,16,.14); padding-bottom: 8px; }
+.cifras b { font: 600 32px/1 var(--mono); min-width: 210px; letter-spacing: -.02em; }
+.pregunta { margin: 0 0 8px; font: italic 400 40px/1.15 var(--serif); max-width: 40ch; }
+
+/* ---------- 3 · Objetivo y restricciones ---------- */
+.dos { flex: 1; display: grid; grid-template-columns: 640px 1fr; gap: 72px; margin-top: 40px; }
+.formula { font: 400 66px/1.1 var(--serif); }
+.formula .min { font-style: italic; color: var(--amarillo); }
+.formula sub { font: 400 30px var(--serif); }
+.formula small { display: block; font: 400 22px/1.5 var(--mono); color: var(--gris-claro); margin-top: 16px; }
+.etapas2 { margin-top: 44px; display: grid; gap: 14px; }
+.etapa2 { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 18px; padding: 18px 22px; border: 1px solid #333; border-radius: 14px; }
+.etapa2 b { font: 400 58px/1 var(--serif); color: var(--amarillo); }
+.etapa2 p { margin: 0; font-size: 21px; color: var(--gris-claro); }
+.etapa2 p strong { color: var(--papel); font-weight: 600; display: block; font-size: 25px; }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; }
+.etiqueta {
+  position: relative; padding: 16px 24px 16px 44px; background: var(--papel); color: var(--tinta); border-radius: 8px 40px 40px 8px;
+  font: 500 22px/1.2 var(--sans);
+}
+.etiqueta::before { content: ""; position: absolute; left: 16px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--tinta); }
+.etiqueta small { display: block; font: 400 15px var(--mono); opacity: .6; margin-top: 4px; }
+.etiqueta.dest { background: var(--amarillo); }
+.etiqueta.rota { transform: rotate(-1.5deg); }
+.etiqueta.rota2 { transform: rotate(1.2deg); }
+
+/* ---------- 4 · ETL ---------- */
+.flujo { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 50px; align-items: stretch; }
+.estacion { position: relative; padding: 0 30px 0 0; }
+.estacion + .estacion { padding-left: 30px; border-left: 2px dashed rgba(15,15,16,.25); }
+.estacion .n { font: 400 110px/.8 var(--serif); font-style: italic; color: var(--tinta); }
+.estacion.clave .n { -webkit-text-stroke: 0; background: var(--amarillo); display: inline-block; padding: 6px 10px 0; }
+.estacion h3 { font: 600 30px var(--sans); margin: 22px 0 14px; letter-spacing: -.01em; }
+.estacion ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-size: 20px; line-height: 1.3; }
+.estacion li::before { content: "› "; font-family: var(--mono); opacity: .5; }
+.estacion .dato { margin-top: 22px; font: 600 15px/1.4 var(--mono); letter-spacing: .04em; text-transform: uppercase; opacity: .55; }
+.flecha { position: absolute; right: -16px; top: 28px; width: 32px; height: 32px; border-radius: 50%; background: var(--tinta); color: var(--papel); display: grid; place-content: center; font: 600 18px var(--mono); z-index: 1; }
+
+/* ---------- 5 · Motor ---------- */
+.cadena { display: flex; align-items: stretch; gap: 0; margin-top: 52px; }
+.eslabon { flex: 1; padding: 30px 30px 40px; min-height: 250px; border: 1px solid #34343a; margin-left: -1px; background: var(--tinta-2); }
+.eslabon:first-child { border-radius: 16px 0 0 16px; }
+.eslabon:last-child { border-radius: 0 16px 16px 0; background: var(--amarillo); color: var(--tinta); border-color: var(--amarillo); }
+.eslabon .paso { font: 500 14px var(--mono); letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
+.eslabon h3 { font: 400 48px/1 var(--serif); margin: 18px 0 14px; }
+.eslabon p { margin: 0; font-size: 22px; line-height: 1.35; opacity: .8; }
+.herramientas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: auto; }
+.herramienta { border-top: 2px solid var(--papel); padding-top: 18px; }
+.herramienta b { display: block; font: 600 34px var(--mono); letter-spacing: -.02em; color: var(--amarillo); }
+.herramienta span { font-size: 21px; color: var(--gris-claro); line-height: 1.35; display: block; margin-top: 6px; }
+
+/* ---------- 6 · Demo ---------- */
+.demo { padding: 40px 40px 80px; }
+.demo-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; padding: 0 16px; }
+.demo-cabecera h2 { font: 400 64px/.9 var(--serif); margin: 12px 0 0; }
+.demo-cabecera h2 em { color: var(--amarillo); }
+.casos { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.caso { border: 1px solid #3a3a40; background: var(--tinta-2); color: var(--papel); padding: 11px 16px; border-radius: 999px; font: 500 16px var(--sans); text-align: left; transition: background .15s, border-color .15s; }
+.caso small { display: block; font: 400 12px var(--mono); color: var(--gris); letter-spacing: .04em; }
+.caso:hover { border-color: var(--amarillo); }
+.caso[aria-pressed="true"] { background: var(--amarillo); color: var(--tinta); border-color: var(--amarillo); }
+.caso[aria-pressed="true"] small { color: #4a4430; }
+.navegador { flex: 1; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px #2b2b30, 0 40px 80px rgba(0,0,0,.6); }
+.barra-nav { height: 46px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: #1e1e22; color: var(--gris-claro); font: 400 14px var(--mono); }
+.barra-nav .puntos { display: flex; gap: 7px; }
+.barra-nav .puntos i { width: 12px; height: 12px; border-radius: 50%; background: #3b3b41; }
+.barra-nav .url { flex: 1; background: #111114; border-radius: 8px; padding: 6px 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.barra-nav .estado { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: #111114; }
+.barra-nav .estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gris); }
+.barra-nav .estado.vivo::before { background: var(--verde); box-shadow: 0 0 0 4px rgba(63,164,99,.2); }
+.barra-nav .estado.estimado::before { background: var(--amarillo); }
+.barra-nav button, .barra-nav a { background: none; border: 1px solid #3a3a40; border-radius: 8px; padding: 5px 10px; color: var(--gris-claro); text-decoration: none; font: 500 13px var(--mono); }
+.barra-nav button:hover, .barra-nav a:hover { color: #fff; border-color: #666; }
+.marco { position: relative; flex: 1; background: #f1f1ee; }
+.marco iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.cargando-demo { position: absolute; inset: 0; display: grid; place-content: center; gap: 14px; text-align: center; background: #f1f1ee; color: #55585d; font: 500 18px var(--mono); transition: opacity .4s; }
+.cargando-demo[hidden] { display: none; }
+.cargando-demo b { font: 400 44px var(--serif); color: var(--tinta); }
+
+/* ---------- 7 · Límites ---------- */
+.columnas { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; margin-top: 44px; }
+.columnas h3 { font: 500 16px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; display: flex; align-items: center; gap: 12px; }
+.columnas h3 .pastilla { padding: 5px 10px; border-radius: 6px; background: var(--tinta); color: var(--papel); }
+.columnas h3 .pastilla.si { background: var(--amarillo); color: var(--tinta); }
+.lista { list-style: none; padding: 0; margin: 0; }
+.lista li { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: baseline; padding: 15px 0; border-bottom: 1px solid rgba(15,15,16,.15); font-size: 25px; }
+.lista li span { font: 400 16px var(--mono); opacity: .55; text-align: right; }
+.lista.tachada li:first-child { border-top: 2px solid var(--tinta); }
+.lista.sigue li:first-child { border-top: 2px solid var(--tinta); }
+.lista.sigue li::before { content: none; }
+
+/* ---------- 8 · Conclusiones ---------- */
+.conclusiones { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 52px; }
+.conclusion { border-top: 3px solid var(--tinta); padding-top: 22px; display: flex; flex-direction: column; gap: 18px; }
+.conclusion .num { font: 600 16px var(--mono); letter-spacing: .1em; }
+.conclusion .grande { font: 400 84px/.9 var(--serif); letter-spacing: -.02em; }
+.conclusion p { margin: 0; font-size: 23px; line-height: 1.35; }
+
+/* ---------- 9 · Gracias ---------- */
+.gracias { align-items: center; justify-content: center; text-align: center; }
+.gigante { font: 400 300px/.8 var(--serif); letter-spacing: -.05em; margin: 0; }
+.gigante em { color: var(--amarillo); }
+.gracias .ticket { width: 520px; margin-top: 54px; transform: rotate(-2deg); }
+.gracias .ticket p { justify-content: center; }
+.gracias .preguntas { position: absolute; bottom: 100px; right: 96px; font: italic 400 40px var(--serif); color: var(--gris-claro); }
+.gracias .creditos { position: absolute; bottom: 100px; left: 96px; text-align: left; font: 400 15px/1.6 var(--mono); color: var(--gris); letter-spacing: .04em; }
+</style>
+</head>
+<body>
+
+<main class="escenario" id="escenario" aria-roledescription="presentación">
+
+  <!-- 1 · Portada -->
+  <section class="slide tinta portada" data-seccion="Portada" aria-label="Portada">
+    <div class="arriba r"><span>TPF · Investigación de Operaciones I</span><span>UCA · 2C 2026</span></div>
+    <div class="cuerpo">
+      <h1 class="r" style="--d:1">Comer bien,<br><em>al menor precio.</em><span class="chico">A una caminata de casa.</span></h1>
+      <div class="impresora r" style="--d:3">
+        <div class="ticket" aria-label="Ticket de ejemplo">
+          <p class="c l" style="--i:0"><b>CANASTA SALUDABLE</b></p>
+          <p class="c l" style="--i:1">Precios SEPA del 23/10/2026</p>
+          <hr>
+          <p class="l" style="--i:2"><span>Precios</span><span>8.241.172</span></p>
+          <p class="l" style="--i:3"><span>Sucursales</span><span>2.666</span></p>
+          <p class="l" style="--i:4"><span>Cadenas</span><span>15</span></p>
+          <p class="l" style="--i:5"><span>Nutrientes</span><span>33</span></p>
+          <p class="l" style="--i:6"><span>Caminando</span><span>≤ 15 min</span></p>
+          <hr>
+          <p class="total l" style="--i:7"><span>TOTAL</span><b>$23.406</b></p>
+          <p class="l" style="--i:8"><span>1 adulta · 1 semana</span><span>37/37 metas</span></p>
+          <hr>
+          <p class="c l" style="--i:9">*** Gracias por su compra ***</p>
+        </div>
+      </div>
+    </div>
+    <div class="marquesina" aria-hidden="true">
+      <div><span>NARANJA <b>$699</b>/kg</span><span>HARINA 000 <b>$1.110</b></span><span>POROTO ALUBIA <b>$1.799</b></span><span>ARROZ LARGO FINO <b>$1.599</b></span><span>GARBANZO <b>$1.099</b></span><span>ACEITE GIRASOL 900 ML <b>$4.370</b></span><span>ATÚN 170 G <b>$1.620</b></span><span>ZANAHORIA <b>$1.699</b>/kg</span><span>PURÉ DE TOMATE <b>$949</b></span><span>HÍGADO VACUNO <b>$4.000</b>/kg</span></div>
+      <div><span>NARANJA <b>$699</b>/kg</span><span>HARINA 000 <b>$1.110</b></span><span>POROTO ALUBIA <b>$1.799</b></span><span>ARROZ LARGO FINO <b>$1.599</b></span><span>GARBANZO <b>$1.099</b></span><span>ACEITE GIRASOL 900 ML <b>$4.370</b></span><span>ATÚN 170 G <b>$1.620</b></span><span>ZANAHORIA <b>$1.699</b>/kg</span><span>PURÉ DE TOMATE <b>$949</b></span><span>HÍGADO VACUNO <b>$4.000</b>/kg</span></div>
+    </div>
+  </section>
+
+  <!-- 2 · Introducción -->
+  <section class="slide papel" data-seccion="Introducción" aria-label="Introducción">
+    <p class="kicker r">01 · Contexto</p>
+    <h2 class="titulo r" style="--d:1">El problema de la dieta,<br><em>con <span class="marca">precios de hoy.</span></em></h2>
+    <div class="versus">
+      <div class="r" style="--d:2">
+        <div class="anio"><em>1945</em></div>
+        <p class="quien">Stigler · el problema de la dieta</p>
+        <ul class="cifras">
+          <li><b>77</b>alimentos</li>
+          <li><b>9</b>nutrientes</li>
+          <li><b>US$ 39,93</b>por año, a mano</li>
+        </ul>
+      </div>
+      <div class="linea"></div>
+      <div class="r" style="--d:3">
+        <div class="anio"><em>2026</em></div>
+        <p class="quien">Nosotros · SEPA, un día de precios</p>
+        <ul class="cifras">
+          <li><b data-contar="8241172">8.241.172</b>precios</li>
+          <li><b data-contar="2666">2.666</b>supermercados</li>
+          <li><b>33</b>nutrientes + Guías</li>
+        </ul>
+      </div>
+    </div>
+    <p class="pregunta r" style="--d:4">¿Cuál es la compra más barata que cubre lo que necesita cada persona de la casa?</p>
+  </section>
+
+  <!-- 3 · Objetivo y restricciones -->
+  <section class="slide tinta" data-seccion="Objetivo" aria-label="Objetivo y restricciones">
+    <p class="kicker r">02 · Objetivo y restricciones</p>
+    <div class="dos">
+      <div>
+        <h2 class="titulo r" style="--d:1; font-size:88px">Minimizar<br>el <em>costo.</em></h2>
+        <p class="formula r" style="--d:2"><span class="min">min</span> Σ precio<sub>p</sub> · x<sub>p</sub>
+          <small>x<sub style="font-size:16px">p</sub> ∈ {0, 1, 2, …} · envases enteros, por sucursal</small></p>
+        <div class="etapas2">
+          <div class="etapa2 r" style="--d:3"><b>1</b><p><strong>Cumplir</strong>lo máximo que permite la sucursal</p></div>
+          <div class="etapa2 r" style="--d:4"><b>2</b><p><strong>Lo más barato</strong>sin cumplir menos que en 1</p></div>
+        </div>
+      </div>
+      <div class="etiquetas">
+        <span class="etiqueta dest r rota" style="--d:2">Energía ±5 %<small>FAO/OMS/UNU 2004</small></span>
+        <span class="etiqueta r" style="--d:3">19 vitaminas y minerales<small>mínimo y máximo · NASEM</small></span>
+        <span class="etiqueta r rota2" style="--d:4">Macronutrientes<small>proteína, grasas, azúcares</small></span>
+        <span class="etiqueta r" style="--d:5">Guías Alimentarias<small>verduras, frutas, lácteos…</small></span>
+        <span class="etiqueta r rota" style="--d:6">Variedad<small>≤ 2 porciones por alimento</small></span>
+        <span class="etiqueta r" style="--d:7">Dieta<small>celiaquía · vegano · 8 alergias · NOVA 4</small></span>
+        <span class="etiqueta r rota2" style="--d:8">Salud<small>hipertensión · diabetes</small></span>
+        <span class="etiqueta r" style="--d:9">Hogar<small>hasta 8 personas, compra común</small></span>
+        <span class="etiqueta dest r rota2" style="--d:10">≤ 15 · 30 · 45 · 60 min<small>caminando, por la calle</small></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · Metodología: ETL -->
+  <section class="slide papel" data-seccion="Metodología" aria-label="Metodología: proceso ETL">
+    <p class="kicker r">03 · Metodología · Datos</p>
+    <h2 class="titulo r" style="--d:1">De 8 millones de precios<br>a <span class="marca">un solo archivo.</span></h2>
+    <div class="flujo">
+      <div class="estacion r" style="--d:2"><span class="flecha">→</span>
+        <div class="n">E</div><h3>Extraer</h3>
+        <ul><li>SEPA · precios de 15 cadenas</li><li>Open Food Facts + USDA</li><li>Catálogos de Jumbo, Disco, Vea</li><li>Georef · ubicación</li></ul>
+      </div>
+      <div class="estacion r" style="--d:3"><span class="flecha">→</span>
+        <div class="n">T</div><h3>Transformar</h3>
+        <ul><li>Precio por kg y por litro</li><li>218 alimentos genéricos</li><li>Nutrientes, alérgenos, NOVA</li><li>Precios imposibles, afuera</li></ul>
+        <p class="dato">52 controles por corrida</p>
+      </div>
+      <div class="estacion r" style="--d:4"><span class="flecha">→</span>
+        <div class="n">L</div><h3>Cargar</h3>
+        <ul><li>Modelo estrella en Parquet</li><li>dim_producto · 28.036</li><li>dim_tienda · 2.666</li><li>fact_precio · 8,2 M</li></ul>
+      </div>
+      <div class="estacion clave r" style="--d:5">
+        <div class="n">→</div><h3>Servir</h3>
+        <ul><li>Una página HTML de 4,8 MB</li><li>Datos comprimidos adentro</li><li>Sin servidor</li></ul>
+        <p class="dato">Python · pandas · pyarrow</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · Metodología: motor -->
+  <section class="slide tinta" data-seccion="Metodología" aria-label="Metodología: el motor">
+    <p class="kicker r">03 · Metodología · Motor</p>
+    <h2 class="titulo r" style="--d:1">Una optimización <em>por sucursal.</em></h2>
+    <div class="cadena">
+      <div class="eslabon r" style="--d:2"><p class="paso">Paso 1</p><h3>Dónde estás</h3><p>Dirección, GPS o un punto en el mapa</p></div>
+      <div class="eslabon r" style="--d:3"><p class="paso">Paso 2</p><h3>A cuánto caminando</h3><p>Rutas a pie reales: lo que queda lejos, afuera</p></div>
+      <div class="eslabon r" style="--d:4"><p class="paso">Paso 3</p><h3>Un modelo por súper</h3><p>Programación lineal entera, en paralelo</p></div>
+      <div class="eslabon r" style="--d:5"><p class="paso">Resultado</p><h3>El ticket</h3><p>La más barata que cumple, y cómo llegar</p></div>
+    </div>
+    <div class="herramientas">
+      <div class="herramienta r" style="--d:6"><b>HiGHS</b><span>Solver MILP: scipy en Python y WebAssembly en el navegador</span></div>
+      <div class="herramienta r" style="--d:7"><b>OpenRouteService</b><span>Tiempos a pie por la calle (foot-walking)</span></div>
+      <div class="herramienta r" style="--d:8"><b>101 tests</b><span>+ paridad: el navegador y Python dan la misma compra</span></div>
+    </div>
+  </section>
+
+  <!-- 6 · Resultados: demo en vivo -->
+  <section class="slide tinta demo" data-seccion="Resultados" aria-label="Resultados: demo en vivo" data-demo>
+    <div class="demo-cabecera">
+      <div>
+        <p class="kicker">04 · Resultados</p>
+        <h2>La demo, <em>en vivo.</em></h2>
+      </div>
+      <div class="casos" role="group" aria-label="Casos de la demo">
+        <button type="button" class="caso" data-caso="" aria-pressed="true">Desde cero<small>armarlo en vivo</small></button>
+        <button type="button" class="caso" data-caso="perfiles=oficinista&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Oficinista<small>Microcentro · 15 min</small></button>
+        <button type="button" class="caso" data-caso="perfiles=oficinista,escolar&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Mamá + nena<small>Microcentro · 15 min</small></button>
+        <button type="button" class="caso" data-caso="perfiles=celiaca,vegano&amp;lat=-31.41670&amp;lon=-64.18330&amp;caminata=30">Celíaca + vegano<small>Córdoba · 30 min</small></button>
+      </div>
+    </div>
+    <div class="navegador">
+      <div class="barra-nav">
+        <span class="puntos"><i></i><i></i><i></i></span>
+        <span class="url" id="demo-url">canasta.html</span>
+        <span class="estado" id="demo-estado">cargando</span>
+        <button type="button" id="demo-recargar" title="Recargar la demo">↻ Recargar</button>
+        <a id="demo-abrir" href="#" target="_blank" rel="noopener" title="Abrir en una pestaña nueva">↗ Pestaña</a>
+      </div>
+      <div class="marco">
+        <iframe id="demo" title="Canasta saludable: demo en vivo" allow="geolocation; fullscreen" loading="eager"></iframe>
+        <div class="cargando-demo" id="demo-cargando"><b>Preparando los precios…</b><span>8 millones de precios, descomprimiéndose en el navegador</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · Limitaciones y mejoras -->
+  <section class="slide papel" data-seccion="Limitaciones" aria-label="Limitaciones y cosas para mejorar">
+    <p class="kicker r">05 · Limitaciones</p>
+    <h2 class="titulo r" style="--d:1">Lo que falta <em>pulir.</em></h2>
+    <div class="columnas">
+      <div class="r" style="--d:2">
+        <h3><span class="pastilla">Hoy</span>límites conocidos</h3>
+        <ul class="lista tachada">
+          <li>Precios de un solo día<span>SEPA 23/10</span></li>
+          <li>Promociones sin aplicar<span>tienen condiciones</span></li>
+          <li>Compra en una sola sucursal</li>
+          <li>Barato ≠ habitual<span>harina, hígado</span></li>
+          <li>Rutas con cuota gratuita<span>ORS</span></li>
+          <li>10 a 18 s por cálculo</li>
+        </ul>
+      </div>
+      <div class="r" style="--d:3">
+        <h3><span class="pastilla si">Sigue</span>el MVP</h3>
+        <ul class="lista sigue">
+          <li>Precios actualizados cada día<span>GitHub Actions</span></li>
+          <li>Backend con caché de rutas<span>FastAPI</span></li>
+          <li>Rutas propias, sin cuota<span>OSRM / ORS</span></li>
+          <li>Variedad con tope de costo<span>multiobjetivo</span></li>
+          <li>Tests de la página en cada push<span>Playwright + CI</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · Conclusiones -->
+  <section class="slide amarilla" data-seccion="Conclusiones" aria-label="Conclusiones">
+    <p class="kicker r">06 · Conclusiones</p>
+    <h2 class="titulo r" style="--d:1">Stigler, <em>en el bolsillo.</em></h2>
+    <div class="conclusiones">
+      <div class="conclusion r" style="--d:2"><span class="num">01</span><span class="grande">Segundos</span>
+        <p>Lo que en 1947 llevó 120 jornadas de trabajo hoy se resuelve en el navegador, con 8 millones de precios reales.</p></div>
+      <div class="conclusion r" style="--d:3"><span class="num">02</span><span class="grande">$3.344<span style="font-size:.4em"> /día</span></span>
+        <p>Una adulta cubre sus 37 metas nutricionales por $23.406 a la semana, a 9 minutos de casa.</p></div>
+      <div class="conclusion r" style="--d:4"><span class="num">03</span><span class="grande">Dónde importa</span>
+        <p>La distancia es una restricción más: en el Microcentro, caminar 45 minutos no ahorra nada.</p></div>
+    </div>
+  </section>
+
+  <!-- 9 · Gracias -->
+  <section class="slide tinta gracias" data-seccion="Fin" aria-label="Gracias">
+    <h2 class="gigante r">Gracias<em>.</em></h2>
+    <div class="ticket r" style="--d:2">
+      <p class="l" style="--i:0">*** GRACIAS POR SU COMPRA ***</p>
+    </div>
+    <p class="creditos r" style="--d:3">Investigación de Operaciones I · UCA · 2C 2026<br>Datos: SEPA · Open Food Facts · USDA · Georef · OpenRouteService</p>
+    <p class="preguntas r" style="--d:4">¿Preguntas?</p>
+  </section>
+
+  <footer class="pie" aria-hidden="true">
+    <span class="seccion" id="pie-seccion">Portada</span>
+    <span class="cinta"><i id="pie-avance"></i></span>
+    <span class="contador" id="pie-contador">01 / 09</span>
+  </footer>
+</main>
+
+<nav class="nav" aria-label="Navegación">
+  <button type="button" id="anterior" aria-label="Anterior">←</button>
+  <button type="button" id="siguiente" aria-label="Siguiente">→</button>
+  <button type="button" id="completa" aria-label="Pantalla completa">⤢</button>
+</nav>
+
+<script>
+(() => {
+  const escenario = document.getElementById("escenario");
+  const slides = [...document.querySelectorAll(".slide")];
+  const total = slides.length;
+  const dos = (n) => String(n).padStart(2, "0");
+  let actual = 0;
+
+  // Escala del escenario de 1600 × 900 a la ventana.
+  const escalar = () => {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    document.documentElement.style.setProperty("--escala", s);
+  };
+  addEventListener("resize", escalar);
+  escalar();
+
+  // Cifras que cuentan hasta su valor al entrar.
+  const reducir = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const contar = (el) => {
+    const fin = Number(el.dataset.contar), t0 = performance.now(), dur = 1400;
+    if (reducir) return;
+    const paso = (t) => {
+      const k = Math.min(1, (t - t0) / dur), v = Math.round(fin * (1 - Math.pow(1 - k, 4)));
+      el.textContent = v.toLocaleString("es-AR");
+      if (k < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
+  };
+
+  function ir(n, desdeHash = false) {
+    n = Math.max(0, Math.min(total - 1, n));
+    if (n === actual) return;
+    const atras = actual >= 0 && n < actual;
+    slides.forEach((s) => s.classList.remove("saliendo"));
+    if (slides[actual]) {
+      slides[actual].classList.remove("activa", "entra", "entra-atras");
+      slides[actual].classList.add("saliendo");
+    }
+    const s = slides[n];
+    escenario.dataset.tema = s.classList.contains("papel") ? "papel" : s.classList.contains("amarilla") ? "amarilla" : "tinta";
+    s.classList.remove("entra", "entra-atras");
+    void s.offsetWidth;                                   // reinicia las animaciones de entrada
+    s.classList.add("activa", atras ? "entra-atras" : "entra");
+    actual = n;
+    s.querySelectorAll("[data-contar]").forEach(contar);
+    document.getElementById("pie-seccion").textContent = s.dataset.seccion;
+    document.getElementById("pie-contador").textContent = `${dos(n + 1)} / ${dos(total)}`;
+    document.getElementById("pie-avance").style.width = `${(n / (total - 1)) * 100}%`;
+    if (!desdeHash) history.replaceState(null, "", `#${n + 1}`);
+    if (s.hasAttribute("data-demo")) prepararDemo();
+  }
+
+  addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
+    if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); ir(actual + 1); }
+    else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); ir(actual - 1); }
+    else if (e.key === "Home") ir(0);
+    else if (e.key === "End") ir(total - 1);
+    else if (e.key === "f" || e.key === "F") pantallaCompleta();
+  });
+  document.getElementById("anterior").addEventListener("click", () => ir(actual - 1));
+  document.getElementById("siguiente").addEventListener("click", () => ir(actual + 1));
+  document.getElementById("completa").addEventListener("click", pantallaCompleta);
+  function pantallaCompleta() {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+  }
+  // Deslizar en pantallas táctiles (fuera de la demo).
+  let x0 = null;
+  escenario.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  escenario.addEventListener("touchend", (e) => {
+    if (x0 == null || slides[actual].hasAttribute("data-demo")) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 50) ir(actual + (dx < 0 ? 1 : -1));
+    x0 = null;
+  });
+
+  // ---------- Demo: la página real de la canasta, embebida ----------
+  // Servida por http (python informe/presentar.py) usa canasta_local.html, con rutas a pie reales.
+  // Abierta como archivo, o si no está la local, usa canasta.html (tiempos estimados por distancia).
+  const BASE = "../datos/sepa/";
+  const iframe = document.getElementById("demo");
+  const cargandoDemo = document.getElementById("demo-cargando");
+  const estado = document.getElementById("demo-estado");
+  let pagina = null, casoActual = "", preparada = false;
+
+  async function elegirPagina() {
+    if (pagina) return pagina;
+    pagina = "canasta.html";
+    if (location.protocol.startsWith("http")) {
+      try {
+        const r = await fetch(BASE + "canasta_local.html", { method: "HEAD", cache: "no-store" });
+        if (r.ok) pagina = "canasta_local.html";
+      } catch (_) { /* sin servidor: queda la versionada */ }
+    }
+    const vivo = pagina === "canasta_local.html";
+    estado.textContent = vivo ? "rutas a pie reales" : "tiempos estimados";
+    estado.className = `estado ${vivo ? "vivo" : "estimado"}`;
+    return pagina;
+  }
+
+  async function cargarCaso(caso) {
+    const p = await elegirPagina();
+    casoActual = caso;
+    const src = BASE + p + (caso ? `?${caso}` : "");
+    cargandoDemo.hidden = false;
+    iframe.src = src;
+    document.getElementById("demo-url").textContent = `localhost / ${p}${caso ? "?" + caso : ""}`;
+    document.getElementById("demo-abrir").href = src;
+    document.querySelectorAll(".caso").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.caso === caso)));
+  }
+  iframe.addEventListener("load", () => { if (iframe.src) setTimeout(() => { cargandoDemo.hidden = true; }, 600); });
+
+  function prepararDemo() {
+    if (preparada) return;
+    preparada = true;
+    cargarCaso("");
+  }
+  document.querySelectorAll(".caso").forEach((b) => b.addEventListener("click", () => cargarCaso(b.dataset.caso)));
+  document.getElementById("demo-recargar").addEventListener("click", () => cargarCaso(casoActual));
+
+  // Arranque: la demo se precarga en segundo plano para que esté lista cuando se llegue a Resultados.
+  const desdeUrl = parseInt(location.hash.slice(1), 10);
+  actual = -1;
+  ir(Number.isFinite(desdeUrl) ? desdeUrl - 1 : 0, true);
+  setTimeout(prepararDemo, 2500);
+})();
+</script>
+</body>
+</html>

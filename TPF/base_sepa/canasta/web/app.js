@@ -34,8 +34,14 @@ const PERSONA_NUEVA = { nombre: "", sexo: "F", edad: 34, peso_kg: 63, altura_cm:
 
 const estado = {
   P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false,
-  listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
+  caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
+  mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
+  escalera: new Map(),   // minutos -> {resumen, resultado, rutas}: la mejor compra con cada límite de caminata
 };
+const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
+const PARAMETROS = new URLSearchParams(location.search);
+// ?rutas=0 busca como antes (la más cercana de cada cadena, en línea recta): lo usa el test de paridad con Python.
+const CON_RUTAS = PARAMETROS.get("rutas") !== "0";
 
 // ============================================================
 // Motor: Web Worker con el código de motor.js (o, si el navegador no lo permite, en esta misma página)
@@ -45,10 +51,12 @@ const motor = (() => {
   let worker = null, siguiente = 0;
   const pendientes = new Map();
   function iniciar() {
-    const codigo = $("#motor-codigo").textContent;
+    const fuente = $("#motor-codigo");
+    if (!fuente) throw new Error("esta es la plantilla de la página, sin datos: abrí la exportada (python -m canasta)");
+    const codigo = fuente.textContent;
     try {
       // ?motor=pagina lo corre en esta misma página (lo usan los tests: Chrome headless no espera a los workers).
-      if (new URLSearchParams(location.search).get("motor") === "pagina") throw new Error("motor en la página");
+      if (PARAMETROS.get("motor") === "pagina") throw new Error("motor en la página");
       worker = new Worker(URL.createObjectURL(new Blob([codigo], { type: "text/javascript" })));
       worker.onmessage = (e) => {
         const p = pendientes.get(e.data.id);
@@ -72,6 +80,7 @@ const motor = (() => {
     if (!worker) {
       const M = window.MotorCanasta;
       if (tipo === "paquete") return M.cargarPaquete(datos.meta, datos.binario).then((resumen) => ({ resumen }));
+      if (tipo === "candidatas") return Promise.resolve({ candidatas: M.candidatasCaminando(datos.lat, datos.lon, datos.minutos) });
       return M.armar(datos.pedido, avance).then((resultado) => ({ resultado }));
     }
     const id = ++siguiente;
@@ -89,7 +98,8 @@ const motor = (() => {
 
 function guardar() {
   try {
-    localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias, listos: estado.listos }));
+    localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias,
+      listos: estado.listos, caminata: estado.caminata }));
   } catch (err) { /* sin almacenamiento */ }
 }
 
@@ -101,6 +111,7 @@ function recuperar() {
       estado.lugar = g.lugar || null;
       estado.dias = String(g.dias) in estado.P.DIAS_PERIODO ? g.dias : 7;
       estado.listos = Boolean(g.listos);
+      if (estado.P.CAMINATA_OPCIONES.includes(g.caminata)) estado.caminata = g.caminata;
     }
   } catch (err) { /* sin almacenamiento */ }
 }
@@ -144,9 +155,70 @@ function dibujarPersonas() {
   $("#agregar-persona").hidden = estado.hogar.length >= estado.P.PERSONAS_MAXIMAS;
   const quienes = estado.hogar.length === 1 ? "1 persona" : `${estado.hogar.length} personas`;
   const periodo = estado.P.DIAS_PERIODO[estado.dias];
+  const caminata = CON_RUTAS && estado.caminata ? `, hasta ${estado.caminata} min caminando` : "";
   $("#resumen-hogar").textContent = estado.lugar
-    ? `${quienes}, compra para ${periodo}, cerca de ${estado.lugar.corto || estado.lugar.nombre}.`
+    ? `${quienes}, compra para ${periodo}, cerca de ${estado.lugar.corto || estado.lugar.nombre}${caminata}.`
     : `${quienes}, compra para ${periodo}. Falta elegir dónde comprás.`;
+  marcarPasos();
+}
+
+// Las pestañas de los pasos: cada una se marca completa cuando tiene lo necesario y muestra un resumen corto.
+function marcarPasos() {
+  const listo = { hogar: estado.hogar.every((p) => !erroresPersona(p).length), ubicacion: Boolean(estado.lugar), compra: true };
+  $$(".avance-pasos [data-paso]").forEach((b) => b.classList.toggle("completo", listo[b.dataset.paso]));
+  // "Armar la canasta" solo se habilita con el hogar válido y el lugar elegido (evita armarla por un clic de más).
+  const boton = $("#armar"), puede = listo.hogar && listo.ubicacion;
+  if (!estado.ocupado) boton.disabled = !puede;
+  boton.title = puede ? "" : !listo.hogar ? "Completá los datos de cada persona (paso 1)" : "Elegí dónde comprás (paso 2)";
+  const n = estado.hogar.length;
+  $("#sub-hogar").textContent = n === 1 ? nombrePersona(estado.hogar[0], 0) : `${n} personas`;
+  $("#sub-ubicacion").textContent = estado.lugar
+    ? `${estado.lugar.corto || estado.lugar.nombre}${CON_RUTAS && estado.caminata ? `, ${estado.caminata} min` : ""}` : "Falta elegir";
+  $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "");
+}
+
+const PASOS = ["hogar", "ubicacion", "compra"];
+let pasoActual = "hogar";
+
+// Un paso a la vez; la animación sale hacia el lado en el que se avanza.
+function irAPaso(paso, enfocar = false) {
+  const desde = PASOS.indexOf(pasoActual), hasta = PASOS.indexOf(paso);
+  pasoActual = paso;
+  $$(".avance-pasos [data-paso]").forEach((b) => {
+    const activo = b.dataset.paso === paso;
+    b.setAttribute("aria-selected", String(activo));
+    b.tabIndex = activo ? 0 : -1;
+  });
+  $$(".paso[data-panel]").forEach((s) => {
+    const activo = s.dataset.panel === paso;
+    s.hidden = !activo;
+    if (activo) s.dataset.desde = hasta >= desde ? "derecha" : "izquierda";
+  });
+  $("#anterior").hidden = hasta === 0;
+  $("#siguiente").hidden = hasta === PASOS.length - 1;
+  if (paso === "ubicacion" && estado.mapa) {
+    // El mapa se creó oculto: al mostrarlo recalcula su tamaño y vuelve a centrarse.
+    requestAnimationFrame(() => {
+      estado.mapa.invalidateSize();
+      if (estado.lugar) estado.mapa.setView([estado.lugar.lat, estado.lugar.lon], estado.lugar.precision === "localidad" ? 13 : 15, { animate: false });
+    });
+  }
+  if (enfocar) $(`.avance-pasos [data-paso="${paso}"]`).focus();
+}
+
+function prepararPasos() {
+  $(".avance-pasos").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-paso]");
+    if (b) irAPaso(b.dataset.paso);
+  });
+  $(".avance-pasos").addEventListener("keydown", (e) => {
+    const i = PASOS.indexOf(pasoActual);
+    if (e.key === "ArrowRight" && i < PASOS.length - 1) irAPaso(PASOS[i + 1], true);
+    if (e.key === "ArrowLeft" && i > 0) irAPaso(PASOS[i - 1], true);
+  });
+  $("#siguiente").addEventListener("click", () => irAPaso(PASOS[Math.min(PASOS.indexOf(pasoActual) + 1, PASOS.length - 1)]));
+  $("#anterior").addEventListener("click", () => irAPaso(PASOS[Math.max(PASOS.indexOf(pasoActual) - 1, 0)]));
+  irAPaso("hogar");
 }
 
 function cargarEditor() {
@@ -306,7 +378,7 @@ async function nombreDelPunto(lat, lon) {
 async function puntoDelMapa(lat, lon, origen = "el punto marcado en el mapa") {
   elegirLugar({ lat, lon, nombre: origen, precision: "punto" }, false);
   const nombre = await nombreDelPunto(lat, lon);
-  if (nombre && estado.lugar && estado.lugar.lat === lat) {
+  if (nombre && estado.lugar && estado.lugar.lat === lat && estado.lugar.lon === lon) {
     elegirLugar({ lat, lon, nombre: `${origen} (${nombre})`, corto: nombre, precision: "punto" }, false);
   }
 }
@@ -341,7 +413,8 @@ async function buscarLugar() {
   }
   pedidos.push(georef("localidades", { nombre: localidad || calle, max: 5, ...filtro })
     .then((j) => (j.localidades || []).map((l) => ({
-      nombre: `${l.nombre}, ${l.departamento.nombre}, ${l.provincia.nombre}`, lat: l.centroide.lat, lon: l.centroide.lon,
+      nombre: [l.nombre, l.departamento && l.departamento.nombre, l.provincia && l.provincia.nombre]
+        .filter((v, i, a) => v && a.indexOf(v) === i).join(", "), lat: l.centroide.lat, lon: l.centroide.lon,
       precision: "localidad", corto: l.nombre }))));
   const respuestas = await Promise.allSettled(pedidos);
   const lugares = respuestas.filter((r) => r.status === "fulfilled").flatMap((r) => r.value);
@@ -388,10 +461,23 @@ function prepararUbicacion() {
     $("#ayuda-mapa").hidden = true;
   } else {
     estado.mapa = L.map("mapa-ubicacion", { scrollWheelZoom: false }).setView([-38.4, -63.6], 4);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(estado.mapa);
+    capaBase().addTo(estado.mapa);
     estado.mapa.on("click", (e) => puntoDelMapa(e.latlng.lat, e.latlng.lng));
+    // El panel puede cambiar de tamaño (columna sticky, móvil): Leaflet necesita recalcular el suyo.
+    if (window.ResizeObserver) new ResizeObserver(() => estado.mapa.invalidateSize()).observe($("#mapa-ubicacion"));
   }
+  $("#caminatas").innerHTML = estado.P.CAMINATA_OPCIONES.map((m) =>
+    `<label><input type="radio" name="caminata" value="${m}" ${m === estado.caminata ? "checked" : ""}><span>${m} min</span></label>`).join("");
+  $("#caminatas").addEventListener("change", (e) => { estado.caminata = Number(e.target.value); estado.anterior = null; dibujarPersonas(); guardar(); });
   if (estado.lugar) elegirLugar(estado.lugar);
+}
+
+// Teselas de OpenStreetMap (la URL actual, sin subdominios). Desde file:// pueden no cargar porque OSM exige el
+// encabezado Referer: python -m canasta sirve la página en http://localhost.
+function capaBase() {
+  return L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  });
 }
 
 // ============================================================
@@ -403,26 +489,95 @@ function prepararCompra() {
     `<label><input type="radio" name="dias" value="${dias}" ${Number(dias) === estado.dias ? "checked" : ""}><span>${esc(nombre[0].toUpperCase() + nombre.slice(1))}</span></label>`).join("");
   $("#periodos").addEventListener("change", (e) => { estado.dias = Number(e.target.value); dibujarPersonas(); guardar(); });
   $("#listos").checked = estado.listos;
-  $("#listos").addEventListener("change", (e) => { estado.listos = e.target.checked; guardar(); });
+  $("#listos").addEventListener("change", (e) => { estado.listos = e.target.checked; dibujarPersonas(); guardar(); });
 }
 
 // ============================================================
 // Armar la canasta
 // ============================================================
 
+// Mientras calcula: la impresora "trabajando". Solo se actualizan la barra y el texto para no reiniciar la animación.
 function cargando(texto, fraccion) {
   const pct = Math.round(fraccion * 100);
-  $("#resultado").innerHTML = `<div class="cargando">
-    <div class="ticket" aria-hidden="true"><p class="t-centro">Calculando…</p><hr><p>Comparando los supermercados</p>
-      <p>de tu zona y buscando la compra</p><p>más barata que cubre lo que</p><p>necesita cada uno.</p><hr>
-      <p class="t-total"><span>TOTAL</span><span>$ …</span></p></div>
-    <div class="progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
-    <p>${esc(texto)}</p></div>`;
+  if (!$("#resultado .cargando")) {
+    $("#resultado").innerHTML = `<div class="cargando">
+      <div class="impresora" aria-hidden="true"><div class="ranura activa"></div>
+        <div class="ticket ticket-cargando"><p class="t-centro">CALCULANDO</p><hr>
+          ${Array.from({ length: 7 }, (_, i) => `<p class="t-esqueleto" style="--i:${i};--w:${55 + (i * 37) % 40}%"></p>`).join("")}
+          <hr><p class="t-total"><span>TOTAL</span><span>$ …</span></p></div></div>
+      <div class="progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+      <p class="cargando-texto" aria-live="polite"></p></div>`;
+  }
+  const barra = $("#resultado .progreso");
+  barra.setAttribute("aria-valuenow", pct);
+  barra.firstElementChild.style.width = `${pct}%`;
+  $("#resultado .cargando-texto").textContent = texto;
 }
 
-async function armar(e) {
+// El total cuenta hasta su valor (o aparece directo con "reducir movimiento").
+function contar(el) {
+  const final = Number(el.dataset.valor);
+  if (SIN_MOVIMIENTO.matches || !Number.isFinite(final)) { el.textContent = pesos(final, 0); return; }
+  const inicio = performance.now(), dura = 900;
+  const paso = (t) => {
+    const x = Math.min(1, (t - inicio) / dura);
+    el.textContent = pesos(final * (1 - Math.pow(2, -10 * x)) / (1 - Math.pow(2, -10)), 0);
+    if (x < 1) requestAnimationFrame(paso); else el.textContent = pesos(final, 0);
+  };
+  requestAnimationFrame(paso);
+}
+
+// Tiempos caminando a las sucursales candidatas (rutas reales de OpenRouteService o, si falla, estimados).
+// Se guardan por lugar y límite: volver a un límite ya consultado no gasta cuota.
+async function tiemposCaminando(minutos) {
+  const { lat, lon } = estado.lugar;
+  const clave = `${lat},${lon},${minutos}`;
+  if (estado.tiempos.has(clave)) return estado.tiempos.get(clave);
+  const { candidatas } = await motor.pedir("candidatas", { lat, lon, minutos });
+  const r = await Rutas.tiempos(estado.P, { lat, lon }, candidatas);
+  r.candidatas = candidatas;
+  if (r.fuente === "ruta") estado.tiempos.set(clave, r);
+  return r;
+}
+
+function resumenOpcion(r) {
+  if (!r || !r.ticket) return null;
+  const s = r.ticket.tienda;
+  return { minutos: r.caminata ? r.caminata.minutos : null, costo: r.ticket.total, tienda: `${s.bandera} ${s.sucursal}`,
+    minutos_tienda: s.minutos, fuente: s.fuente_tiempo };
+}
+
+function siguienteCaminata() {
+  const ops = estado.P.CAMINATA_OPCIONES;
+  return ops.find((m) => m > estado.caminata) ?? null;
+}
+
+// Otro límite de caminata: recalcula las sucursales alcanzables y vuelve a optimizar (o muestra lo ya calculado).
+async function calcularCaminata(minutos) {
+  if (minutos == null || estado.ocupado) return;
+  const previo = resumenOpcion(estado.resultado);
+  estado.caminata = minutos;
+  $$('[name="caminata"]').forEach((c) => { c.checked = Number(c.value) === minutos; });
+  dibujarPersonas();
+  guardar();
+  const hecho = estado.escalera.get(minutos);
+  if (hecho) {
+    estado.anterior = previo;
+    estado.resultado = hecho.resultado;
+    estado.ultimaRuta = hecho.rutas;
+    if (hecho.resultado.ticket) mostrar(hecho.resultado); else mostrarSinResultado(hecho.resultado);
+    return;
+  }
+  await armar(null, previo);
+}
+
+const ampliar = () => calcularCaminata(siguienteCaminata());
+
+async function armar(e, anterior = null) {
   if (e) e.preventDefault();
   if (estado.ocupado) return;
+  estado.anterior = anterior;
+  if (e) estado.escalera.clear();          // nuevo pedido desde el formulario: lo calculado antes ya no vale
   const msj = $("#mensaje");
   msj.textContent = "";
   if (!estado.listo) { msj.textContent = "Los precios se están preparando: esperá unos segundos."; return; }
@@ -431,41 +586,68 @@ async function armar(e) {
     estado.actual = conError;
     cargarEditor();
     dibujarPersonas();
+    irAPaso("hogar");
     msj.textContent = `Revisá los datos de ${nombrePersona(estado.hogar[conError], conError)}.`;
     return;
   }
-  if (!estado.lugar) { msj.textContent = "Falta elegir dónde comprás (paso 2)."; $("#busqueda").focus(); return; }
+  if (!estado.lugar) { msj.textContent = "Falta elegir dónde comprás (paso 2)."; irAPaso("ubicacion"); $("#busqueda").focus(); return; }
   const personas = estado.hogar.map((p, i) => ({ ...p, nombre: nombrePersona(p, i),
     objetivo: p.edad < 18 || p.etapa !== "general" ? "mantener" : p.objetivo,
     trimestre: p.etapa === "embarazo" ? p.trimestre : null }));
   estado.ocupado = true;
   $("#armar").disabled = true;
+  $("#armar").classList.add("calculando");
   cargando("Preparando el cálculo…", 0.03);
   try {
     const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos };
+    let rutas = null;
+    if (CON_RUTAS) {
+      cargando(`Buscando supermercados a menos de ${estado.caminata} minutos caminando…`, 0.03);
+      rutas = await tiemposCaminando(estado.caminata);
+      Object.assign(pedido, { tiempos: rutas.tiempos, caminata_minutos: estado.caminata, aviso_tiempos: rutas.aviso });
+    }
     const { resultado } = await motor.pedir("armar", { pedido },
       (a) => cargando(a.hechas ? `Sucursales resueltas: ${a.hechas} de ${a.total} (la última, ${a.sucursal})`
-        : `Resolviendo la canasta en ${a.total} sucursales cercanas…`, 0.05 + 0.95 * a.hechas / a.total));
+        : `Resolviendo la canasta en ${a.total} sucursales ${CON_RUTAS ? "a tu alcance" : "cercanas"}…`, 0.08 + 0.92 * a.hechas / a.total));
     estado.resultado = resultado;
+    estado.ultimaRuta = rutas;
     estado.vista = 0;
+    if (resultado.caminata) estado.escalera.set(resultado.caminata.minutos, { resumen: resumenOpcion(resultado), resultado, rutas });
     if (resultado.error && !resultado.ticket) {
-      $("#resultado").innerHTML = `<div class="vacio"><p class="mensaje">${esc(resultado.error)}</p></div>`;
+      mostrarSinResultado(resultado);
     } else {
       mostrar(resultado);
     }
     $("#resultado-json").textContent = JSON.stringify(resultado);
   } catch (err) {
-    $("#resultado").innerHTML = `<div class="vacio"><p class="mensaje">${esc(err.message)}</p></div>`;
+    $("#resultado").innerHTML = `<div class="vacio"><p class="mensaje">${esc(err.message)}</p>
+      <p>Probá de nuevo en unos segundos. Si sigue pasando, recargá la página.</p></div>`;
     $("#resultado-json").textContent = JSON.stringify({ error: err.message });
   } finally {
     estado.ocupado = false;
-    $("#armar").disabled = false;
+    $("#armar").classList.remove("calculando");
+    marcarPasos();
   }
 }
 
 // ============================================================
 // Resultado
 // ============================================================
+
+// "12 min caminando (950 m)" o "≈ 12 min caminando (estimado)"; vacío si no se buscó por tiempo.
+function textoCaminata(x, corto = false) {
+  if (x == null || x.minutos == null) return "";
+  const estimado = x.fuente_tiempo === "estimado";
+  const min = `${estimado ? "≈ " : ""}${fmt(Math.max(1, Math.round(x.minutos)))} min`;
+  if (corto) return min;
+  const extra = estimado ? " (estimado)" : x.metros != null ? ` (${x.metros >= 1000 ? `${fmt(x.metros / 1000, 1)} km` : `${fmt(x.metros)} m`})` : "";
+  return `${min} caminando${extra}`;
+}
+
+function metasCubiertas(p) {
+  const exigidas = p.cobertura.concat(p.reglas).filter((c) => c.estado !== "informativa" && c.estado !== "no_aplica");
+  return { cumple: exigidas.filter((c) => c.estado === "cumple").length, total: exigidas.length };
+}
 
 function ticketHTML(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
@@ -476,35 +658,45 @@ function ticketHTML(d) {
     grupoActual = it.grupo;
     const quien = varias
       ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} g</span>` : "")).join("") + "por día"
-      : `come ${esc(it.consumo_dia_texto)} por día`;
+      : `${esc(it.consumo_dia_texto)} por día`;
     return `${cabeza}<div class="t-item">
-      <p class="t-nombre">${esc(it.nombre)}</p>
-      <p class="t-linea"><span>${esc(it.cantidad)} a ${esc(it.precio_unidad_texto)}</span><span>${fmt(it.subtotal, 2)}</span></p>
-      <p class="t-detalle">${quien}${it.sobrante_texto ? `; sobran ${esc(it.sobrante_texto)}` : ""}</p>
-      ${it.promocion ? `<p class="t-promo">hay promoción: ${pesos(it.promocion)} c/u (con condiciones)</p>` : ""}
+      <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal, 2)}</span></p>
+      <p class="t-cantidad">${esc(it.cantidad)} &times; ${esc(it.precio_unidad_texto)}</p>
+      <p class="t-detalle">${quien}${it.sobrante_texto ? ` · sobran ${esc(it.sobrante_texto)}` : ""}</p>
+      ${it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : ""}
     </div>`;
   }).join("");
   const para = d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
+  const energia = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
+  const metas = d.personas.map(metasCubiertas).reduce((a, b) => ({ cumple: a.cumple + b.cumple, total: a.total + b.total }), { cumple: 0, total: 0 });
+  const caminata = textoCaminata(s);
   return `<div class="ticket" role="document" aria-label="Ticket de la compra">
     <p class="t-marca">${esc(s.bandera)}</p>
     <p class="t-centro">${esc(s.comercio)}${s.cuit ? `<br>CUIT ${esc(cuit(s.cuit))}` : ""}</p>
     <p class="t-centro">Suc. ${esc(s.sucursal)}<br>${esc(s.direccion)}${s.localidad ? `<br>${esc(s.localidad)}` : ""}</p>
-    <p class="t-centro">Hoy ${esc(s.hoy.dia)}: ${esc(s.hoy.horario)}</p>
+    ${caminata ? `<p class="t-centro t-destacado">A ${esc(caminata)}</p>` : ""}
+    <p class="t-centro">Horario de hoy (${esc(s.hoy.dia)}): ${esc(s.hoy.horario)}</p>
     <hr>
     <p>Canasta saludable para ${esc(d.periodo)}</p>
     <p>Para: ${para}</p>
     ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
     <p>Precios SEPA del ${fecha}</p>
     <hr>
+    <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
     ${items}
     <hr>
+    <p class="t-linea"><span>${t.items.length} artículos</span><span></span></p>
     <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
     <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
     ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
     <p class="t-linea"><span>Cada 1.000 kcal</span><span>${pesos(t.costo_1000_kcal)}</span></p>
-    <p class="t-linea"><span>Artículos</span><span>${t.items.length}</span></p>
+    <hr>
+    <p class="t-linea"><span>Energía por día</span><span>${fmt(energia)} kcal</span></p>
+    <p class="t-linea"><span>Meta del hogar</span><span>${fmt(d.hogar.energia_kcal)} kcal</span></p>
+    <p class="t-linea"><span>Metas cubiertas</span><span>${metas.cumple} de ${metas.total}</span></p>
     <hr>
     <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
+    <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
   </div>`;
 }
 
@@ -520,13 +712,60 @@ function barra(c) {
 const TEXTO_ESTADO = { cumple: "Cumple", falta: "Falta", excede: "Se pasa", informativa: "Informativa", no_aplica: "No aplica" };
 const decimales = (x) => (x == null ? 0 : Math.abs(x) < 10 ? 1 : 0);
 
-function filaCobertura(c) {
+const ICONO_ESTADO = { cumple: "✓", falta: "!", excede: "↑", informativa: "i", no_aplica: "–" };
+
+const rangoTexto = (c) => (c.minimo != null && c.maximo != null ? `${fmt(c.minimo, decimales(c.minimo))}–${fmt(c.maximo, decimales(c.maximo))}`
+  : c.minimo != null ? `mín. ${fmt(c.minimo, decimales(c.minimo))}` : c.maximo != null ? `máx. ${fmt(c.maximo, decimales(c.maximo))}` : "—");
+
+// Gráfico de bala: la franja es la meta (mínimo a máximo), el punto es lo que come. Se lee de un vistazo.
+function bala(c) {
+  const tope = Math.max(c.maximo ?? 0, (c.minimo ?? 0) * 1.6, (c.valor ?? 0) * 1.08) || 1;
+  const pos = (x) => Math.max(0, Math.min(100, x / tope * 100));
+  const desde = c.minimo != null ? pos(c.minimo) : 0, hasta = c.maximo != null ? pos(c.maximo) : 100;
+  const punto = c.valor == null ? "" : `<i class="b-punto" style="--x:${pos(c.valor)}%"></i>`;
+  return `<li class="bala ${c.estado}">
+    <span class="b-nombre" ${c.nota ? `title="${esc(c.nota)}"` : ""}>${esc(c.nombre)}</span>
+    <span class="b-pista" aria-hidden="true"><i class="b-rango" style="left:${desde}%;width:${Math.max(hasta - desde, 1)}%"></i>${punto}</span>
+    <span class="b-valor"><span>${c.valor == null ? "—" : fmt(c.valor, decimales(c.valor))} <small>${esc(c.unidad)}</small></span><small class="b-meta">meta ${rangoTexto(c)}</small></span>
+    <span class="b-estado" title="${TEXTO_ESTADO[c.estado]}"><i aria-hidden="true">${ICONO_ESTADO[c.estado]}</i><span class="sr-only">${TEXTO_ESTADO[c.estado]}</span></span>
+  </li>`;
+}
+
+function graficoBalas(titulo, lista) {
+  return `<div class="grafico-balas"><p class="gb-titulo">${esc(titulo)}</p><ul>${lista.map(bala).join("")}</ul></div>`;
+}
+
+// Dona de calorías por grupo de alimentos, con las kcal del día en el centro.
+function dona(grupos, kcal) {
+  const r = 54, C = 2 * Math.PI * r;
+  let acum = 0;
+  const arcos = grupos.map((g, k) => {
+    const largo = C * g.pct_kcal / 100;
+    const arco = `<circle r="${r}" cx="70" cy="70" fill="none" stroke="${COLOR_GRUPO[g.grupo] || "#777"}" stroke-width="20"
+      stroke-dasharray="${largo.toFixed(2)} ${(C - largo).toFixed(2)}" stroke-dashoffset="${(-acum).toFixed(2)}" style="--i:${k}"/>`;
+    acum += largo;
+    return arco;
+  }).join("");
+  return `<div class="dona-bloque">
+    <div class="dona"><svg viewBox="0 0 140 140" role="img" aria-label="Calorías por grupo de alimentos"><g transform="rotate(-90 70 70)">${arcos}</g></svg>
+      <p class="dona-centro"><b>${fmt(kcal)}</b><span>kcal por día</span></p></div>
+    <ul class="dona-leyenda">${grupos.map((g) => `<li style="--c:${COLOR_GRUPO[g.grupo] || "#777"}">
+      <span class="dl-nombre">${esc(g.grupo)}</span><span class="dl-pct">${fmt(g.pct_kcal)} %</span>
+      <span class="dl-dato">${fmt(g.gramos_dia)} g · ${fmt(g.kcal_dia)} kcal</span></li>`).join("")}</ul>
+  </div>`;
+}
+
+// Un nutriente o una regla: nombre y valor arriba, la barra con sus marcas, la meta y el estado abajo.
+function medidor(c) {
   const rango = c.minimo != null && c.maximo != null ? `${fmt(c.minimo, decimales(c.minimo))} a ${fmt(c.maximo, decimales(c.maximo))}`
     : c.minimo != null ? `mín. ${fmt(c.minimo, decimales(c.minimo))}` : `máx. ${fmt(c.maximo, decimales(c.maximo))}`;
-  return `<tr><td>${esc(c.nombre)}${c.nota ? `<div class="nota">${esc(c.nota)}</div>` : ""}</td>
-    <td class="num">${c.valor == null ? "—" : fmt(c.valor, decimales(c.valor))} ${esc(c.unidad)}</td>
-    <td class="num">${rango}</td><td>${barra(c)}</td>
-    <td class="estado ${c.estado}">${TEXTO_ESTADO[c.estado]}</td></tr>`;
+  return `<li class="medidor ${c.estado}">
+    <p class="m-cabeza"><span class="m-nombre">${esc(c.nombre)}</span>
+      <span class="m-valor">${c.valor == null ? "—" : fmt(c.valor, decimales(c.valor))} <small>${esc(c.unidad)}</small></span></p>
+    ${barra(c) || '<div class="barra"></div>'}
+    <p class="m-pie"><span>meta ${rango}</span><span class="m-estado"><i aria-hidden="true">${ICONO_ESTADO[c.estado]}</i>${TEXTO_ESTADO[c.estado]}</span></p>
+    ${c.nota ? `<p class="m-nota" title="${esc(c.nota)}">${esc(c.nota)}</p>` : ""}
+  </li>`;
 }
 
 function bloquePersona(d, i) {
@@ -534,67 +773,211 @@ function bloquePersona(d, i) {
   const energia = p.cobertura.find((c) => c.clave === "energia_kcal");
   const listos = d.opciones.listos ? [{ clave: "listos", nombre: estado.P.LISTOS_NOMBRE, criterio: d.opciones.listos_criterio }] : [];
   const datos = `${p.datos.sexo === "F" ? "mujer" : "varón"} de ${p.datos.edad} años, ${fmt(p.datos.peso_kg, 1)} kg, actividad ${p.datos.actividad.toLowerCase()}`;
+  const macro = p.cobertura.filter((c) => c.tipo === "energia" || c.tipo === "macro");
+  const micro = p.cobertura.filter((c) => c.tipo !== "energia" && c.tipo !== "macro");
+  const problemas = p.cobertura.concat(p.reglas).filter((c) => c.estado === "falta" || c.estado === "excede");
+  const m = metasCubiertas(p);
+  const restricciones = r.criterios.concat(listos);
   return `
-    <p class="ayuda">${esc(p.datos.nombre)}: ${esc(datos)}${p.datos.restricciones.length ? `; ${esc(p.datos.restricciones.join(", ").toLowerCase())}` : ""}.
-      Necesita ${fmt(q.energia_kcal)} kcal por día y come ${fmt(energia && energia.valor)} kcal de esta compra.</p>
-    <ol class="pasos">${q.pasos.map((s) => `<li><div><h3>${esc(s.titulo)}</h3>
-      <p class="formula">${esc(s.formula)}</p><p class="res">${esc(s.resultado)}</p>
-      ${s.fuente ? `<p class="fuente">${esc(s.fuente)}</p>` : ""}</div></li>`).join("")}</ol>
+    <div class="persona-cabeza">
+      <p><b>${esc(p.datos.nombre)}</b>: ${esc(datos)}${p.datos.restricciones.length ? `; ${esc(p.datos.restricciones.join(", ").toLowerCase())}` : ""}.</p>
+      <ul class="cifras-persona">
+        <li><b>${fmt(q.energia_kcal)}</b><span>kcal por día que necesita</span></li>
+        <li><b>${fmt(energia && energia.valor)}</b><span>kcal por día que come de esta compra</span></li>
+        <li><b>${fmt(q.proteina_g_kg, 2)}</b><span>g de proteína por kg</span></li>
+        <li class="${problemas.length ? "con-faltas" : "sin-faltas"}"><b>${m.cumple}/${m.total}</b><span>metas cubiertas</span></li>
+      </ul>
+    </div>
+
+    <h3 class="subtitulo">Cómo calculamos lo que necesita</h3>
+    <ol class="calculo">${q.pasos.map((s, k) => `<li style="--i:${k}">
+      <p class="c-titulo">${esc(s.titulo)}</p><p class="c-res">${esc(s.resultado)}</p>
+      <details><summary>Cómo se calcula</summary><p class="formula">${esc(s.formula)}</p>
+        ${s.fuente ? `<p class="fuente">${esc(s.fuente)}</p>` : ""}</details></li>`).join("")}</ol>
 
     <h3 class="subtitulo">Lo que come por día</h3>
-    <p class="ayuda">Frente a su meta: la marca vertical es el mínimo (o el máximo, en sodio, saturadas y azúcares).</p>
-    <div class="grupos" role="img" aria-label="Calorías por grupo de alimentos">${p.grupos.map((g) =>
-      `<div style="width:${g.pct_kcal}%;background:${COLOR_GRUPO[g.grupo] || "#777"}" title="${esc(g.grupo)}: ${fmt(g.kcal_dia)} kcal">${g.pct_kcal >= 9 ? fmt(g.pct_kcal) + " %" : ""}</div>`).join("")}</div>
-    <div class="leyenda-grupos">${p.grupos.map((g) => `<span style="--c:${COLOR_GRUPO[g.grupo] || "#777"}">${esc(g.grupo)}: ${fmt(g.gramos_dia)} g, ${fmt(g.kcal_dia)} kcal</span>`).join("")}</div>
-    <div class="tabla-envoltorio"><table>
-      <thead><tr><th>Nutriente</th><th class="num">Por día</th><th class="num">Meta</th><th>Cobertura</th><th>Estado</th></tr></thead>
-      <tbody>${p.cobertura.map(filaCobertura).join("")}</tbody></table></div>
+    ${problemas.length
+      ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Para revisar: ${problemas.map((c) => `<b>${esc(c.nombre)}</b>`).join(", ")}.</span></p>`
+      : `<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Cubre todas las metas que se le exigen a la compra.</span></p>`}
+    ${dona(p.grupos, energia && energia.valor)}
+    <p class="leyenda-balas"><span class="lb-rango"></span>la meta <span class="lb-punto"></span>lo que come</p>
+    <div class="balas-grid">
+      ${graficoBalas("Energía y macronutrientes", macro)}
+      ${graficoBalas("Vitaminas y minerales", micro)}
+    </div>
 
     <h3 class="subtitulo">Guías Alimentarias</h3>
     <p class="ayuda">Además de los nutrientes, la compra respeta las Guías Alimentarias para la Población Argentina; las reglas semanales se cumplen en promedio.</p>
-    <div class="tabla-envoltorio"><table>
-      <thead><tr><th>Regla</th><th class="num">Cantidad</th><th class="num">Meta</th><th>Cobertura</th><th>Estado</th></tr></thead>
-      <tbody>${p.reglas.map(filaCobertura).join("")}</tbody></table></div>
+    ${graficoBalas("Reglas de las Guías", p.reglas)}
 
     <h3 class="subtitulo">Restricciones</h3>
-    <p class="ayuda">${fmt(r.productos_aptos)} de los ${fmt(d.catalogo.productos_canasta)} productos de la canasta son aptos.
-      Un producto sin datos que lo confirmen no se considera apto.</p>
-    <dl class="criterios">
-      ${r.criterios.concat(listos).map((c) => {
-        const ef = r.efecto.find((x) => x.clave === c.clave);
-        return `<div><dt>${esc(c.nombre)}${ef ? ` (deja afuera ${fmt(ef.excluye)} productos)` : ""}</dt><dd>${esc(c.criterio)}</dd></div>`;
-      }).join("")}
-      ${r.criterios.length || listos.length ? "" : "<div><dt>Sin restricciones</dt><dd>Puede comer cualquier producto de la canasta.</dd></div>"}
-    </dl>`;
+    <p class="ayuda"><b>${fmt(r.productos_aptos)}</b> de los ${fmt(d.catalogo.productos_canasta)} productos de la canasta son aptos. Un producto sin datos que lo confirmen no se considera apto.</p>
+    ${restricciones.length ? `<ul class="restricciones-lista">${restricciones.map((c) => {
+      const ef = r.efecto.find((x) => x.clave === c.clave);
+      return `<li><details><summary><span>${esc(c.nombre)}</span>${ef ? `<small>deja afuera ${fmt(ef.excluye)} productos</small>` : ""}</summary>
+        <p>${esc(c.criterio)}</p></details></li>`;
+    }).join("")}</ul>` : '<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Sin restricciones: puede comer cualquier producto de la canasta.</span></p>'}`;
+}
+
+// Qué cambió al ampliar el tiempo de caminata (anterior: la mejor opción con el límite previo).
+function comparacionHTML(d) {
+  const a = estado.anterior, ahora = resumenOpcion(d);
+  if (!a || !ahora || a.minutos == null) return "";
+  const dif = a.costo - ahora.costo, pct = a.costo ? dif / a.costo * 100 : 0;
+  const masMinutos = ahora.minutos_tienda != null && a.minutos_tienda != null ? Math.round(ahora.minutos_tienda - a.minutos_tienda) : null;
+  const dondeAntes = `${esc(a.tienda)}${a.minutos_tienda != null ? `, a ${textoCaminata({ minutos: a.minutos_tienda, fuente_tiempo: a.fuente }, true)}` : ""}`;
+  let texto;
+  if (ahora.minutos != null && ahora.minutos < a.minutos) {
+    // Se volvió a un límite menor (por ejemplo, de 45 a 15 min) para comparar.
+    texto = ahora.tienda === a.tienda || Math.abs(dif) < 1
+      ? `Con hasta ${ahora.minutos} min llegás a la misma compra: no hace falta caminar más.`
+      : dif < 0
+        ? `Con hasta ${ahora.minutos} min caminás menos, pero pagás <b>${pesos(-dif, 0)}</b> más que en ${dondeAntes} (${pesos(a.costo, 0)}).`
+        : `Con hasta ${ahora.minutos} min la compra cuesta ${pesos(dif, 0)} menos que en ${dondeAntes}.`;
+  } else if (ahora.tienda === a.tienda) {
+    texto = `Con hasta ${ahora.minutos} min no aparece nada mejor: ${dondeAntes} sigue siendo la mejor opción.`;
+  } else if (dif >= 1) {
+    texto = `Caminando hasta ${ahora.minutos} min ahorrás <b>${pesos(dif, 0)}</b> (${fmt(pct, 0)} %)${masMinutos > 0 ? ` a cambio de ${masMinutos} min más de caminata` : ""}.
+      Antes: ${pesos(a.costo, 0)} en ${dondeAntes}.`;
+  } else {
+    texto = `Con hasta ${ahora.minutos} min la compra elegida cubre mejor las metas, pero cuesta ${pesos(-dif, 0)} más que ${dondeAntes} (${pesos(a.costo, 0)}).`;
+  }
+  return `<p class="comparacion" role="status">${texto}</p>`;
+}
+
+const ICONO = {
+  // Íconos de Material Symbols (Apache-2.0): caminar.
+  caminar: '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>',
+  pin: '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.3-7-11.5A7 7 0 0 1 19 9.5C19 14.7 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  reloj: '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  imprimir: '<svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+};
+
+// ¿Conviene caminar más? La mejor compra con cada límite; los que faltan se calculan con un toque.
+function escaleraHTML(d) {
+  if (!d.caminata || !CON_RUTAS) return "";
+  const calculados = [...estado.escalera.values()].map((v) => v.resumen).filter((v) => v && v.costo != null);
+  const max = Math.max(...calculados.map((v) => v.costo)), min = Math.min(...calculados.map((v) => v.costo));
+  // "Más barata" va solo en el menor tiempo que ya consigue el precio mínimo: caminar más no ahorra nada.
+  const mejorMin = calculados.length > 1
+    ? Math.min(...calculados.filter((v) => v.costo - min < 1).map((v) => v.minutos)) : null;
+  const filas = estado.P.CAMINATA_OPCIONES.map((m) => {
+    const hecho = estado.escalera.get(m), r = hecho && hecho.resumen, actual = m === d.caminata.minutos;
+    const etiqueta = `<span class="p-min">${m} min</span>`;
+    if (!hecho) {
+      return `<li class="peldano"><button type="button" class="peldano-boton" data-caminata="${m}">${etiqueta}
+        <span class="p-barra vacia"></span><span class="p-costo p-calcular">Calcular</span></button></li>`;
+    }
+    if (!r || r.costo == null) {
+      return `<li class="peldano sin ${actual ? "actual" : ""}"><button type="button" class="peldano-boton" data-caminata="${m}">${etiqueta}
+        <span class="p-barra vacia"></span><span class="p-costo">Sin súper</span></button></li>`;
+    }
+    const ancho = 30 + 70 * (r.costo / max);
+    const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}`;
+    return `<li class="peldano ${actual ? "actual" : ""} ${m === mejorMin ? "mejor" : ""}">
+      <button type="button" class="peldano-boton" data-caminata="${m}" ${actual ? 'aria-current="true"' : ""}>${etiqueta}
+        <span class="p-barra"><i style="--ancho:${ancho}%"></i></span><span class="p-costo">${pesos(r.costo, 0)}</span>
+        <small class="p-donde">${donde}</small></button></li>`;
+  }).join("");
+  return `<div class="escalera"><p class="escalera-titulo">¿Conviene caminar más?</p>
+    <p class="escalera-ayuda">La compra más barata con cada tiempo máximo. Tocá uno para calcularlo o verlo.</p><ol>${filas}</ol></div>`;
+}
+
+function botonAmpliar(texto = null) {
+  const sig = siguienteCaminata();
+  if (!CON_RUTAS || sig == null) return "";
+  return `<button type="button" class="boton-secundario" data-ampliar>${esc(texto || `Buscar hasta ${sig} min caminando`)}</button>`;
+}
+
+function enlazarAmpliar() {
+  $$("[data-ampliar]").forEach((b) => b.addEventListener("click", ampliar));
+  $$("[data-caminata]").forEach((b) => b.addEventListener("click", () => {
+    const m = Number(b.dataset.caminata);
+    if (m !== estado.caminata || !estado.escalera.has(m)) calcularCaminata(m);
+  }));
+}
+
+function avisoTiempos(d) {
+  return d.caminata && d.caminata.aviso ? `<p class="aviso">${esc(d.caminata.aviso)}</p>` : "";
+}
+
+function mostrarSinResultado(d) {
+  const sig = siguienteCaminata();
+  $("#resultado").innerHTML = `<div class="vacio">
+    <p class="mensaje">${esc(d.error)}</p>
+    ${d.sin_sucursales && sig != null && CON_RUTAS
+      ? `<p>Ampliá el tiempo de caminata para sumar supermercados más lejanos.</p>${botonAmpliar()}`
+      : "<p>Probá con otra ubicación o con menos restricciones.</p>"}
+    ${avisoTiempos(d)}
+  </div>`;
+  enlazarAmpliar();
 }
 
 function mostrar(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
+  const elegida = d.sucursales.find((x) => x.elegida);
   const otras = d.sucursales.filter((x) => !x.elegida && x.costo != null);
-  const masBarataOtra = otras.length ? Math.min(...otras.map((x) => x.costo)) : null;
-  const energiaHogar = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
+  const masBarataOtra = otras.length ? otras.reduce((m, x) => (x.costo < m.costo ? x : m)) : null;
   const avisos = d.personas.flatMap((p) => p.requerimientos.avisos.map((a) => (varias ? `${p.datos.nombre}: ${a}` : a)));
+  const metas = d.personas.map(metasCubiertas);
+  const porTiempo = Boolean(d.caminata);
   const pestanas = varias ? `<div class="pestanas" role="tablist" aria-label="Persona">${d.personas.map((p, i) =>
     `<button type="button" role="tab" aria-selected="${i === estado.vista}" aria-controls="por-persona" data-vista="${i}" style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</button>`).join("")}</div>` : "";
+  const caminata = textoCaminata(s);
+  const cubre = metas.length === 1
+    ? `cubre ${metas[0].cumple} de sus ${metas[0].total} metas`
+    : `cubre ${metas.map((m, i) => `${m.cumple} de ${m.total} metas de ${esc(d.personas[i].datos.nombre)}`).join(", ")}`;
+  const motivo = elegida && elegida.faltantes.length
+    ? `Ninguna sucursal a tu alcance cubre todo; esta es la que más se acerca y, entre las que cubren igual, la más barata.`
+    : `Es la más barata entre las que cubren todas las metas${varias ? " de todos" : ""}.`;
 
   $("#resultado").innerHTML = `
   <div class="encabezado-resultado">
-    ${ticketHTML(d)}
+    <div class="columna-ticket">
+      <div class="impresora"><div class="ranura"></div>${ticketHTML(d)}</div>
+      <button type="button" class="boton-texto con-icono" id="imprimir">${ICONO.imprimir}Imprimir o guardar el ticket</button>
+    </div>
     <div class="resumen">
-      <h2>Tu compra en ${esc(s.bandera)} ${esc(s.sucursal)}</h2>
-      <p class="ayuda">${esc(s.direccion)}, a ${fmt(s.distancia_km, 1)} km. Es la sucursal cercana que mejor cubre las metas
-        ${varias ? "de todos" : ""} y, entre las que las cubren igual, la más barata.</p>
-      <div class="cifras">
-        <div class="cifra"><b>${pesos(t.total, 0)}</b><span>para ${esc(d.periodo)}</span></div>
-        <div class="cifra"><b>${pesos(t.costo_diario, 0)}</b><span>por día${varias ? `, ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</span></div>
-        <div class="cifra"><b>${fmt(energiaHogar)} kcal</b><span>por día${varias ? " en el hogar" : ""} (meta ${fmt(d.hogar.energia_kcal)})</span></div>
-        <div class="cifra"><b>${t.items.length}</b><span>productos</span></div>
+      <p class="resumen-etiqueta">Tu compra para ${esc(d.periodo)}</p>
+      <p class="resumen-total"><b data-valor="${t.total}">${pesos(t.total, 0)}</b></p>
+      <p class="resumen-donde">en <b>${esc(s.bandera)} ${esc(s.sucursal)}</b></p>
+      <ul class="datos-compra">
+        <li><span>${pesos(t.costo_diario, 0)}</span>por día${varias ? ` · ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</li>
+        <li><span>${t.items.length}</span>productos</li>
+        <li><span>${metas.reduce((a, m) => a + m.cumple, 0)}/${metas.reduce((a, m) => a + m.total, 0)}</span>metas cubiertas</li>
+      </ul>
+      <p class="sr-only">${cubre}</p>
+      <div class="llegar">
+        <p class="llegar-tiempo">${ICONO.caminar}<span>${caminata ? esc(caminata) : `${fmt(s.distancia_km, 1)} km en línea recta`}</span></p>
+        <p class="llegar-dato">${ICONO.pin}<span>${esc(s.direccion)}${s.localidad ? `, ${esc(s.localidad)}` : ""}</span></p>
+        <p class="llegar-dato">${ICONO.reloj}<span>Hoy ${esc(s.hoy.dia)}: ${esc(s.hoy.horario)}</span></p>
+        <a href="#donde-comprar" class="boton-secundario">Ver el recorrido</a>
       </div>
+      <p class="ayuda">${motivo}${masBarataOtra && masBarataOtra.costo < t.total && masBarataOtra.faltantes.length
+        ? ` La más barata que encontramos cuesta ${pesos(masBarataOtra.costo, 0)} en ${esc(masBarataOtra.bandera)}, pero no cubre: ${esc(masBarataOtra.faltantes.slice(0, 2).join("; "))}${masBarataOtra.faltantes.length > 2 ? "…" : ""}.`
+        : masBarataOtra ? ` La siguiente opción cuesta ${pesos(masBarataOtra.costo, 0)}.` : ""}</p>
+      ${comparacionHTML(d)}
+      ${escaleraHTML(d)}
       ${varias ? `<div class="comensales">${d.personas.map((p, i) => `<span style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</span>`).join("")}</div>` : ""}
-      ${masBarataOtra != null ? `<p class="ayuda">La siguiente opción cercana cuesta ${pesos(masBarataOtra, 0)}.</p>` : ""}
-      <div class="avisos">${avisos.map((a) => `<p class="aviso">${esc(a)}</p>`).join("")}</div>
+      <div class="avisos">${avisoTiempos(d)}${avisos.map((a) => `<p class="aviso">${esc(a)}</p>`).join("")}</div>
     </div>
   </div>
+
+  <section class="bloque" id="donde-comprar"><h2>Dónde comprar</h2>
+    <p class="ayuda">${porTiempo
+      ? `Supermercados a menos de ${d.caminata.minutos} min caminando${d.caminata.fuente === "ruta" ? " por la calle (rutas peatonales de OpenRouteService)" : " (tiempo estimado por distancia)"}: la más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios.`
+      : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}</p>
+    <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
+    <p class="ayuda" id="mapa-leyenda"></p>
+    <div class="tabla-envoltorio"><table class="tabla-sucursales">
+      <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
+      <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
+        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}</div></td>
+        <td class="num" data-etiqueta="${porTiempo ? "Caminando" : "Distancia"}">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
+        <td class="num" data-etiqueta="Costo">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
+        <td class="num" data-etiqueta="Diferencia">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : "—"}</td>
+        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
+  </section>
 
   <section class="bloque"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>
     <p class="ayuda">${varias ? "Cada persona tiene su propia dieta dentro de la misma compra. Elegí a quién ver." : "Cada paso del cálculo usa el resultado del anterior."}</p>
@@ -602,29 +985,30 @@ function mostrar(d) {
     <div id="por-persona" role="tabpanel">${bloquePersona(d, estado.vista)}</div>
   </section>
 
-  <section class="bloque"><h2>Sucursales que comparamos</h2>
-    <p class="ayuda">La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios.</p>
-    <div class="tabla-envoltorio"><table>
-      <thead><tr><th>Sucursal</th><th class="num">Distancia</th><th class="num">Costo</th><th>Qué no cubre</th></tr></thead>
-      <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
-        <td>${esc(x.bandera)} ${esc(x.sucursal)}<div class="nota">${esc(x.direccion)}</div></td>
-        <td class="num">${fmt(x.distancia_km, 1)} km</td>
-        <td class="num">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
-        <td>${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
-    <div id="mapa" role="img" aria-label="Mapa con el lugar elegido y las sucursales comparadas"></div>
-  </section>
-
   <section class="bloque"><h2>Cómo se elige la compra</h2>
-    <p class="ayuda">Es un problema de la dieta (Stigler, 1945) resuelto en cada sucursal con programación lineal entera (HiGHS, el
-      mismo solver que usa el motor de Python), en dos etapas. Primero se busca lo mejor que se puede cumplir con lo que vende la
-      sucursal: la energía de cada persona dentro del ±5 %, cada nutriente entre su mínimo y su máximo y las reglas de las Guías.
-      Después, sin empeorar nada de eso, la compra más barata con envases enteros (lo suelto, de a 100 g). Cada persona come solo lo
-      que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad. Lo que sobra de un envase
-      queda para después, pero se paga.</p>
-    <p class="ayuda">En la sucursal elegida se consideraron ${fmt(d.modelo.productos_considerados)} productos (los más baratos de cada
-      tipo para cada persona), con ${fmt(d.modelo.variables)} variables y ${fmt(d.modelo.metas)} metas y una tolerancia de
-      ${fmt(d.modelo.gap * 100, 0)} % en el costo. De los ${fmt(d.catalogo.productos_total)} productos comestibles de SEPA,
-      ${fmt(d.catalogo.productos_canasta)} sirven para una canasta; siempre quedan afuera: ${esc(d.catalogo.excluidos_siempre)}</p>
+    <p class="ayuda">Es el problema de la dieta (Stigler, 1945), resuelto en cada sucursal con programación lineal entera y el solver HiGHS.</p>
+    <ol class="etapas">
+      ${CON_RUTAS && d.caminata ? `<li><p class="e-n">0</p><p class="e-titulo">Filtrar por distancia</p>
+        <p>Solo las sucursales a menos de ${d.caminata.minutos} min caminando entran en la comparación.</p></li>` : ""}
+      <li><p class="e-n">1</p><p class="e-titulo">Cumplir</p>
+        <p>Lo mejor que se puede cubrir con lo que vende la sucursal: energía (±5 %), cada nutriente entre su mínimo y su máximo, y las Guías.</p></li>
+      <li><p class="e-n">2</p><p class="e-titulo">Lo más barato</p>
+        <p>Sin empeorar nada de lo anterior, la compra de menor costo con envases enteros (lo suelto, de a 100 g).</p></li>
+      <li><p class="e-n">3</p><p class="e-titulo">Elegir la sucursal</p>
+        <p>Gana la que mejor cumple y, entre las que cumplen igual, la más barata.</p></li>
+    </ol>
+    <ul class="datos-modelo">
+      <li><b>${fmt(d.modelo.productos_considerados)}</b><span>productos considerados en la elegida</span></li>
+      <li><b>${fmt(d.modelo.variables)}</b><span>variables</span></li>
+      <li><b>${fmt(d.modelo.metas)}</b><span>metas</span></li>
+      <li><b>${fmt(d.modelo.gap * 100, 0)} %</b><span>tolerancia en el costo</span></li>
+      <li><b>${fmt(d.catalogo.productos_canasta)}</b><span>de ${fmt(d.catalogo.productos_total)} productos de SEPA sirven para una canasta</span></li>
+    </ul>
+    <details class="detalle-largo"><summary>Más detalle del modelo</summary>
+      <p>Cada persona come solo lo que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad. Lo que
+        sobra de un envase queda para después, pero se paga. En cada sucursal se usan los productos más baratos de cada tipo para cada persona.</p>
+      <p>Siempre quedan afuera: ${esc(d.catalogo.excluidos_siempre)}</p>
+    </details>
   </section>`;
 
   $$(".pestanas button").forEach((b) => b.addEventListener("click", () => {
@@ -632,23 +1016,68 @@ function mostrar(d) {
     $$(".pestanas button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
     $("#por-persona").innerHTML = bloquePersona(d, estado.vista);
   }));
+  $("#imprimir").addEventListener("click", () => window.print());
+  enlazarAmpliar();
+  // El ticket sale de la impresora renglón por renglón; el total cuenta hasta su valor.
+  const tk = $(".columna-ticket .ticket");
+  [...tk.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 60)));
+  tk.classList.add("imprimiendo");
+  contar($(".resumen-total b"));
   dibujarMapa(d);
   const suave = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#resultado").scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
 }
 
+const color = (variable) => getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+
 function dibujarMapa(d) {
+  if (estado.mapaResultado) { estado.mapaResultado.remove(); estado.mapaResultado = null; }
   if (typeof L === "undefined") { $("#mapa").hidden = true; return; }
   const mapa = L.map("mapa", { scrollWheelZoom: false });
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
-  const puntos = [[d.ubicacion.lat, d.ubicacion.lon]];
-  L.circleMarker(puntos[0], { radius: 8, color: "#1f5fbf", fillOpacity: 0.9 }).addTo(mapa).bindTooltip("Dónde comprás");
+  estado.mapaResultado = mapa;
+  capaBase().addTo(mapa);
+  const origen = [d.ubicacion.lat, d.ubicacion.lon];
+  const puntos = [origen];
+  const comparadas = new Set(d.sucursales.map((x) => x.id));
+  // Las que se consultaron pero quedan fuera del límite: atenuadas, para ver qué hay un poco más lejos.
+  const r = estado.ultimaRuta;
+  if (d.caminata && r && r.candidatas) {
+    for (const c of r.candidatas) {
+      const tiempo = r.tiempos[c.id];
+      if (comparadas.has(c.id) || !tiempo || tiempo.minutos <= d.caminata.minutos) continue;
+      L.circleMarker([c.lat, c.lon], { radius: 4, color: color("--tinta-suave"), weight: 1, opacity: 0.6, fillOpacity: 0.25 })
+        .addTo(mapa).bindTooltip(`Fuera del límite: ${textoCaminata({ ...tiempo, fuente_tiempo: tiempo.fuente }, true)}`);
+    }
+  }
   for (const x of d.sucursales) {
     puntos.push([x.lat, x.lon]);
-    L.circleMarker([x.lat, x.lon], { radius: x.elegida ? 10 : 6, color: x.elegida ? "#2e6a4c" : "#666", fillOpacity: 0.85 })
-      .addTo(mapa).bindTooltip(`${x.bandera} ${x.sucursal}: ${x.costo != null ? pesos(x.costo, 0) : "sin canasta"}`);
+    const etiqueta = `${x.bandera} ${x.sucursal}: ${x.costo != null ? pesos(x.costo, 0) : "sin canasta"}${x.minutos != null ? `, ${textoCaminata(x, true)}` : ""}`;
+    L.circleMarker([x.lat, x.lon], { radius: x.elegida ? 10 : 6, color: x.elegida ? color("--tinta") : color("--tinta-suave"),
+      fillColor: x.elegida ? color("--acento") : color("--tinta-suave"),
+      weight: x.elegida ? 3 : 2, fillOpacity: 0.85 }).addTo(mapa).bindTooltip(etiqueta, { permanent: Boolean(x.elegida), direction: "top" });
   }
+  L.circleMarker(origen, { radius: 8, color: color("--foco"), fillOpacity: 0.9 }).addTo(mapa).bindTooltip("Vos");
   mapa.fitBounds(puntos, { padding: [30, 30], maxZoom: 16 });
+  if (window.ResizeObserver) new ResizeObserver(() => mapa.invalidateSize()).observe($("#mapa"));
+
+  // Recorrido a pie hasta la elegida, solo con rutas reales (nunca se dibuja una ruta inventada).
+  const s = d.ticket.tienda, leyenda = $("#mapa-leyenda");
+  if (!d.caminata || d.caminata.fuente !== "ruta") {
+    leyenda.textContent = d.caminata ? "Sin recorrido: los tiempos son estimados." : "";
+    return;
+  }
+  mapa.attributionControl.addAttribution('Rutas &copy; <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT');
+  leyenda.textContent = "Buscando el recorrido a pie…";
+  Rutas.recorrido(estado.P, d.ubicacion, { lat: s.lat, lon: s.lon }).then((rec) => {
+    if (estado.mapaResultado !== mapa) return;            // ya se armó otra canasta
+    if (!rec) { leyenda.textContent = "No se pudo trazar el recorrido a pie."; return; }
+    const linea = L.polyline(rec.puntos, { color: color("--ruta"), weight: 5, opacity: 0.9, className: "ruta-animada",
+      lineCap: "round", lineJoin: "round" }).addTo(mapa);
+    const trazo = linea.getElement();
+    if (trazo) trazo.setAttribute("pathLength", "1");          // para dibujarlo de punta a punta con CSS
+    mapa.fitBounds(L.latLngBounds(puntos).extend(linea.getBounds()), { padding: [30, 30], maxZoom: 17 });
+    leyenda.textContent = `Recorrido a pie hasta ${s.bandera} ${s.sucursal}: ${textoCaminata({ minutos: rec.minutos, metros: rec.metros ? Math.round(rec.metros) : null, fuente_tiempo: "ruta" })}.`;
+  });
 }
 
 // ============================================================
@@ -657,7 +1086,7 @@ function dibujarMapa(d) {
 
 // Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1 arma esa canasta directamente.
 function desdeEnlace() {
-  const q = new URLSearchParams(location.search);
+  const q = PARAMETROS;
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
   const perfiles = ids.map((id) => estado.perfiles.find((f) => f.id === id)).filter(Boolean);
   if (perfiles.length) {
@@ -681,9 +1110,9 @@ async function iniciar() {
     aviso.classList.add("error");
     return;
   }
-  motor.iniciar();
   let resumen;
   try {
+    motor.iniciar();
     ({ resumen } = await motor.pedir("paquete", { meta: $("#datos-meta").textContent, binario: $("#datos-binario").textContent }));
   } catch (err) {
     aviso.textContent = `No se pudieron leer los datos de la página (${err.message}).`;
@@ -692,13 +1121,43 @@ async function iniciar() {
   }
   estado.P = resumen.parametros;
   estado.perfiles = resumen.perfiles;
+  estado.caminata = estado.P.CAMINATA_MINUTOS;
   estado.listo = true;
-  aviso.textContent = `Precios del ${resumen.fecha.split("-").reverse().join("/")}: ${fmt(resumen.productos)} alimentos en ${fmt(resumen.tiendas)} supermercados.`;
+  aviso.innerHTML = `<span><b>${esc(resumen.fecha.split("-").reverse().join("/"))}</b>precios oficiales (SEPA)</span>
+    <span><b>${fmt(resumen.productos)}</b>alimentos</span><span><b>${fmt(resumen.tiendas)}</b>supermercados</span>`;
+  aviso.classList.add("listo");
+  // El ticket de la cabecera, con los datos reales del día.
+  const tc = $("#ticket-cabecera");
+  tc.innerHTML = `<p class="t-marca">CANASTA SALUDABLE</p><p class="t-centro">Precios oficiales SEPA</p><hr>
+    <p class="t-linea"><span>Fecha de los precios</span><span>${esc(resumen.fecha.split("-").reverse().join("/"))}</span></p>
+    <p class="t-linea"><span>Alimentos con nutrientes</span><span>${fmt(resumen.productos)}</span></p>
+    <p class="t-linea"><span>Supermercados</span><span>${fmt(resumen.tiendas)}</span></p>
+    <p class="t-linea"><span>Nutrientes por alimento</span><span>33</span></p>
+    <p class="t-linea"><span>Restricciones</span><span>${Object.keys(estado.P.RESTRICCIONES).length}</span></p><hr>
+    <p class="t-total"><span>TOTAL</span><span>EL MÁS BAJO</span></p>
+    <p class="t-centro t-gracias">*** a pocos minutos ***</p>`;
+  [...tc.children].forEach((el, i) => el.style.setProperty("--i", i));
+  tc.classList.add("imprimiendo");
+  // El ticket de la portada se inclina un poco hacia donde está el mouse (solo con mouse y sin "reducir movimiento").
+  if (!SIN_MOVIMIENTO.matches && matchMedia("(pointer: fine)").matches) {
+    const cab = $(".cabecera"), imp = $(".impresora-cabecera");
+    cab.addEventListener("pointermove", (e) => {
+      const r = cab.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+      imp.style.setProperty("--ry", `${(x * 10).toFixed(2)}deg`);
+      imp.style.setProperty("--rx", `${(-y * 8).toFixed(2)}deg`);
+    });
+    cab.addEventListener("pointerleave", () => { imp.style.setProperty("--ry", "0deg"); imp.style.setProperty("--rx", "0deg"); });
+  }
   recuperar();
+  const pedida = Number(PARAMETROS.get("caminata"));
+  if (estado.P.CAMINATA_OPCIONES.includes(pedida)) estado.caminata = pedida;
+  $("#campo-caminata").hidden = !CON_RUTAS;
   const automatico = desdeEnlace();
   prepararHogar();
   prepararUbicacion();
   prepararCompra();
+  prepararPasos();
   cargarEditor();
   dibujarPersonas();
   $("#formulario").addEventListener("submit", armar);

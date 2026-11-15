@@ -7,13 +7,13 @@ nutrientes y sus aptitudes ya evaluadas (sin TACC, vegano, cada alérgeno...), l
 todos sus precios, más los parámetros de canasta/config.py y las tablas de referencia/. Así la lógica de las
 restricciones y todos los números discutibles viven en un solo lugar.
 
-    python -m canasta              # exporta salida/canasta.html y lo abre
-    python -m canasta --exportar   # solo exporta
+    python -m canasta              # exporta datos/sepa/canasta_local.html (con la clave de rutas) y lo sirve
+    python -m canasta --exportar   # solo exporta datos/sepa/canasta.html (la versionada, sin clave)
 
 Para embeberlo en Streamlit:
 
     import streamlit.components.v1 as components
-    components.html(Path("salida/canasta.html").read_text(encoding="utf-8"), height=2600, scrolling=True)
+    components.html(Path("datos/sepa/canasta.html").read_text(encoding="utf-8"), height=2600, scrolling=True)
 """
 
 from __future__ import annotations
@@ -36,7 +36,8 @@ from canasta.resultado import EXCLUIDOS_SIEMPRE
 logger = logging.getLogger("canasta.exportar")
 
 DIR_WEB = Path(__file__).resolve().parent / "web"
-RUTA_EXPORTACION = cfg.DIR_SALIDA / "canasta.html"
+RUTA_EXPORTACION = cfg.DIR_SALIDA / "canasta.html"            # versionada: nunca lleva la clave de rutas
+RUTA_LOCAL = cfg.DIR_SALIDA / "canasta_local.html"             # para usar en esta máquina (no se versiona)
 NUMERICAS = ["contenido", "unidades", "gramos_envase", "parte_comestible", "porcion_g", "precio_referencia_100g"]
 TEXTOS = ["nombre", "marca"]
 CATEGORICAS = ["subcategoria", "grupo_alimentario", "alimento_id", "unidad_contenido", "fuente_nutrientes"]
@@ -159,23 +160,37 @@ def _comprimido(datos: bytes) -> str:
     return base64.b64encode(gzip.compress(datos, 9, mtime=0)).decode("ascii")
 
 
-def exportar(ruta: Path = RUTA_EXPORTACION) -> Path:
+def _config_rutas(clave: str | None) -> str:
+    """Configuración del servicio de rutas para rutas.js. La clave queda a la vista de quien abra la página: solo se
+    incrusta en la copia local (ver __main__), nunca en la página versionada."""
+    texto = json.dumps({"clave": clave or ""}, ensure_ascii=True)
+    if "<" in texto:
+        raise RuntimeError("La clave de rutas tiene caracteres que no se pueden incrustar")
+    return f'<script id="config-rutas" type="application/json">{texto}</script>'
+
+
+def exportar(ruta: Path = RUTA_EXPORTACION, clave_rutas: str | None = None) -> Path:
+    """Exporta la página. Con clave_rutas (la de OpenRouteService), la página calcula rutas peatonales reales; sin
+    ella, estima los tiempos caminando por distancia y lo avisa."""
     inicio = time.time()
     meta, binario = paquete()
     html = (DIR_WEB / "index.html").read_text(encoding="utf-8")
     css = (DIR_WEB / "estilos.css").read_text(encoding="utf-8")
     app = (DIR_WEB / "app.js").read_text(encoding="utf-8")
+    rutas = (DIR_WEB / "rutas.js").read_text(encoding="utf-8")
     motor = (DIR_WEB / "motor.js").read_text(encoding="utf-8")
-    for nombre, codigo in (("app.js", app), ("motor.js", motor)):
+    for nombre, codigo in (("app.js", app), ("rutas.js", rutas), ("motor.js", motor)):
         if "</script" in codigo:
             raise RuntimeError(f"{nombre} no se puede incrustar tal cual: contiene </script")
     texto_meta = json.dumps(meta, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
     datos = (f'<script id="datos-meta" type="application/octet-stream">{_comprimido(texto_meta)}</script>\n'
              f'<script id="datos-binario" type="application/octet-stream">{_comprimido(binario)}</script>\n'
-             f'<script id="motor-codigo" type="text/plain">\n{motor}</script>')
+             f'<script id="motor-codigo" type="text/plain">\n{motor}</script>\n'
+             f'{_config_rutas(clave_rutas)}')
     for viejo, nuevo in (
         ('<link rel="stylesheet" href="estilos.css">', f"<style>\n{css}</style>"),
         ("<!-- DATOS -->", datos),
+        ('<script src="rutas.js"></script>', f"<script>\n{rutas}</script>"),
         ('<script src="app.js"></script>', f"<script>\n{app}</script>"),
     ):
         if viejo not in html:

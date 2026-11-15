@@ -6,8 +6,13 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 
-# Configuracion local del agente/editor (Claude Code) - no se comparte
-.claude/
+# Configuracion local del agente/editor (Claude Code) - no se comparte, salvo las skills del proyecto
+.claude/*
+!.claude/skills/
+
+# Claves (OpenRouteService) y la copia local de la página, que las lleva incrustadas
+.env
+datos/sepa/canasta_local.html
 
 # VS Code: se ignora todo lo personal de la carpeta, MENOS settings.json, que
 # tiene la receta de compilacion de LaTeX y conviene compartirla.

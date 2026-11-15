@@ -38,6 +38,29 @@ un `LEEME.md` que trae el **diccionario de datos** de las tres tablas y el resum
 
 Tests: `python -m unittest discover -s tests -v`
 
+## Canasta saludable (POC)
+
+La compra más barata que cubre lo que necesita un hogar, en un supermercado al que se llega caminando
+(`canasta/`, estado y pendientes en [PLAN_DE_TRABAJO.md](PLAN_DE_TRABAJO.md)).
+
+```powershell
+copy .env.example .env               # ORS_API_KEY=... (gratis en openrouteservice.org)
+python -m canasta                    # exporta ../datos/sepa/canasta_local.html con la clave y la sirve en localhost
+python -m canasta --exportar         # ../datos/sepa/canasta.html, la versionada (nunca lleva la clave)
+python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15   # en la consola
+CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                         # paridad Python / navegador
+```
+
+- **Tiempo caminando como restricción.** Se buscan las sucursales dentro del radio en línea recta que se alcanza en
+  ese tiempo, OpenRouteService (perfil `foot-walking`) da los minutos reales en una sola consulta de matriz, se
+  descartan las que pasan el límite y recién ahí se optimiza. "Ver si conviene caminar hasta N min" amplía el límite,
+  vuelve a buscar y a optimizar, y muestra cuánto se ahorra. Parámetros en `canasta/config.py` (`CAMINATA_*`,
+  `RUTEO_*`).
+- **Sin clave o si el servicio falla** (clave inválida, cuota, sin conexión) los tiempos se estiman con la distancia
+  en línea recta × 1,3 a 5 km/h, y la página lo dice; no se dibuja recorrido.
+- La página se sirve por `http://localhost`: abierta como archivo, las teselas de OpenStreetMap pueden no cargar y el
+  navegador no comparte la ubicación. `?rutas=0` vuelve a la búsqueda anterior (las más cercanas en línea recta).
+
 ## Estructura
 
 ```

@@ -167,6 +167,13 @@ def _grupos(o: pd.DataFrame, consumo: np.ndarray) -> list[dict]:
             for g, r in t.sort_values("kcal", ascending=False, kind="stable").iterrows()]
 
 
+def _caminata(t: pd.Series) -> dict:
+    """Minutos y metros caminando hasta la sucursal (solo si se buscó por tiempo)."""
+    if "minutos" not in t.index:
+        return {"minutos": None, "metros": None, "fuente_tiempo": None}
+    return {"minutos": _limpio(t["minutos"]), "metros": _limpio(t["metros"]), "fuente_tiempo": t["fuente_tiempo"]}
+
+
 def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> dict:
     o = sol.oferta
     consumo = sol.consumo
@@ -202,8 +209,8 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> d
                    "direccion": tienda["direccion"], "localidad": _limpio(tienda["localidad"]),
                    "barrio": _limpio(tienda["barrio"]), "provincia": _limpio(tienda["provincia"]),
                    "lat": _limpio(tienda["lat"]), "lon": _limpio(tienda["lon"]),
-                   "distancia_km": round(float(tienda["distancia_km"]), 2), "hoy": _horario_hoy(tienda),
-                   "tipo": tienda["tipo_sucursal"]},
+                   "distancia_km": round(float(tienda["distancia_km"]), 2), **_caminata(tienda),
+                   "hoy": _horario_hoy(tienda), "tipo": tienda["tipo_sucursal"]},
         "fecha_precios": fecha, "dias": dias, "items": items, "total": total,
         "costo_diario": round(total / dias, 2),
         "costo_1000_kcal": round(total / dias / energia * 1000, 2) if energia else None,
@@ -218,7 +225,10 @@ def _datos_persona(p: Persona, nombre: str) -> dict:
 
 
 def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_PREDETERMINADO,
-          listos: bool = False) -> dict:
+          listos: bool = False, tiempos: dict[str, dict] | None = None, caminata_minutos: float | None = None,
+          aviso_tiempos: str | None = None) -> dict:
+    """Con tiempos (id_tienda -> {minutos, metros, fuente}, de canasta/rutas.py) y caminata_minutos, solo se evalúan
+    las sucursales a las que se llega caminando dentro de ese límite; sin ellos, las más cercanas en línea recta."""
     inicio = time.time()
     if isinstance(personas, Persona):
         personas = [personas]
@@ -257,9 +267,20 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
         "ubicacion": {"lat": lat, "lon": lon},
         "dias": dias, "periodo": cfg.DIAS_PERIODO[dias], "fecha_precios": d.fecha,
     }
-    tiendas = oferta.sucursales_cercanas(d, lat, lon)
+    por_tiempo = tiempos is not None
+    if por_tiempo:
+        limite = cfg.CAMINATA_MINUTOS if caminata_minutos is None else caminata_minutos
+        base["caminata"] = {"minutos": limite, "aviso": aviso_tiempos,
+                            "fuente": "estimado" if any(v.get("fuente") == "estimado" for v in tiempos.values())
+                            else "ruta"}
+        tiendas = oferta.sucursales_por_tiempo(d, lat, lon, tiempos, limite)
+    else:
+        tiendas = oferta.sucursales_cercanas(d, lat, lon)
     if tiendas.empty:
-        base["error"] = f"No hay supermercados con precios en SEPA a menos de {_num(cfg.RADIO_MAXIMO_KM)} km."
+        base["error"] = (f"No hay supermercados con precios en SEPA a menos de {_num(limite)} minutos caminando."
+                         if por_tiempo else
+                         f"No hay supermercados con precios en SEPA a menos de {_num(cfg.RADIO_MAXIMO_KM)} km.")
+        base["sin_sucursales"] = True
         return base
     soluciones = _evaluar(reqs, d, tiendas, aptos, dias)
     comparacion = []
@@ -268,8 +289,8 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
         ok = s.estado != "sin_solucion"
         comparacion.append({"id": i, "bandera": t["bandera"], "sucursal": t["sucursal_nombre"],
                             "direccion": t["direccion"], "localidad": _limpio(t["localidad"]),
-                            "distancia_km": round(float(t["distancia_km"]), 2), "lat": _limpio(t["lat"]),
-                            "lon": _limpio(t["lon"]), "estado": s.estado,
+                            "distancia_km": round(float(t["distancia_km"]), 2), **_caminata(t),
+                            "lat": _limpio(t["lat"]), "lon": _limpio(t["lon"]), "estado": s.estado,
                             "costo": round(s.costo, 2) if ok else None,
                             "puntaje": round(_puntaje(s, sin_aptos), 3) if ok else None,
                             "faltantes": _faltantes(s, sin_aptos, nombres) if ok else [],

@@ -415,13 +415,49 @@
       radio = Math.min(radio * 2, P.RADIO_MAXIMO_KM);
       cerca = todas.filter((x) => x.d <= radio);
     }
-    const vistas = new Set(), primeras = [], resto = [];
-    for (const x of cerca) {
+    return unaPorCadenaPrimero(cerca, n).sort((a, b) => a.d - b.d);
+  }
+
+  // La primera de cada cadena (en el orden de la lista) y, si faltan, las que siguen; a lo sumo n.
+  function unaPorCadenaPrimero(lista, n) {
+    const T = D.tiendas, vistas = new Set(), primeras = [], resto = [];
+    for (const x of lista) {
       const bandera = T.bandera[x.i];
       if (vistas.has(bandera)) resto.push(x); else { vistas.add(bandera); primeras.push(x); }
     }
-    return primeras.concat(resto).slice(0, n).sort((a, b) => a.d - b.d);
+    return primeras.concat(resto).slice(0, n);
   }
+
+  // Búsqueda por tiempo caminando (canasta/oferta.py: candidatas_caminando y sucursales_por_tiempo).
+  const radioCaminataKm = (minutos) => minutos / 60 * P.VELOCIDAD_CAMINATA_KMH;
+  const minutosEstimados = (km) => km * P.FACTOR_DESVIO_CAMINATA / P.VELOCIDAD_CAMINATA_KMH * 60;
+
+  function porDistancia(lat, lon) {
+    const T = D.tiendas;
+    const todas = T.id.map((_, i) => ({ i, d: distanciaKm(lat, lon, T.lat[i], T.lon[i]) }));
+    return todas.sort((a, b) => a.d - b.d);
+  }
+
+  // Las que se mandan al servicio de rutas: dentro del radio en línea recta, la más cercana de cada cadena primero.
+  function candidatasCaminando(lat, lon, minutos, n = P.CANDIDATAS_MAXIMAS_RUTEO) {
+    const T = D.tiendas, radio = radioCaminataKm(minutos);
+    return unaPorCadenaPrimero(porDistancia(lat, lon).filter((x) => x.d <= radio), n).sort((a, b) => a.d - b.d)
+      .map((x) => ({ id: T.id[x.i], lat: T.lat[x.i], lon: T.lon[x.i], distancia_km: x.d,
+        minutos_estimados: minutosEstimados(x.d) }));
+  }
+
+  // tiempos: {id_tienda: {minutos, metros, fuente}}. Las n a evaluar entre las que están dentro del límite.
+  function sucursalesPorTiempo(lat, lon, tiempos, limite, n = P.SUCURSALES_A_EVALUAR_CAMINATA) {
+    const T = D.tiendas;
+    const orden = (a, b) => a.minutos - b.minutos || a.d - b.d;
+    const dentro = porDistancia(lat, lon).filter((x) => T.id[x.i] in tiempos)
+      .map((x) => ({ ...x, ...tiempos[T.id[x.i]], minutos: Number(tiempos[T.id[x.i]].minutos) }))
+      .filter((x) => x.minutos <= limite).sort(orden);
+    return unaPorCadenaPrimero(dentro, n).sort(orden);
+  }
+
+  const caminata = (x) => (x.minutos === undefined ? { minutos: null, metros: null, fuente_tiempo: null }
+    : { minutos: x.minutos, metros: x.metros ?? null, fuente_tiempo: x.fuente || "ruta" });
 
   function podar(filas) {
     // filas: [{pos, sub, p100, pc}] en el orden de la oferta; devuelve las posiciones que quedan.
@@ -903,7 +939,7 @@
       pct_kcal: redondear(s.kcal / total * 100, 1) }));
   }
 
-  function ticket(sol, t, distancia, dias) {
+  function ticket(sol, t, distancia, dias, tiempo = {}) {
     const pr = D.productos, T = D.tiendas;
     const consumo = new Float64Array(sol.oferta.length);
     for (const dt of sol.dietas) dt.consumo.forEach((v, pos) => { consumo[pos] += v; });
@@ -933,7 +969,8 @@
     return {
       tienda: { id: T.id[t], bandera: T.bandera[t], comercio: T.comercio[t], cuit: T.cuit[t], sucursal: T.sucursal_nombre[t],
         direccion: T.direccion[t], localidad: T.localidad[t], barrio: T.barrio[t], provincia: T.provincia[t],
-        lat: T.lat[t], lon: T.lon[t], distancia_km: redondear(distancia, 2), hoy: horarioHoy(t), tipo: T.tipo_sucursal[t] },
+        lat: T.lat[t], lon: T.lon[t], distancia_km: redondear(distancia, 2), ...caminata(tiempo), hoy: horarioHoy(t),
+        tipo: T.tipo_sucursal[t] },
       fecha_precios: D.fecha, dias, items, total, costo_diario: redondear(total / dias, 2),
       costo_1000_kcal: energia ? redondear(total / dias / energia * 1000, 2) : null,
       promociones_disponibles: items.filter((it) => it.promocion).length,
@@ -999,9 +1036,18 @@
       catalogo: { productos_total: D.productosTotal, productos_canasta: pr.n, excluidos_siempre: P.EXCLUIDOS_SIEMPRE },
       ubicacion: { lat, lon }, dias, periodo: P.DIAS_PERIODO[String(dias)], fecha_precios: D.fecha,
     };
-    const cercanas = sucursalesCercanas(lat, lon);
+    // Con tiempos caminando (de rutas.js), solo las sucursales dentro del límite; si no, las más cercanas en línea recta.
+    const porTiempo = pedido.tiempos != null;
+    const limite = pedido.caminata_minutos ?? P.CAMINATA_MINUTOS;
+    if (porTiempo) {
+      const estimado = Object.values(pedido.tiempos).some((v) => v.fuente === "estimado");
+      base.caminata = { minutos: limite, aviso: pedido.aviso_tiempos ?? null, fuente: estimado ? "estimado" : "ruta" };
+    }
+    const cercanas = porTiempo ? sucursalesPorTiempo(lat, lon, pedido.tiempos, limite) : sucursalesCercanas(lat, lon);
     if (!cercanas.length) {
-      base.error = `No hay supermercados con precios en SEPA a menos de ${fmt(P.RADIO_MAXIMO_KM)} km.`;
+      base.error = porTiempo ? `No hay supermercados con precios en SEPA a menos de ${fmt(limite)} minutos caminando.`
+        : `No hay supermercados con precios en SEPA a menos de ${fmt(P.RADIO_MAXIMO_KM)} km.`;
+      base.sin_sucursales = true;
       return base;
     }
     // Ofertas; las sucursales con la misma oferta y los mismos precios se resuelven una vez.
@@ -1028,7 +1074,8 @@
       const s = soluciones[k];
       const ok = s.estado !== "sin_solucion";
       return { id: T.id[x.i], bandera: T.bandera[x.i], sucursal: T.sucursal_nombre[x.i], direccion: T.direccion[x.i],
-        localidad: T.localidad[x.i], distancia_km: redondear(x.d, 2), lat: T.lat[x.i], lon: T.lon[x.i], estado: s.estado,
+        localidad: T.localidad[x.i], distancia_km: redondear(x.d, 2), ...caminata(x), lat: T.lat[x.i], lon: T.lon[x.i],
+        estado: s.estado,
         costo: ok ? redondear(s.costo, 2) : null, puntaje: ok ? redondear(puntaje(s, sinAptos), 3) : null,
         faltantes: ok ? faltantes(s, sinAptos, nombres) : [], mensaje: ok ? "" : s.mensaje,
         productos_considerados: s.oferta.length, segundos: redondear(s.segundos, 2) };
@@ -1052,7 +1099,7 @@
     const metasModelo = sol.dietas.reduce((s, dt) => s + dt.metas.length, 0);
     Object.assign(base, {
       sucursales: comparacion,
-      ticket: ticket(sol, cercanas[ke].i, cercanas[ke].d, dias),
+      ticket: ticket(sol, cercanas[ke].i, cercanas[ke].d, dias, cercanas[ke]),
       modelo: { estado: sol.estado, productos_considerados: sol.oferta.length,
         variables: sol.oferta.length * (1 + personas.length) + metasModelo, metas: metasModelo,
         segundos_sucursal: redondear(sol.segundos, 2), segundos_total: redondear((Date.now() - inicio) / 1000, 2),
@@ -1065,7 +1112,8 @@
   // Interfaz con la página
   // ============================================================
 
-  const Motor = { cargarPaquete, cargarDatos, armar, calcular, personaDesde, validar, precargarSolver: () => grupoDeSolvers() };
+  const Motor = { cargarPaquete, cargarDatos, armar, calcular, personaDesde, validar, candidatasCaminando,
+    precargarSolver: () => grupoDeSolvers() };
 
   if (EN_WORKER) {
     self.onmessage = async (e) => {
@@ -1075,6 +1123,8 @@
           const resumen = await cargarPaquete(e.data.meta, e.data.binario);
           self.postMessage({ tipo: "listo", id, resumen });
           grupoDeSolvers().catch(() => {});        // se prepara el solver mientras la persona completa los datos
+        } else if (tipo === "candidatas") {
+          self.postMessage({ tipo: "resultado", id, candidatas: candidatasCaminando(e.data.lat, e.data.lon, e.data.minutos) });
         } else if (tipo === "armar") {
           const r = await armar(e.data.pedido, (a) => self.postMessage({ tipo: "avance", id, ...a }));
           self.postMessage({ tipo: "resultado", id, resultado: r });
