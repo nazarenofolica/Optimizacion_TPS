@@ -451,6 +451,17 @@ class TestDosSuper(unittest.TestCase):
     """Compra en dos supermercados, sin datos: A es la sucursal de _oferta_modelo (fideos $100, lentejas $400, arroz
     $250) y las vecinas venden lo mismo a otros precios."""
 
+    def test_mensaje_cuando_ahorra_pero_cubre_peor(self):
+        # Ahorra más que el mínimo pero no se elige porque cubre peor las metas: no puede decir "menos del mínimo".
+        from canasta import resultado
+        texto = resultado._mensaje("no_conviene", None, "A", "B", ["Naranja"], 5000.0, 20.0, 1000.0, 3.0,
+                                   {"cumple": 37, "total": 37}, {"cumple": 36, "total": 37})
+        self.assertIn("cubrirías peor las metas", texto)
+        self.assertNotIn("menos del mínimo", texto)
+        texto = resultado._mensaje("no_conviene", None, "A", "B", ["Naranja"], 500.0, 2.0, 1000.0, 3.0,
+                                   {"cumple": 37, "total": 37}, {"cumple": 37, "total": 37})
+        self.assertIn("menos del mínimo", texto)
+
     def setUp(self):
         from canasta import resultado
         self.r = resultado
@@ -655,7 +666,9 @@ class TestExportacion(unittest.TestCase):
         from canasta.exportar import parametros
         p = parametros()
         for clave in ("SCHOFIELD", "ACTIVIDAD", "RESTRICCIONES", "ALIMENTOS_A_COCINAR", "PESO_DEFICIT", "GAP_RELATIVO",
-                      "DIAS_PERIODO", "PERSONAS_MAXIMAS", "EXCLUIDOS_SIEMPRE", "LAT_ARGENTINA"):
+                      "DIAS_PERIODO", "PERSONAS_MAXIMAS", "EXCLUIDOS_SIEMPRE", "LAT_ARGENTINA", "DOS_SUPER_MAXIMO",
+                      "DOS_SUPER_MINUTOS_ENTRE", "DOS_SUPER_VECINAS", "DOS_SUPER_AHORRO_MINIMO_PCT",
+                      "DOS_SUPER_AHORRO_MINIMO_PESOS", "VELOCIDAD_CAMINATA_KMH", "FACTOR_DESVIO_CAMINATA"):
             self.assertIn(clave, p)
         self.assertEqual(list(p["RESTRICCIONES"]), list(cfg.RESTRICCIONES))       # el orden define los bits de aptitud
 

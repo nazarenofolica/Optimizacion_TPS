@@ -512,6 +512,10 @@ def _mensaje(estado: str, motivo: str | None, nombre_a: str, nombre_b: str, prod
                 f"{plata[0].upper() + plata[1:]}, {caminando}.")
     if motivo == "ahorro":
         return f"Comprando en {nombre_b} {lista} ahorrás ${_num(ahorro)} ({_num(pct, 1)} %), {caminando}."
+    if ahorro >= minimo:                # ahorraría lo suficiente, pero no se elige porque cubre peor las metas
+        return (f"No conviene dividir la compra: comprando en {nombre_b} {lista} ahorrarías ${_num(ahorro)}, pero "
+                f"cubrirías peor las metas ({despues['cumple']} de {despues['total']}; con {nombre_a} sola, "
+                f"{antes['cumple']}).")
     if ahorro > 0:
         return (f"No conviene dividir la compra: comprando en {nombre_b} {lista} ahorrarías solo ${_num(ahorro)} "
                 f"({_num(pct, 1)} %), menos del mínimo de ${_num(minimo)}.")
