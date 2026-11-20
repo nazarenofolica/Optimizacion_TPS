@@ -28,6 +28,7 @@ CASOS = [
     (["oficinista"], (-34.60386, -58.38419), 7, False),                    # CABA
     (["celiaca", "vegano"], (-31.41670, -64.18330), 7, False),             # Córdoba, hogar con restricciones
     (["escolar"], (-32.89785, -68.84131), 14, True),                       # Mendoza, listos para comer
+    (["bajo_peso"], (-32.94682, -60.63932), 7, False),                     # Rosario, aumentar de peso
 ]
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 

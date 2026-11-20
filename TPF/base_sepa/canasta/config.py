@@ -56,12 +56,22 @@ ACTIVIDAD = {
                     "descripcion": "Deporte de competencia, doble turno de entrenamiento"},
 }
 
+# Aumentar de peso (por ejemplo, con bajo peso): se suma un superávit fijo al gasto, no un porcentaje. La práctica
+# habitual en nutrición clínica para recuperar peso en adultos es comer 300 a 500 kcal/día más de lo que se gasta,
+# para subir de a poco, unos 0,25 a 0,5 kg por semana (~7.700 kcal por kg ganado); el NHS (Reino Unido), en su
+# consejo para adultos con bajo peso, también recomienda subir gradualmente y con comida nutritiva, no con
+# ultraprocesados. Se usa el extremo alto del rango: ~0,45 kg por semana.
+SUPERAVIT_AUMENTAR_KCAL = 500
+
 # Objetivo de peso (solo adultos fuera del embarazo y la lactancia). Bajar: déficit moderado, sin bajar del gasto en
-# reposo × 1,2. Subir: superávit chico para ganar músculo, con la proteína del deportista.
+# reposo × 1,2. Subir: superávit chico para ganar músculo, con la proteína del deportista. Aumentar: superávit sumado
+# (superavit_kcal, en lugar de factor) para recuperar peso, con proteína moderada; si la persona tiene sobrepeso
+# (IMC >= 25), se aplica igual pero se avisa que no se recomienda.
 OBJETIVO = {
     "mantener": {"nombre": "Mantener el peso", "factor": 1.00},
     "bajar": {"nombre": "Bajar de peso", "factor": 0.85},
     "subir": {"nombre": "Ganar masa muscular", "factor": 1.10},
+    "aumentar": {"nombre": "Aumentar de peso", "superavit_kcal": SUPERAVIT_AUMENTAR_KCAL},
 }
 PISO_ENERGIA_REPOSO = 1.2
 
@@ -72,17 +82,21 @@ ENERGIA_LACTANCIA = 505
 # Con obesidad (IMC >= 30) el peso real sobreestima la energía y la proteína: se usa el peso ajustado
 # (peso con IMC 25 más el 25 % del exceso), práctica habitual en nutrición clínica.
 IMC_OBESIDAD = 30.0
+IMC_SOBREPESO = 25.0     # desde acá no se recomienda aumentar de peso (OMS)
 IMC_REFERENCIA = 25.0
 FRACCION_EXCESO_PESO = 0.25
 
 # Proteína, g por kg de peso por día. Base: RDA de NASEM (0,95 de 4 a 13 años, 0,85 de 14 a 18, 0,8 adultos); 1,0
 # desde los 65 (PROT-AGE / ESPEN); embarazo 1,1 (2.º y 3.er trimestre) y lactancia 1,3 (NASEM). Con entrenamiento,
 # ACSM e ISSN recomiendan 1,2 a 2,0: se usa 1,0 / 1,4 / 1,6 según la actividad, 1,6 para ganar músculo y 1,2 al bajar
-# de peso (preserva la masa magra).
+# de peso (preserva la masa magra). Para aumentar de peso, las guías de nutrición clínica (ESPEN) usan 1,2 a 1,5 g/kg
+# al recuperar a un adulto desnutrido: se toma 1,2, el extremo bajo, porque lo que se busca es energía (que lo ganado
+# no sea solo grasa) y no músculo como en "subir"; más proteína encarece la canasta sin cambiar el objetivo.
 PROTEINA_BASE = [(4, 13, 0.95), (14, 18, 0.85), (19, 64, 0.80), (65, 200, 1.00)]
 PROTEINA_ACTIVIDAD = {"moderada": 1.0, "intensa": 1.4, "muy_intensa": 1.6}
 PROTEINA_SUBIR = 1.6
 PROTEINA_BAJAR = 1.2
+PROTEINA_AUMENTAR = 1.2
 PROTEINA_EMBARAZO = 1.1
 PROTEINA_LACTANCIA = 1.3
 

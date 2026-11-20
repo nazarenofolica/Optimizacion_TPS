@@ -2,7 +2,8 @@
 De una persona (edad, sexo, peso, actividad, etapa, restricciones) a sus metas diarias:
 
   1. Energía: gasto en reposo (Schofield, FAO/OMS/UNU 2004) por el nivel de actividad; en chicos, la ecuación de
-     gasto total de FAO más el crecimiento; más el embarazo o la lactancia; por el objetivo de peso.
+     gasto total de FAO más el crecimiento; más el embarazo o la lactancia; por el objetivo de peso (o más un
+     superávit fijo, para aumentar de peso).
   2. Proteína por kg de peso (ajustado si hay obesidad) según edad, etapa, actividad y objetivo.
   3. Carbohidratos, grasas, saturadas, trans y azúcares libres como porcentaje de la energía; fibra por cada
      1.000 kcal.
@@ -165,6 +166,17 @@ def _energia(p: Persona, peso: float, pasos: list[dict], avisos: list[str]) -> f
         if p.objetivo != "mantener":
             if p.etapa != "general":
                 avisos.append("En el embarazo y la lactancia no se busca bajar ni subir de peso: se mantiene.")
+            elif "superavit_kcal" in obj:
+                nueva = energia + obj["superavit_kcal"]
+                pasos.append({"titulo": f"Objetivo: {obj['nombre'].lower()}",
+                              "formula": f"{_fmt(energia)} + {_fmt(obj['superavit_kcal'])} kcal de superávit",
+                              "resultado": f"{_fmt(nueva)} kcal/día",
+                              "fuente": "Superávit habitual para recuperar peso: 300 a 500 kcal/día "
+                                        "(~0,25 a 0,5 kg por semana)"})
+                energia = nueva
+                if p.altura_cm is not None and p.peso_kg / (p.altura_cm / 100) ** 2 >= cfg.IMC_SOBREPESO:
+                    avisos.append("Con un IMC de sobrepeso no se recomienda aumentar de peso; consultá a un "
+                                  "profesional.")
             else:
                 nueva = max(energia * obj["factor"], reposo * cfg.PISO_ENERGIA_REPOSO)
                 pasos.append({"titulo": f"Objetivo: {obj['nombre'].lower()}",
@@ -211,6 +223,9 @@ def _proteina_g_kg(p: Persona, pasos: list[dict]) -> float:
         elif p.objetivo == "bajar":
             valor = max(valor, cfg.PROTEINA_BAJAR)
             motivos.append(f"{_fmt(cfg.PROTEINA_BAJAR, 1)} al bajar de peso")
+        elif p.objetivo == "aumentar":
+            valor = max(valor, cfg.PROTEINA_AUMENTAR)
+            motivos.append(f"{_fmt(cfg.PROTEINA_AUMENTAR, 1)} para aumentar de peso")
     pasos.append({"titulo": "Proteína por kg de peso",
                   "formula": "el mayor de: " + "; ".join(motivos),
                   "resultado": f"{_fmt(valor, 2)} g por kg por día",

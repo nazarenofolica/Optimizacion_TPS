@@ -51,6 +51,38 @@ class TestEnergia(unittest.TestCase):
         self.assertLess(bajar.energia_kcal, mantener.energia_kcal)
         self.assertEqual(subir.proteina_g_kg, cfg.PROTEINA_SUBIR)
 
+    def test_aumentar_de_peso_suma_un_superavit(self):
+        base = dict(sexo="F", edad=22, peso_kg=46, altura_cm=165, actividad="liviana")
+        mantener = (14.818 * 46 + 486.6) * 1.55                                      # Schofield 18-30 × PAL 1,55
+        r = rq.calcular(rq.Persona(**base, objetivo="aumentar"))
+        self.assertEqual(r.energia_kcal, round(mantener + cfg.SUPERAVIT_AUMENTAR_KCAL, -1))
+        self.assertEqual(r.energia_kcal - rq.calcular(rq.Persona(**base)).energia_kcal, cfg.SUPERAVIT_AUMENTAR_KCAL)
+        self.assertEqual(r.proteina_g_kg, cfg.PROTEINA_AUMENTAR)
+        self.assertAlmostEqual(meta(r.metas, "proteinas_g").minimo, cfg.PROTEINA_AUMENTAR * 46)
+        self.assertIn("Objetivo: aumentar de peso", [x["titulo"] for x in r.pasos])
+        self.assertFalse(any("sobrepeso" in a for a in r.avisos))                      # IMC 16,9
+
+    def test_aumentar_con_sobrepeso_avisa(self):
+        r = rq.calcular(rq.Persona(sexo="F", edad=30, peso_kg=75, altura_cm=165, objetivo="aumentar"))  # IMC 27,5
+        self.assertIn("Con un IMC de sobrepeso no se recomienda aumentar de peso; consultá a un profesional.",
+                      r.avisos)
+        mantener = rq.calcular(rq.Persona(sexo="F", edad=30, peso_kg=75, altura_cm=165))
+        self.assertEqual(r.energia_kcal - mantener.energia_kcal, cfg.SUPERAVIT_AUMENTAR_KCAL)   # se aplica igual
+        sin_altura = rq.calcular(rq.Persona(sexo="F", edad=30, peso_kg=75, objetivo="aumentar"))
+        self.assertFalse(any("sobrepeso" in a for a in sin_altura.avisos))
+
+    def test_aumentar_no_aplica_en_menores_ni_en_el_embarazo(self):
+        for base in (dict(sexo="M", edad=15, peso_kg=50, altura_cm=170, actividad="moderada"),
+                     dict(sexo="F", edad=30, peso_kg=50, altura_cm=165, etapa="embarazo", trimestre=2),
+                     dict(sexo="F", edad=30, peso_kg=50, altura_cm=165, etapa="lactancia")):
+            with self.subTest(**base):
+                aumentar = rq.calcular(rq.Persona(**base, objetivo="aumentar"))
+                mantener = rq.calcular(rq.Persona(**base))
+                self.assertEqual(aumentar.energia_kcal, mantener.energia_kcal)
+                self.assertEqual(aumentar.proteina_g_kg, mantener.proteina_g_kg)
+                self.assertTrue(aumentar.avisos)                  # el aviso de que no se ajusta
+                self.assertNotIn("Objetivo: aumentar de peso", [x["titulo"] for x in aumentar.pasos])
+
     def test_validacion(self):
         with self.assertRaises(ValueError):
             rq.calcular(rq.Persona(sexo="F", edad=2, peso_kg=12))
@@ -233,6 +265,13 @@ class TestPerfiles(unittest.TestCase):
         for f in rq.perfiles():
             with self.subTest(perfil=f["id"]):
                 self.assertEqual(rq.persona_desde(f).validar(), [])
+
+    def test_perfil_bajo_peso(self):
+        f = next(f for f in rq.perfiles() if f["id"] == "bajo_peso")
+        r = rq.calcular(rq.persona_desde(f))
+        self.assertEqual(f["objetivo"], "aumentar")
+        self.assertLess(f["peso_kg"] / (f["altura_cm"] / 100) ** 2, 18.5)              # bajo peso (OMS)
+        self.assertEqual(r.energia_kcal, round((14.818 * 46 + 486.6) * 1.55 + cfg.SUPERAVIT_AUMENTAR_KCAL, -1))
 
 
 class TestExportacion(unittest.TestCase):

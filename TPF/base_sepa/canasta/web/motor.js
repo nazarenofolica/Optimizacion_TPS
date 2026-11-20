@@ -187,6 +187,16 @@
       if (p.objetivo !== "mantener") {
         if (p.etapa !== "general") {
           avisos.push("En el embarazo y la lactancia no se busca bajar ni subir de peso: se mantiene.");
+        } else if ("superavit_kcal" in obj) {
+          const nueva = energia + obj.superavit_kcal;
+          pasos.push({ titulo: `Objetivo: ${minusc(obj.nombre)}`,
+            formula: `${fmt(energia)} + ${fmt(obj.superavit_kcal)} kcal de superávit`,
+            resultado: `${fmt(nueva)} kcal/día`,
+            fuente: "Superávit habitual para recuperar peso: 300 a 500 kcal/día (~0,25 a 0,5 kg por semana)" });
+          energia = nueva;
+          if (p.altura_cm != null && p.peso_kg / (p.altura_cm / 100) ** 2 >= P.IMC_SOBREPESO) {
+            avisos.push("Con un IMC de sobrepeso no se recomienda aumentar de peso; consultá a un profesional.");
+          }
         } else {
           const nueva = Math.max(energia * obj.factor, reposo * P.PISO_ENERGIA_REPOSO);
           pasos.push({ titulo: `Objetivo: ${minusc(obj.nombre)}`,
@@ -237,6 +247,9 @@
       } else if (p.objetivo === "bajar") {
         valor = Math.max(valor, P.PROTEINA_BAJAR);
         motivos.push(`${fmt(P.PROTEINA_BAJAR, 1)} al bajar de peso`);
+      } else if (p.objetivo === "aumentar") {
+        valor = Math.max(valor, P.PROTEINA_AUMENTAR);
+        motivos.push(`${fmt(P.PROTEINA_AUMENTAR, 1)} para aumentar de peso`);
       }
     }
     pasos.push({ titulo: "Proteína por kg de peso", formula: "el mayor de: " + motivos.join("; "),
