@@ -24,11 +24,13 @@ NAVEGADORES = [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                "google-chrome", "chromium", "chromium-browser"]
 CASOS = [
-    # perfiles, lugar, días, listos
-    (["oficinista"], (-34.60386, -58.38419), 7, False),                    # CABA
-    (["celiaca", "vegano"], (-31.41670, -64.18330), 7, False),             # Córdoba, hogar con restricciones
-    (["escolar"], (-32.89785, -68.84131), 14, True),                       # Mendoza, listos para comer
-    (["bajo_peso"], (-32.94682, -60.63932), 7, False),                     # Rosario, aumentar de peso
+    # perfiles, lugar, días, listos, agua
+    (["oficinista"], (-34.60386, -58.38419), 7, False, "canilla"),                    # CABA
+    (["celiaca", "vegano"], (-31.41670, -64.18330), 7, False, "canilla"),             # Córdoba, hogar con restricciones
+    (["escolar"], (-32.89785, -68.84131), 14, True, "canilla"),                       # Mendoza, listos para comer
+    (["bajo_peso"], (-32.94682, -60.63932), 7, False, "canilla"),                     # Rosario, aumentar de peso
+    (["oficinista"], (-34.60386, -58.38419), 7, False, "compra"),                     # CABA, agua comprada
+    (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
 ]
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 
@@ -74,9 +76,10 @@ class TestParidadPagina(unittest.TestCase):
             if a["costo"] is not None:
                 self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
 
-    def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0") -> dict:
+    def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0", agua=cfg.AGUA_MODO_PREDETERMINADO) -> dict:
         # rutas=0: la página busca las sucursales como resultado.armar sin tiempos (las más cercanas en línea recta).
-        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&motor=pagina{extra}")
+        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&agua={agua}"
+                    f"&motor=pagina{extra}")
         r = subprocess.run([self.navegador, "--headless=new", "--disable-gpu", "--virtual-time-budget=600000",
                             "--dump-dom", f"{self.pagina.as_uri()}?{consulta}"],
                            capture_output=True, text=True, encoding="utf-8", timeout=900)
@@ -86,11 +89,14 @@ class TestParidadPagina(unittest.TestCase):
         return json.loads(html.unescape(m.group(1)))
 
     def test_los_dos_motores_dan_lo_mismo(self):
-        for ids, (lat, lon), dias, listos in CASOS:
-            with self.subTest(perfiles=ids, dias=dias, listos=listos):
-                js = self._pagina(ids, lat, lon, dias, listos)
-                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, dias, listos=listos)
+        for ids, (lat, lon), dias, listos, agua in CASOS:
+            with self.subTest(perfiles=ids, dias=dias, listos=listos, agua=agua):
+                js = self._pagina(ids, lat, lon, dias, listos, agua=agua)
+                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, dias, listos=listos,
+                                     agua=agua)
                 self.assertNotIn("error", js)
+                self.assertEqual(js["opciones"]["agua"], agua)
+                self.assertEqual(py["catalogo"]["productos_canasta"], js["catalogo"]["productos_canasta"])
                 # Requerimientos idénticos: mismos números y el mismo texto de cada paso.
                 for a, b in zip(py["personas"], js["personas"]):
                     self.assertEqual(a["requerimientos"]["energia_kcal"], b["requerimientos"]["energia_kcal"])

@@ -12,7 +12,8 @@ Restricciones:
   - energía de cada persona dentro de ±5 % de su meta (dura: con otra energía es otra dieta)
   - cada meta k de cada persona (nutriente o regla de las Guías):  sum_p a_kp c_ip + meta_k * d_ik >= meta_k (mínimos)
                                                                    sum_p a_kp c_ip - meta_k * d_ik <= meta_k (máximos)
-  - variedad: nadie come más de 2 porciones por día de un mismo alimento genérico (escaladas por su energía).
+  - variedad: nadie come más de 2 porciones por día de un mismo alimento genérico (escaladas por su energía); el agua
+    y la soda, hasta la meta de agua de la persona (si se le exige a la compra).
 
 Las metas informativas (vitamina D; B12 de un vegano) no entran en el modelo: solo se informa cuánto aportan.
 
@@ -95,6 +96,16 @@ def tope_por_porciones(porcion_g: np.ndarray, energia: float) -> np.ndarray:
     return cfg.PORCIONES_MAX_POR_ALIMENTO * porcion_g * max(1.0, energia / 2000)
 
 
+def tope_variedad(req: Requerimientos, porcion_sub: np.ndarray, agua_sub: np.ndarray) -> np.ndarray:
+    """Tope por subcategoría: el de las porciones y, para el agua y la soda (agua_sub), la meta de agua del día si se
+    le exige a la compra (dos vasos no alcanzan)."""
+    tope = tope_por_porciones(porcion_sub, req.energia_kcal)
+    agua = next((m for m in req.metas if m.clave == "agua" and m.tipo != "informativa"), None)
+    if agua is not None:
+        tope = np.where(agua_sub, np.maximum(tope, agua.minimo), tope)
+    return tope
+
+
 @dataclass
 class _Bloque:
     """Las filas del modelo de una persona, sobre sus columnas (los productos aptos para ella)."""
@@ -111,7 +122,7 @@ class _Bloque:
 
 
 def _bloque(req: Requerimientos, oferta: pd.DataFrame, apto: np.ndarray, sub_codigos: np.ndarray,
-            porcion_sub: np.ndarray) -> _Bloque:
+            porcion_sub: np.ndarray, agua_sub: np.ndarray) -> _Bloque:
     columnas = np.flatnonzero(apto)
     o = oferta.iloc[columnas]
     metas, sin_oferta = [], []
@@ -135,8 +146,7 @@ def _bloque(req: Requerimientos, oferta: pd.DataFrame, apto: np.ndarray, sub_cod
     codigos = sub_codigos[columnas]
     a_var = csr_matrix((np.ones(n), (codigos, np.arange(n))), shape=(len(porcion_sub), n))
     return _Bloque(columnas, metas, sin_oferta, a_metas, np.array(signo), np.array(pesos), energia,
-                   csr_matrix(coeficientes(o, energia)[None, :]), a_var,
-                   tope_por_porciones(porcion_sub, req.energia_kcal))
+                   csr_matrix(coeficientes(o, energia)[None, :]), a_var, tope_variedad(req, porcion_sub, agua_sub))
 
 
 def _sin_solucion(mensaje: str, oferta: pd.DataFrame, bloques: list[_Bloque], inicio: float) -> Solucion:
@@ -153,7 +163,9 @@ def resolver(personas: list[tuple[Requerimientos, np.ndarray]], oferta: pd.DataF
     sub = pd.Categorical(oferta["subcategoria"])
     sub_codigos = sub.codes
     porcion_sub = oferta.groupby(sub, observed=False)["porcion_g"].max().to_numpy(float)
-    bloques = [_bloque(req, oferta, apto, sub_codigos, porcion_sub) for req, apto in personas]
+    agua_sub = np.zeros(len(porcion_sub), dtype=bool)
+    agua_sub[sub_codigos[oferta["alimento_id"].isin(cfg.ALIMENTOS_AGUA).to_numpy()]] = True
+    bloques = [_bloque(req, oferta, apto, sub_codigos, porcion_sub, agua_sub) for req, apto in personas]
     if any(len(b.columnas) == 0 for b in bloques):
         return _sin_solucion("La sucursal no vende alimentos aptos para alguien del hogar", oferta, bloques, inicio)
 

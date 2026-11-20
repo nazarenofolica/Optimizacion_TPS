@@ -8,6 +8,7 @@ precios del modelo estrella de SEPA 2.0 (../datos/sepa/).
     python -m canasta --perfil celiaca --direccion "Av Corrientes 1234" --provincia "Ciudad Autónoma de Buenos Aires"
     python -m canasta --perfil oficinista,trabajo_fisico,escolar --lat -32.95 --lon -60.64 --dias 14 --listos
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15
+    python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15 --agua compra
 
 Con --perfil, la canasta la arma en la consola el motor de Python (la referencia del que corre en la página). Con
 --caminata, solo se evalúan las sucursales a las que se llega caminando en esos minutos (rutas de OpenRouteService:
@@ -51,6 +52,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--localidad", default="")
     p.add_argument("--dias", type=int, default=cfg.DIAS_PREDETERMINADO, choices=sorted(cfg.DIAS_PERIODO))
     p.add_argument("--listos", action="store_true", help="Solo alimentos listos para comer.")
+    p.add_argument("--agua", choices=list(cfg.AGUA_MODOS), default=cfg.AGUA_MODO_PREDETERMINADO,
+                   help="Cómo toma agua el hogar: " + "; ".join(f"{k}, {m['nombre'].lower()}"
+                                                              for k, m in cfg.AGUA_MODOS.items())
+                        + f" (por defecto, {cfg.AGUA_MODO_PREDETERMINADO}).")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -87,6 +92,17 @@ def _imprimir(r: dict) -> None:
     for it in t["items"]:
         print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
     print(f"{'-' * 64}\n{'TOTAL':>52} ${num(t['total'], 2):>11}\n{'por día':>52} ${num(t['costo_diario'], 2):>11}")
+    print(f"\nAgua ({r['opciones']['agua_nombre'].lower()}):")
+    for persona in r["personas"]:
+        agua = next(c for c in persona["cobertura"] if c["clave"] == "agua")
+        if agua["estado"] == "informativa":
+            falta = max(0.0, agua["minimo"] - agua["valor"])
+            texto = (f"tomá unos {num(falta / 1000, 1)} L de agua de la canilla por día: los alimentos aportan "
+                     f"{num(agua['valor'] / 1000, 1)} L de {num(agua['minimo'] / 1000, 1)} L")
+        else:
+            texto = (f"{num(agua['valor'] / 1000, 2)} L por día de {num(agua['minimo'] / 1000, 1)} L "
+                     f"({num(agua['porcentaje'], 0)} %, {agua['estado']})")
+        print(f"  {persona['datos']['nombre']}: {texto}")
     for persona in r["personas"]:
         pendientes = [c for c in persona["cobertura"] + persona["reglas"] if c["estado"] not in ("cumple", "no_aplica")]
         if pendientes:
@@ -139,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.caminata:
         tiempos, aviso = rutas.tiempos_caminando(lat, lon, args.caminata)
         extra = {"tiempos": tiempos, "caminata_minutos": args.caminata, "aviso_tiempos": aviso}
-    _imprimir(resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, **extra))
+    _imprimir(resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, agua=args.agua, **extra))
     return 0
 
 

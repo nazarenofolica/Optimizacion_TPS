@@ -304,6 +304,29 @@ input:focus-visible, select:focus-visible { outline: none; }
 .interruptor b { display: block; font-size: 0.95rem; font-weight: 600; }
 .interruptor small { display: block; }
 
+/* Agua: opción única con una línea que explica cada una; la elegida, con borde en tinta y el punto lleno. */
+.campo-agua { grid-column: 1 / -1; }
+.opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; }
+.opciones label { position: relative; display: flex; }
+.opciones input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.opciones span {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 9px; align-content: start; width: 100%;
+  padding: 10px 12px 11px; border: 1px solid var(--linea); border-radius: 7px; background: var(--superficie);
+  cursor: pointer; user-select: none; transition: border-color 0.18s, box-shadow 0.18s, transform 0.1s;
+}
+.opciones span::before {
+  content: ""; grid-row: span 2; width: 15px; height: 15px; margin-top: 3px; border-radius: 50%;
+  border: 1.5px solid var(--tinta-suave); background: var(--superficie); transition: background 0.15s var(--salida), border-color 0.15s;
+}
+.opciones b { font-size: 0.92rem; font-weight: 600; }
+.opciones small { display: block; margin-top: 2px; line-height: 1.35; }
+.opciones span:hover { border-color: var(--tinta-suave); }
+.opciones span:active { transform: scale(0.98); }
+.opciones input:checked + span { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); }
+.opciones input:checked + span::before { border-color: var(--tinta); background: var(--tinta); box-shadow: inset 0 0 0 3px var(--superficie); }
+.opciones input:focus-visible + span { outline: 3px solid var(--foco); outline-offset: 2px; }
+@media (max-width: 640px) { .opciones { grid-template-columns: minmax(0, 1fr); } }
+
 /* Botones */
 .boton-principal, .boton-secundario, .boton-texto { font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px; }
 .boton-principal {
@@ -610,6 +633,8 @@ details > :not(summary) { margin-top: 8px; }
 .estado-metas.sin-faltas i { background: var(--verde); }
 .estado-metas.con-faltas { background: color-mix(in srgb, var(--naranja) 10%, var(--superficie)); }
 .estado-metas.con-faltas i { background: var(--naranja); }
+.estado-metas.info { background: var(--hundido); border: 1px solid var(--linea); }
+.estado-metas.info i { background: var(--tinta); color: var(--superficie); font-family: var(--ticket); }
 .leyenda-barra { margin-top: 18px; }
 .grupo-medidores h4 { margin: 22px 0 10px; font-size: 0.85rem; font-weight: 600; color: var(--tinta-suave); }
 .medidores { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }

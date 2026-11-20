@@ -8,7 +8,9 @@ De una persona (edad, sexo, peso, actividad, etapa, restricciones) a sus metas d
   3. Carbohidratos, grasas, saturadas, trans y azúcares libres como porcentaje de la energía; fibra por cada
      1.000 kcal.
   4. Micronutrientes: mínimo (RDA o AI) y máximo (UL) de referencia/requerimientos_nutricionales.csv.
-  5. Reglas de las Guías Alimentarias (referencia/guias_alimentarias.csv).
+  5. Agua, según cómo la toma el hogar (config.AGUA_MODOS): el agua total del día (NASEM) o solo la de las bebidas
+     (8 vasos de las Guías); se le exige a la compra si el agua se compra y, si es de la canilla, solo se informa.
+  6. Reglas de las Guías Alimentarias (referencia/guias_alimentarias.csv).
 
 Cada número queda registrado en `pasos` con su fórmula y su fuente: la página muestra el cálculo completo.
 """
@@ -376,8 +378,43 @@ def _reglas(energia: float) -> list[Meta]:
     return metas
 
 
-def calcular(p: Persona) -> Requerimientos:
+def _agua(p: Persona, modo: str, pasos: list[dict]) -> Meta:
+    """Meta de agua del día, en gramos (≈ ml). Con agua comprada se le exige a la compra; de la canilla, se informa."""
+    m = cfg.AGUA_MODOS[modo]
+    total = m["cuenta"] == "total"
+    tabla = cfg.AGUA_TOTAL_L if total else cfg.AGUA_BEBIDAS_L
+    if p.etapa != "general":
+        litros = tabla[p.etapa]
+        grupo = "el embarazo" if p.etapa == "embarazo" else "la lactancia"
+    else:
+        d, h, litros = next(x for x in tabla[p.sexo] if x[0] <= p.edad <= x[1])
+        quienes = "chicos" if h <= 8 else "mujeres" if p.sexo == "F" else "varones"
+        grupo = f"{quienes} de {d} años o más" if h >= cfg.EDAD_MAXIMA else f"{quienes} de {d} a {h} años"
+    if total:
+        cuenta = "el agua de todo lo que come y toma (bebidas y alimentos)"
+        fuente = "NASEM/IOM 2004, ingesta adecuada de agua total"
+    else:
+        cuenta = "solo el agua y la soda que se compran, sin la de los alimentos"
+        fuente = ("Guías Alimentarias para la Población Argentina (2016): 8 vasos de agua segura por día"
+                  if not p.es_menor and p.etapa == "general" else "NASEM/IOM 2004, agua de las bebidas")
+    if m["compra"]:
+        resultado, tipo, nota = f"{_fmt(litros, 1)} L por día", "nutriente", f"cuenta {cuenta}"
+    else:
+        resultado, tipo = f"{_fmt(litros, 1)} L por día, de la canilla (no se compra)", "informativa"
+        nota = "informativa: el agua es la de la canilla; se muestra cuánta aportan los alimentos"
+    pasos.append({"titulo": "Agua", "formula": f"Para {grupo}; cuenta {cuenta}", "resultado": resultado,
+                  "fuente": fuente})
+    if total:
+        return Meta("agua", "Agua", "ml", "agua_g", litros * 1000, tipo=tipo, fuente=fuente, nota=nota)
+    return Meta("agua", "Agua (bebidas)", "ml", None, litros * 1000, tipo=tipo, fuente=fuente, nota=nota,
+                alimentos=set(cfg.ALIMENTOS_AGUA), medida="g")
+
+
+def calcular(p: Persona, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> Requerimientos:
+    """agua: cómo toma agua el hogar (una clave de config.AGUA_MODOS)."""
     errores = p.validar()
+    if agua not in cfg.AGUA_MODOS:
+        errores.append(f"Modo de agua desconocido: {agua}.")
     if errores:
         raise ValueError(" ".join(errores))
     pasos: list[dict] = []
@@ -388,7 +425,8 @@ def calcular(p: Persona) -> Requerimientos:
     prot = g_kg * peso
     pasos.append({"titulo": "Proteína del día", "formula": f"{_fmt(g_kg, 2)} g/kg × {_fmt(peso, 1)} kg",
                   "resultado": f"{_fmt(prot)} g/día", "fuente": ""})
-    metas = _macros(p, energia, prot, pasos) + _micronutrientes(p, pasos, avisos) + _reglas(energia)
+    metas = (_macros(p, energia, prot, pasos) + _micronutrientes(p, pasos, avisos) + [_agua(p, agua, pasos)]
+             + _reglas(energia))
     if "diabetes" in p.restricciones or "hipertension" in p.restricciones:
         avisos.append("Con diabetes o hipertensión, esta canasta es orientativa: el plan lo ajusta el médico o un "
                       "nutricionista.")

@@ -151,8 +151,9 @@ ALERGIAS = {"sin_leche": "leche", "sin_huevo": "huevo", "sin_mani": "mani", "sin
 # QUÉ ENTRA EN LA CANASTA
 # ============================================================
 
-# Grupos alimentarios que se compran para comer. Quedan afuera el agua y las infusiones (sin nutrientes que
-# cuenten: el agua es la de la canilla), los condimentos (van a gusto, aportan poco) y las comidas preparadas.
+# Grupos alimentarios que se compran para comer. Quedan afuera el grupo "Agua e infusiones" (yerba, café, té y agua
+# saborizada: sin nutrientes que cuenten), los condimentos (van a gusto, aportan poco) y las comidas preparadas. El
+# agua y la soda envasadas (ALIMENTOS_AGUA, más abajo) se cargan aparte y solo se ofrecen si el hogar compra el agua.
 GRUPOS_CANASTA = [
     "Verduras y frutas", "Legumbres, cereales, papa, pan y pastas", "Leche, yogur y queso", "Carnes y huevos",
     "Aceites, frutas secas y semillas", "Alimentos de consumo opcional",
@@ -198,13 +199,55 @@ LISTOS_CRITERIO = ("Sin nada que haya que cocinar: carnes, pescados frescos y hu
 # Hogar: hasta cuántas personas comparten la compra (cada una con sus metas y restricciones).
 PERSONAS_MAXIMAS = 8
 
+# ============================================================
+# AGUA
+# ============================================================
+
+# Agua y soda envasadas (grupo "Agua e infusiones"): entran a la oferta solo si el hogar compra el agua.
+ALIMENTOS_AGUA = {"agua", "soda"}
+# Cómo toma agua el hogar (uno para todos). Cada modo combina de dónde sale el agua ("compra": el agua y la soda
+# envasadas entran a la oferta y la meta se le exige a la compra; si no, es la de la canilla, gratis, y la meta solo
+# se informa) con qué cuenta para la meta ("total": el agua de todo lo que se come y se toma, columna agua_g;
+# "bebidas": solo el agua y la soda que se compran, sin la de los alimentos). En la página son tres opciones.
+AGUA_MODOS = {
+    "canilla": {"nombre": "Tomo de la canilla", "corto": "agua de la canilla", "compra": False, "cuenta": "total",
+                "descripcion": "No se compra. Te decimos cuánta tomar por día, descontando la que traen los "
+                               "alimentos."},
+    "compra": {"nombre": "La compro", "corto": "agua comprada", "compra": True, "cuenta": "total",
+               "descripcion": "Agua o soda envasada hasta cubrir el agua del día, contando la que traen los "
+                              "alimentos."},
+    "bebidas": {"nombre": "Tomo 2 litros de bebida", "corto": "2 litros de bebida", "compra": True,
+                "cuenta": "bebidas",
+                "descripcion": "Agua o soda envasada: 8 vasos (2 litros) por día para un adulto, sin contar la de los "
+                               "alimentos."},
+}
+AGUA_MODO_PREDETERMINADO = "canilla"
+# Ingesta adecuada (AI) de agua total por día, en litros: la de las bebidas más la de los alimentos (NASEM/IOM 2004,
+# Dietary Reference Intakes for Water, Potassium, Sodium, Chloride, and Sulfate). (edad desde, edad hasta, litros);
+# el embarazo y la lactancia, de 14 a 50 años.
+AGUA_TOTAL_L = {
+    "F": [(4, 8, 1.7), (9, 13, 2.1), (14, 18, 2.3), (19, 200, 2.7)],
+    "M": [(4, 8, 1.7), (9, 13, 2.4), (14, 18, 3.3), (19, 200, 3.7)],
+    "embarazo": 3.0, "lactancia": 3.8,
+}
+# Agua de las bebidas por día, en litros. Adultos fuera del embarazo y la lactancia: 8 vasos de 250 ml (Guías
+# Alimentarias para la Población Argentina 2016, mensaje 1: "tomar a diario 8 vasos de agua segura"). Menores,
+# embarazo y lactancia: la parte de la AI de NASEM/IOM 2004 que viene de las bebidas.
+AGUA_BEBIDAS_L = {
+    "F": [(4, 8, 1.2), (9, 13, 1.6), (14, 18, 1.8), (19, 200, 2.0)],
+    "M": [(4, 8, 1.2), (9, 13, 1.8), (14, 18, 2.6), (19, 200, 2.0)],
+    "embarazo": 2.3, "lactancia": 3.1,
+}
+
 # Alimentos de origen animal: su vitamina A es retinol (preformada), la que tiene máximo tolerable.
 GRUPOS_VITAMINA_A_PREFORMADA = {"Carnes y huevos", "Leche, yogur y queso"}
 ALIMENTOS_VITAMINA_A_PREFORMADA = {"manteca", "crema_leche", "dulce_de_leche", "leche_condensada", "helado",
                                    "postre_lacteo", "pate", "morcilla"}
 
 # Variedad: ningún alimento genérico (subcategoría) pasa de estas porciones por día, escaladas por la energía
-# (porción de referencia de cada alimento, porcion_g: 200 ml de leche, 60 g de arroz, 150 g de carne).
+# (porción de referencia de cada alimento, porcion_g: 200 ml de leche, 60 g de arroz, 150 g de carne). El agua y la
+# soda (ALIMENTOS_AGUA) no tienen este tope (2 vasos no alcanzan para la meta de agua): cada una puede llegar a la meta
+# de agua del día de la persona.
 PORCIONES_MAX_POR_ALIMENTO = 2.0
 
 # Productos que se consideran en cada sucursal: los más baratos cada 100 g comestibles de cada subcategoría (y el

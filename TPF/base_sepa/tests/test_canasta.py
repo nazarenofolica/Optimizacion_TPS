@@ -252,6 +252,120 @@ class TestModelo(unittest.TestCase):
         self.assertAlmostEqual(modelo.deficit_relativo(m, 30), 0.5)
 
 
+class TestAgua(unittest.TestCase):
+    def test_meta_por_modo_y_persona(self):
+        personas = {
+            "adulta": (dict(sexo="F", edad=34, peso_kg=63), 2.7, 2.0),
+            "adulto": (dict(sexo="M", edad=40, peso_kg=80), 3.7, 2.0),
+            "chico": (dict(sexo="M", edad=8, peso_kg=27), 1.7, 1.2),
+            "adolescente": (dict(sexo="M", edad=16, peso_kg=60), 3.3, 2.6),
+            "embarazo": (dict(sexo="F", edad=30, peso_kg=66, etapa="embarazo", trimestre=2), 3.0, 2.3),
+            "lactancia": (dict(sexo="F", edad=30, peso_kg=66, etapa="lactancia"), 3.8, 3.1),
+        }
+        for quien, (datos, total_l, bebidas_l) in personas.items():
+            with self.subTest(persona=quien):
+                p = rq.Persona(**datos)
+                compra = meta(rq.calcular(p, "compra").metas, "agua")
+                bebidas = meta(rq.calcular(p, "bebidas").metas, "agua")
+                canilla = meta(rq.calcular(p, "canilla").metas, "agua")
+                self.assertAlmostEqual(compra.minimo, total_l * 1000)
+                self.assertEqual((compra.columna, compra.tipo, compra.maximo), ("agua_g", "nutriente", None))
+                self.assertAlmostEqual(bebidas.minimo, bebidas_l * 1000)
+                self.assertEqual((bebidas.columna, bebidas.alimentos, bebidas.tipo),
+                                 (None, cfg.ALIMENTOS_AGUA, "nutriente"))
+                self.assertAlmostEqual(canilla.minimo, total_l * 1000)
+                self.assertEqual((canilla.columna, canilla.tipo), ("agua_g", "informativa"))
+        r = rq.calcular(rq.Persona(sexo="F", edad=34, peso_kg=63))                 # canilla, la predeterminada
+        self.assertEqual(meta(r.metas, "agua").tipo, "informativa")
+        self.assertIn("Agua", [x["titulo"] for x in r.pasos])
+        with self.assertRaises(ValueError):
+            rq.calcular(rq.Persona(sexo="F", edad=34, peso_kg=63), "embotellada")
+
+    def test_en_bebidas_no_cuenta_el_agua_de_los_alimentos(self):
+        o = pd.DataFrame({"alimento_id": ["leche_entera", "agua", "soda"], "agua_g": [88.0, 99.98, 99.9],
+                          "grupo_alimentario": ["Leche, yogur y queso", "Agua e infusiones", "Agua e infusiones"]})
+        p = rq.Persona(sexo="F", edad=34, peso_kg=63)
+        bebidas = modelo.coeficientes(o, meta(rq.calcular(p, "bebidas").metas, "agua"))
+        total = modelo.coeficientes(o, meta(rq.calcular(p, "compra").metas, "agua"))
+        self.assertEqual(bebidas.tolist(), [0.0, 1.0, 1.0])
+        self.assertTrue(np.allclose(total, [0.88, 0.9998, 0.999]))
+
+    def test_el_tope_de_variedad_no_limita_el_agua(self):
+        # Dos porciones de 250 ml son medio litro: con ese tope, los 2 litros de bebida serían imposibles.
+        o = pd.concat([_oferta_modelo(), pd.DataFrame({
+            "subcategoria": ["Agua mineral y de mesa"], "grupo_alimentario": ["Agua e infusiones"],
+            "alimento_id": ["agua"],
+            "porcion_g": [250], "energia_kcal": [0.0], "proteinas_g": [0.0], "precio_compra": [2000.0],
+            "gramos_comestibles_compra": [5000.0]}, index=["w"])])
+        req = _req(60)
+        agua = meta(rq.calcular(rq.Persona(sexo="F", edad=30, peso_kg=60), "bebidas").metas, "agua")
+        req.metas.append(agua)
+        s = modelo.resolver([(req, np.ones(4, dtype=bool))], o, dias=7)
+        self.assertEqual(s.estado, "optima")
+        self.assertAlmostEqual(s.dietas[0].consumo[3], 2000, delta=1)
+        self.assertEqual(s.compra[3], 3)                                     # 14 litros en bidones de 5
+        self.assertTrue(np.all(s.dietas[0].deficit <= 0.005))
+        topes = modelo.tope_variedad(req, np.array([500.0, 250.0]), np.array([False, True]))
+        self.assertEqual(topes.tolist(), [1000.0, 2000.0])
+        # De la canilla (informativa) no se compra agua: no hace falta levantarle el tope.
+        req.metas[-1] = meta(rq.calcular(rq.Persona(sexo="F", edad=30, peso_kg=60)).metas, "agua")
+        self.assertEqual(modelo.tope_variedad(req, np.array([250.0]), np.array([True])).tolist(), [500.0])
+
+
+@unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
+class TestAguaConDatos(unittest.TestCase):
+    """Con los datos reales: el oficinista en CABA, en las tres sucursales más cercanas (tiempos estimados, sin red)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from canasta import resultado, rutas
+        cls.lat, cls.lon = -34.60386, -58.38419
+        cls.persona = rq.persona_desde(next(p for p in rq.perfiles() if p["id"] == "oficinista"))
+        tiempos, _ = rutas.tiempos_caminando(cls.lat, cls.lon, 15, clave="")
+        cls.tiempos = dict(sorted(tiempos.items(), key=lambda kv: kv[1]["minutos"])[:3])
+        cls.r = {modo: resultado.armar([cls.persona], cls.lat, cls.lon, 7, tiempos=cls.tiempos, caminata_minutos=15,
+                                       agua=modo) for modo in cfg.AGUA_MODOS}
+
+    @staticmethod
+    def agua(r: dict) -> dict:
+        return next(c for c in r["personas"][0]["cobertura"] if c["clave"] == "agua")
+
+    def test_canilla_cuesta_lo_mismo_que_sin_agua(self):
+        # La canasta de antes: sin agua en la oferta ni meta de agua. Mismas sucursales, mismo costo exacto.
+        d = oferta.cargar()
+        req = rq.calcular(self.persona)
+        req.metas = [m for m in req.metas if m.clave != "agua"]
+        apto, _ = oferta.aptos(d.productos, self.persona.restricciones)
+        apto = (apto & ~oferta.es_agua(d.productos)).to_numpy()
+        r = self.r["canilla"]
+        self.assertTrue(r["sucursales"])
+        for s in r["sucursales"]:
+            o, por_persona = oferta.oferta_tienda(d, s["id"], [apto])
+            self.assertFalse(o["alimento_id"].isin(cfg.ALIMENTOS_AGUA).any())
+            antes = modelo.resolver([(req, por_persona[0])], o, 7)
+            self.assertEqual(round(antes.costo, 2), s["costo"], s["bandera"])
+        self.assertFalse(any(it["agua"] for it in r["ticket"]["items"]))
+        self.assertEqual(self.agua(r)["estado"], "informativa")
+        self.assertGreater(self.agua(r)["valor"], 0)                       # lo que aportan los alimentos
+        self.assertEqual(r["catalogo"]["productos_canasta"], int((~oferta.es_agua(d.productos)).sum()))
+
+    def test_compra_incluye_agua_y_cubre_la_meta(self):
+        r = self.r["compra"]
+        self.assertTrue(any(it["agua"] for it in r["ticket"]["items"]))
+        agua = self.agua(r)
+        self.assertEqual(agua["estado"], "cumple")
+        self.assertGreaterEqual(agua["valor"], agua["minimo"] * 0.995)
+        self.assertGreater(r["ticket"]["total"], self.r["canilla"]["ticket"]["total"])
+
+    def test_bebidas_solo_cuenta_el_agua_comprada(self):
+        r = self.r["bebidas"]
+        agua = self.agua(r)
+        tomada = sum(it["gramos_dia"] for it in r["ticket"]["items"] if it["agua"])
+        self.assertEqual(agua["estado"], "cumple")
+        self.assertAlmostEqual(agua["valor"], tomada, delta=1)
+        self.assertAlmostEqual(agua["minimo"], 2000)
+
+
 class TestListosParaComer(unittest.TestCase):
     def test_lo_que_hay_que_cocinar_existe_y_no_incluye_lo_listo(self):
         ids = set(pd.read_csv(cfg.DIR_REFERENCIA / "alimentos.csv", sep=";", dtype=str, encoding="utf-8-sig")["id"])

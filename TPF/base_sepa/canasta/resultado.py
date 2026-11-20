@@ -59,7 +59,10 @@ def _cantidad(fila: pd.Series, x: float) -> str:
     return f"{_num(x)} × {envase}"
 
 
-def _gramos(g: float) -> str:
+def _gramos(g: float, agua: bool = False) -> str:
+    """Cantidad comestible: en litros (g ≈ ml) si es agua."""
+    if agua:
+        return f"{_num(g / 1000, 2)} l" if g >= 1000 else f"{_num(g)} ml"
     return f"{_num(g / 1000, 2)} kg" if g >= 1000 else f"{_num(g)} g"
 
 
@@ -184,6 +187,7 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> d
         comestible_comprado = x * fila["gramos_comestibles_compra"]
         sobra = comestible_comprado - float(consumo[j]) * dias
         promo = fila["precio_promocion"]
+        agua = fila["alimento_id"] in cfg.ALIMENTOS_AGUA
         items.append({
             "id_producto": o.index[j], "nombre": fila["nombre"], "marca": _limpio(fila["marca"]),
             "subcategoria": fila["subcategoria"], "grupo": fila["grupo_alimentario"],
@@ -194,9 +198,9 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> d
             "subtotal": round(x * float(fila["precio_compra"]), 2),
             "promocion": _limpio(round(float(promo), 2)) if pd.notna(promo) else None,
             "gramos_dia": round(float(consumo[j]), 1),
-            "consumo_dia_texto": _gramos(float(consumo[j])),
+            "consumo_dia_texto": _gramos(float(consumo[j]), agua), "agua": agua,
             "por_persona": [round(float(dt.consumo[j]), 1) for dt in sol.dietas],
-            "sobrante_texto": _gramos(sobra) if sobra > max(20.0, 0.05 * comestible_comprado) else "",
+            "sobrante_texto": _gramos(sobra, agua) if sobra > max(20.0, 0.05 * comestible_comprado) else "",
             "fuente_nutrientes": fila["fuente_nutrientes"],
         })
     orden = {g: i for i, g in enumerate(cfg.GRUPOS_CANASTA)}
@@ -226,9 +230,10 @@ def _datos_persona(p: Persona, nombre: str) -> dict:
 
 def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_PREDETERMINADO,
           listos: bool = False, tiempos: dict[str, dict] | None = None, caminata_minutos: float | None = None,
-          aviso_tiempos: str | None = None) -> dict:
+          aviso_tiempos: str | None = None, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> dict:
     """Con tiempos (id_tienda -> {minutos, metros, fuente}, de canasta/rutas.py) y caminata_minutos, solo se evalúan
-    las sucursales a las que se llega caminando dentro de ese límite; sin ellos, las más cercanas en línea recta."""
+    las sucursales a las que se llega caminando dentro de ese límite; sin ellos, las más cercanas en línea recta.
+    agua: cómo toma agua el hogar (config.AGUA_MODOS); el agua envasada solo se ofrece si se compra."""
     inicio = time.time()
     if isinstance(personas, Persona):
         personas = [personas]
@@ -236,13 +241,17 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
         raise ValueError(f"El hogar tiene que tener entre 1 y {cfg.PERSONAS_MAXIMAS} personas.")
     if dias not in cfg.DIAS_PERIODO:
         raise ValueError(f"El período tiene que ser de {', '.join(map(str, cfg.DIAS_PERIODO))} días.")
+    if agua not in cfg.AGUA_MODOS:
+        raise ValueError(f"El agua tiene que ser {', '.join(cfg.AGUA_MODOS)}.")
     nombres = [p.nombre or f"Persona {i + 1}" for i, p in enumerate(personas)]
-    reqs = [calcular(p) for p in personas]
+    reqs = [calcular(p, agua) for p in personas]
     d = oferta.cargar()
     a_cocinar = d.productos["alimento_id"].isin(cfg.ALIMENTOS_A_COCINAR).to_numpy()
+    compra_agua = cfg.AGUA_MODOS[agua]["compra"]
+    base_aptos = None if compra_agua else ~oferta.es_agua(d.productos)        # el agua de la canilla no se compra
     aptos, efectos, sin_aptos = [], [], []
     for p, req in zip(personas, reqs):
-        apto, efecto = oferta.aptos(d.productos, p.restricciones)
+        apto, efecto = oferta.aptos(d.productos, p.restricciones, base_aptos)
         apto = apto.to_numpy()
         if listos:
             efecto.append({"clave": "listos", "nombre": cfg.LISTOS_NOMBRE, "excluye": int((apto & a_cocinar).sum())})
@@ -261,8 +270,10 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
                                         "productos_aptos": int(ap.sum())}}
                      for p, nombre, r, ef, ap in zip(personas, nombres, reqs, efectos, aptos)],
         "hogar": {"personas": len(personas), "energia_kcal": float(sum(r.energia_kcal for r in reqs))},
-        "opciones": {"listos": listos, "listos_criterio": cfg.LISTOS_CRITERIO if listos else None},
-        "catalogo": {"productos_total": d.total_productos, "productos_canasta": len(d.productos),
+        "opciones": {"listos": listos, "listos_criterio": cfg.LISTOS_CRITERIO if listos else None, "agua": agua,
+                     "agua_nombre": cfg.AGUA_MODOS[agua]["nombre"]},
+        "catalogo": {"productos_total": d.total_productos,
+                     "productos_canasta": len(d.productos) if compra_agua else int(base_aptos.sum()),
                      "excluidos_siempre": EXCLUIDOS_SIEMPRE},
         "ubicacion": {"lat": lat, "lon": lon},
         "dias": dias, "periodo": cfg.DIAS_PERIODO[dias], "fecha_precios": d.fecha,

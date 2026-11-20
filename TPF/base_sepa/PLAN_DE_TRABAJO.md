@@ -61,7 +61,8 @@ dos de paridad con el navegador (también por tiempo caminando). Lo que sigue es
 3. **Equivalencias en gramos de las Guías** (medio plato de verduras ≈ 150 g, fruta mediana ≈ 150 g, aceite ≈ 20 g):
    son propias; validarlas con la bibliografía de las GAPA.
 4. **No modelado todavía:** seguridad alimentaria en el embarazo (hígado, quesos sin pasteurizar), calidad de la
-   proteína, sal y condimentos que se agregan al cocinar, agua, menores de 4 años.
+   proteína, sal y condimentos que se agregan al cocinar, menores de 4 años. (El agua ya se modela: de la canilla,
+   comprada contando la de los alimentos, o 2 litros de bebida; ver `AGUA_MODOS`.)
 5. **Promociones**: se muestran pero no se aplican al total (muchas exigen condiciones).
 
 ### Página

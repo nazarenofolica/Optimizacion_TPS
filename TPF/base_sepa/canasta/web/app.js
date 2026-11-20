@@ -23,6 +23,7 @@ const COLOR_GRUPO = {
   "Carnes y huevos": "#a8483a",
   "Aceites, frutas secas y semillas": "#7a6a2c",
   "Alimentos de consumo opcional": "#8a6d9e",
+  "Agua e infusiones": "#2f7f9e",
 };
 const GRUPOS_RESTRICCIONES = [
   { titulo: "Dieta", claves: ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_ultraprocesados"] },
@@ -33,7 +34,7 @@ const PERSONA_NUEVA = { nombre: "", sexo: "F", edad: 34, peso_kg: 63, altura_cm:
   objetivo: "mantener", etapa: "general", trimestre: 2, restricciones: [] };
 
 const estado = {
-  P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false,
+  P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
   caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
   mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
   escalera: new Map(),   // minutos -> {resumen, resultado, rutas}: la mejor compra con cada límite de caminata
@@ -99,7 +100,7 @@ const motor = (() => {
 function guardar() {
   try {
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias,
-      listos: estado.listos, caminata: estado.caminata }));
+      listos: estado.listos, agua: estado.agua, caminata: estado.caminata }));
   } catch (err) { /* sin almacenamiento */ }
 }
 
@@ -111,6 +112,7 @@ function recuperar() {
       estado.lugar = g.lugar || null;
       estado.dias = String(g.dias) in estado.P.DIAS_PERIODO ? g.dias : 7;
       estado.listos = Boolean(g.listos);
+      if (g.agua in estado.P.AGUA_MODOS) estado.agua = g.agua;
       if (estado.P.CAMINATA_OPCIONES.includes(g.caminata)) estado.caminata = g.caminata;
     }
   } catch (err) { /* sin almacenamiento */ }
@@ -174,7 +176,8 @@ function marcarPasos() {
   $("#sub-hogar").textContent = n === 1 ? nombrePersona(estado.hogar[0], 0) : `${n} personas`;
   $("#sub-ubicacion").textContent = estado.lugar
     ? `${estado.lugar.corto || estado.lugar.nombre}${CON_RUTAS && estado.caminata ? `, ${estado.caminata} min` : ""}` : "Falta elegir";
-  $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "");
+  $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "")
+    + `, ${estado.P.AGUA_MODOS[estado.agua].corto}`;
 }
 
 const PASOS = ["hogar", "ubicacion", "compra"];
@@ -490,6 +493,10 @@ function prepararCompra() {
   $("#periodos").addEventListener("change", (e) => { estado.dias = Number(e.target.value); dibujarPersonas(); guardar(); });
   $("#listos").checked = estado.listos;
   $("#listos").addEventListener("change", (e) => { estado.listos = e.target.checked; dibujarPersonas(); guardar(); });
+  $("#aguas").innerHTML = Object.entries(estado.P.AGUA_MODOS).map(([clave, m]) =>
+    `<label><input type="radio" name="agua" value="${clave}" ${clave === estado.agua ? "checked" : ""}>
+      <span><b>${esc(m.nombre)}</b><small>${esc(m.descripcion)}</small></span></label>`).join("");
+  $("#aguas").addEventListener("change", (e) => { estado.agua = e.target.value; dibujarPersonas(); guardar(); });
 }
 
 // ============================================================
@@ -599,7 +606,8 @@ async function armar(e, anterior = null) {
   $("#armar").classList.add("calculando");
   cargando("Preparando el cálculo…", 0.03);
   try {
-    const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos };
+    const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos,
+      agua: estado.agua };
     let rutas = null;
     if (CON_RUTAS) {
       cargando(`Buscando supermercados a menos de ${estado.caminata} minutos caminando…`, 0.03);
@@ -644,6 +652,16 @@ function textoCaminata(x, corto = false) {
   return `${min} caminando${extra}`;
 }
 
+// El agua se calcula en gramos (≈ ml) y se muestra en litros.
+const enLitros = (c) => (c.unidad !== "ml" ? c : { ...c, unidad: "L", valor: c.valor == null ? null : c.valor / 1000,
+  minimo: c.minimo == null ? null : c.minimo / 1000, maximo: c.maximo == null ? null : c.maximo / 1000 });
+
+// Con agua de la canilla: cuánta tomar por día además de la que traen los alimentos de la compra (en litros).
+const aguaCanilla = (p) => {
+  const c = p.cobertura.find((x) => x.clave === "agua");
+  return c && c.estado === "informativa" ? { falta: Math.max(0, c.minimo - c.valor) / 1000, alimentos: c.valor / 1000, meta: c.minimo / 1000 } : null;
+};
+
 function metasCubiertas(p) {
   const exigidas = p.cobertura.concat(p.reglas).filter((c) => c.estado !== "informativa" && c.estado !== "no_aplica");
   return { cumple: exigidas.filter((c) => c.estado === "cumple").length, total: exigidas.length };
@@ -657,7 +675,7 @@ function ticketHTML(d) {
     const cabeza = it.grupo !== grupoActual ? `<p class="t-grupo">${esc(it.grupo)}</p>` : "";
     grupoActual = it.grupo;
     const quien = varias
-      ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} g</span>` : "")).join("") + "por día"
+      ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} ${it.agua ? "ml" : "g"}</span>` : "")).join("") + "por día"
       : `${esc(it.consumo_dia_texto)} por día`;
     return `${cabeza}<div class="t-item">
       <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal, 2)}</span></p>
@@ -773,8 +791,9 @@ function bloquePersona(d, i) {
   const energia = p.cobertura.find((c) => c.clave === "energia_kcal");
   const listos = d.opciones.listos ? [{ clave: "listos", nombre: estado.P.LISTOS_NOMBRE, criterio: d.opciones.listos_criterio }] : [];
   const datos = `${p.datos.sexo === "F" ? "mujer" : "varón"} de ${p.datos.edad} años, ${fmt(p.datos.peso_kg, 1)} kg, actividad ${p.datos.actividad.toLowerCase()}`;
-  const macro = p.cobertura.filter((c) => c.tipo === "energia" || c.tipo === "macro");
-  const micro = p.cobertura.filter((c) => c.tipo !== "energia" && c.tipo !== "macro");
+  const macro = p.cobertura.filter((c) => c.tipo === "energia" || c.tipo === "macro" || c.clave === "agua").map(enLitros);
+  const micro = p.cobertura.filter((c) => c.tipo !== "energia" && c.tipo !== "macro" && c.clave !== "agua");
+  const canilla = aguaCanilla(p);
   const problemas = p.cobertura.concat(p.reglas).filter((c) => c.estado === "falta" || c.estado === "excede");
   const m = metasCubiertas(p);
   const restricciones = r.criterios.concat(listos);
@@ -799,10 +818,12 @@ function bloquePersona(d, i) {
     ${problemas.length
       ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Para revisar: ${problemas.map((c) => `<b>${esc(c.nombre)}</b>`).join(", ")}.</span></p>`
       : `<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Cubre todas las metas que se le exigen a la compra.</span></p>`}
+    ${canilla ? `<p class="estado-metas info"><i aria-hidden="true">i</i><span>Agua de la canilla: unos <b>${fmt(canilla.falta, 1)} L por día</b>.
+      Los alimentos de esta compra aportan ${fmt(canilla.alimentos, 1)} L de los ${fmt(canilla.meta, 1)} L de agua del día.</span></p>` : ""}
     ${dona(p.grupos, energia && energia.valor)}
     <p class="leyenda-balas"><span class="lb-rango"></span>la meta <span class="lb-punto"></span>lo que come</p>
     <div class="balas-grid">
-      ${graficoBalas("Energía y macronutrientes", macro)}
+      ${graficoBalas("Energía, macronutrientes y agua", macro)}
       ${graficoBalas("Vitaminas y minerales", micro)}
     </div>
 
@@ -927,6 +948,10 @@ function mostrar(d) {
   const cubre = metas.length === 1
     ? `cubre ${metas[0].cumple} de sus ${metas[0].total} metas`
     : `cubre ${metas.map((m, i) => `${m.cumple} de ${m.total} metas de ${esc(d.personas[i].datos.nombre)}`).join(", ")}`;
+  const canillas = d.personas.map(aguaCanilla).filter(Boolean);
+  const agua = canillas.length
+    ? `<p class="ayuda">Agua de la canilla: ${varias ? "entre todos, " : ""}unos <b>${fmt(canillas.reduce((s, c) => s + c.falta, 0), 1)} L por día</b>, además de la que traen los alimentos.</p>`
+    : "";
   const motivo = elegida && elegida.faltantes.length
     ? `Ninguna sucursal a tu alcance cubre todo; esta es la que más se acerca y, entre las que cubren igual, la más barata.`
     : `Es la más barata entre las que cubren todas las metas${varias ? " de todos" : ""}.`;
@@ -947,6 +972,7 @@ function mostrar(d) {
         <li><span>${metas.reduce((a, m) => a + m.cumple, 0)}/${metas.reduce((a, m) => a + m.total, 0)}</span>metas cubiertas</li>
       </ul>
       <p class="sr-only">${cubre}</p>
+      ${agua}
       <div class="llegar">
         <p class="llegar-tiempo">${ICONO.caminar}<span>${caminata ? esc(caminata) : `${fmt(s.distancia_km, 1)} km en línea recta`}</span></p>
         <p class="llegar-dato">${ICONO.pin}<span>${esc(s.direccion)}${s.localidad ? `, ${esc(s.localidad)}` : ""}</span></p>
@@ -1005,7 +1031,7 @@ function mostrar(d) {
       <li><b>${fmt(d.catalogo.productos_canasta)}</b><span>de ${fmt(d.catalogo.productos_total)} productos de SEPA sirven para una canasta</span></li>
     </ul>
     <details class="detalle-largo"><summary>Más detalle del modelo</summary>
-      <p>Cada persona come solo lo que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad. Lo que
+      <p>Cada persona come solo lo que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad${d.opciones.agua === "canilla" ? "" : " (el agua y la soda, hasta la meta de agua del día)"}. Lo que
         sobra de un envase queda para después, pero se paga. En cada sucursal se usan los productos más baratos de cada tipo para cada persona.</p>
       <p>Siempre quedan afuera: ${esc(d.catalogo.excluidos_siempre)}</p>
     </details>
@@ -1084,7 +1110,8 @@ function dibujarMapa(d) {
 // Inicio
 // ============================================================
 
-// Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1 arma esa canasta directamente.
+// Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1&agua=compra arma esa canasta
+// directamente (agua: compra, bebidas o canilla, la predeterminada).
 function desdeEnlace() {
   const q = PARAMETROS;
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
@@ -1097,6 +1124,7 @@ function desdeEnlace() {
   }
   if (q.get("dias") && q.get("dias") in estado.P.DIAS_PERIODO) estado.dias = Number(q.get("dias"));
   if (q.has("listos")) estado.listos = q.get("listos") === "1";
+  if (q.get("agua") in estado.P.AGUA_MODOS) estado.agua = q.get("agua");
   const lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon"));
   const conLugar = Number.isFinite(lat) && Number.isFinite(lon);
   if (conLugar) estado.lugar = { lat, lon, nombre: `${fmt(lat, 4)}, ${fmt(lon, 4)}`, precision: "punto" };
@@ -1122,6 +1150,7 @@ async function iniciar() {
   estado.P = resumen.parametros;
   estado.perfiles = resumen.perfiles;
   estado.caminata = estado.P.CAMINATA_MINUTOS;
+  estado.agua = estado.P.AGUA_MODO_PREDETERMINADO;
   estado.listo = true;
   aviso.innerHTML = `<span><b>${esc(resumen.fecha.split("-").reverse().join("/"))}</b>precios oficiales (SEPA)</span>
     <span><b>${fmt(resumen.productos)}</b>alimentos</span><span><b>${fmt(resumen.tiendas)}</b>supermercados</span>`;

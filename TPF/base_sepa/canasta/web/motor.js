@@ -76,6 +76,8 @@
     }
     const aCocinar = new Set(P.ALIMENTOS_A_COCINAR);
     productos.a_cocinar = Uint8Array.from(productos.alimento_id, (a) => (aCocinar.has(a) ? 1 : 0));
+    const agua = new Set(P.ALIMENTOS_AGUA);
+    productos.es_agua = Uint8Array.from(productos.alimento_id, (a) => (agua.has(a) ? 1 : 0));
 
     // Los precios vienen por producto; se reordenan por tienda (y dentro, por producto, como en Python).
     const porProducto = seccion("precios.por_producto");
@@ -367,8 +369,39 @@
     });
   }
 
-  function calcular(p) {
+  // Meta de agua del día, en gramos (≈ ml). Con agua comprada se le exige a la compra; de la canilla, se informa.
+  function aguaMeta(p, modo, pasos) {
+    const m = P.AGUA_MODOS[modo];
+    const total = m.cuenta === "total";
+    const tabla = total ? P.AGUA_TOTAL_L : P.AGUA_BEBIDAS_L;
+    let litros, grupo;
+    if (p.etapa !== "general") {
+      litros = tabla[p.etapa];
+      grupo = p.etapa === "embarazo" ? "el embarazo" : "la lactancia";
+    } else {
+      const [d, h, l] = tabla[p.sexo].find(([d0, h0]) => d0 <= p.edad && p.edad <= h0);
+      litros = l;
+      const quienes = h <= 8 ? "chicos" : p.sexo === "F" ? "mujeres" : "varones";
+      grupo = h >= P.EDAD_MAXIMA ? `${quienes} de ${d} años o más` : `${quienes} de ${d} a ${h} años`;
+    }
+    const cuenta = total ? "el agua de todo lo que come y toma (bebidas y alimentos)"
+      : "solo el agua y la soda que se compran, sin la de los alimentos";
+    const fuente = total ? "NASEM/IOM 2004, ingesta adecuada de agua total"
+      : !esMenor(p) && p.etapa === "general" ? "Guías Alimentarias para la Población Argentina (2016): 8 vasos de agua segura por día"
+        : "NASEM/IOM 2004, agua de las bebidas";
+    const resultado = m.compra ? `${fmt(litros, 1)} L por día` : `${fmt(litros, 1)} L por día, de la canilla (no se compra)`;
+    const tipo = m.compra ? "nutriente" : "informativa";
+    const nota = m.compra ? `cuenta ${cuenta}` : "informativa: el agua es la de la canilla; se muestra cuánta aportan los alimentos";
+    pasos.push({ titulo: "Agua", formula: `Para ${grupo}; cuenta ${cuenta}`, resultado, fuente });
+    if (total) return meta("agua", "Agua", "ml", "agua_g", litros * 1000, null, { tipo, fuente, nota });
+    return meta("agua", "Agua (bebidas)", "ml", null, litros * 1000, null,
+      { tipo, fuente, nota, alimentos: new Set(P.ALIMENTOS_AGUA), medida: "g" });
+  }
+
+  // agua: cómo toma agua el hogar (una clave de AGUA_MODOS).
+  function calcular(p, agua = P.AGUA_MODO_PREDETERMINADO) {
     const errores = validar(p);
+    if (!(agua in P.AGUA_MODOS)) errores.push(`Modo de agua desconocido: ${agua}.`);
     if (errores.length) throw new Error(errores.join(" "));
     const pasos = [], avisos = [];
     const peso = pesoReferencia(p, pasos);
@@ -377,7 +410,8 @@
     const prot = gKg * peso;
     pasos.push({ titulo: "Proteína del día", formula: `${fmt(gKg, 2)} g/kg × ${fmt(peso, 1)} kg`,
       resultado: `${fmt(prot)} g/día`, fuente: "" });
-    const metas = macros(p, energia, prot, pasos).concat(micronutrientes(p, pasos, avisos), reglas(energia));
+    const metas = macros(p, energia, prot, pasos).concat(micronutrientes(p, pasos, avisos), [aguaMeta(p, agua, pasos)],
+      reglas(energia));
     if (p.restricciones.includes("diabetes") || p.restricciones.includes("hipertension")) {
       avisos.push("Con diabetes o hipertensión, esta canasta es orientativa: el plan lo ajusta el médico o un nutricionista.");
     }
@@ -393,10 +427,12 @@
   }
 
   // Máscara de productos aptos y, por restricción, cuántos deja afuera (las aptitudes vienen evaluadas por Python).
-  function aptos(restricciones) {
+  // conAgua: si el agua y la soda envasadas se consideran (solo si el hogar compra el agua).
+  function aptos(restricciones, conAgua = true) {
     const pr = D.productos;
     const orden = Object.keys(P.RESTRICCIONES);
     const apto = new Uint8Array(pr.n).fill(1);
+    if (!conAgua) for (let i = 0; i < pr.n; i++) if (pr.es_agua[i]) apto[i] = 0;
     const efecto = [];
     for (const r of restricciones) {
       const bit = 1 << orden.indexOf(r);
@@ -537,6 +573,16 @@
   }
 
   const topePorPorciones = (porcion, energia) => P.PORCIONES_MAX_POR_ALIMENTO * porcion * Math.max(1, energia / 2000);
+
+  // Tope por subcategoría: el de las porciones y, para el agua y la soda (aguaSub), la meta de agua del día si se le
+  // exige a la compra (dos vasos no alcanzan).
+  function topeVariedad(req, porcionSub, aguaSub) {
+    const agua = req.metas.find((m) => m.clave === "agua" && m.tipo !== "informativa");
+    return porcionSub.map((pz, s) => {
+      const tope = topePorPorciones(pz, req.energia_kcal);
+      return agua && aguaSub[s] ? Math.max(tope, agua.minimo) : tope;
+    });
+  }
 
   // ---- HiGHS (WebAssembly). Se baja y se compila una sola vez (una promesa compartida: la precarga y el primer
   // cálculo pueden pedirlo a la vez). Las sucursales se resuelven en paralelo en un grupo de workers de solver, uno por
@@ -689,7 +735,7 @@
     return salida.join("\n");
   }
 
-  function bloque(req, oferta, apto, subCodigos, porcionSub) {
+  function bloque(req, oferta, apto, subCodigos, porcionSub, aguaSub) {
     const columnas = [];
     apto.forEach((a, pos) => { if (a) columnas.push(pos); });
     const prods = columnas.map((pos) => oferta[pos].p);
@@ -707,7 +753,7 @@
       if (m.maximo !== null) filas.push({ a: a.map((v) => v / m.maximo), signo: -1, peso: m.peso });
     }
     return { columnas, metas, sinOferta, filas, energia: energia[0], eCoef: energia[1],
-      subCol: columnas.map((pos) => subCodigos[pos]), topeVar: porcionSub.map((pz) => topePorPorciones(pz, req.energia_kcal)) };
+      subCol: columnas.map((pos) => subCodigos[pos]), topeVar: topeVariedad(req, porcionSub, aguaSub) };
   }
 
   function sinSolucion(mensaje, oferta, bloques, inicio) {
@@ -726,7 +772,9 @@
     const subCodigos = oferta.map((f) => indiceSub.get(pr.subcategoria[f.p]));
     const porcionSub = subs.map(() => -Infinity);
     oferta.forEach((f, pos) => { porcionSub[subCodigos[pos]] = Math.max(porcionSub[subCodigos[pos]], pr.porcion_g[f.p]); });
-    const bloques = personas.map(([req, apto]) => bloque(req, oferta, apto, subCodigos, porcionSub));
+    const aguaSub = subs.map(() => false);
+    oferta.forEach((f, pos) => { if (pr.es_agua[f.p]) aguaSub[subCodigos[pos]] = true; });
+    const bloques = personas.map(([req, apto]) => bloque(req, oferta, apto, subCodigos, porcionSub, aguaSub));
     if (bloques.some((b) => b.columnas.length === 0)) {
       return sinSolucion("La sucursal no vende alimentos aptos para alguien del hogar", oferta, bloques, inicio);
     }
@@ -870,7 +918,9 @@
     return `${fmt(x)} × ${envase}`;
   }
 
-  const gramosTexto = (g) => (g >= 1000 ? `${fmt(g / 1000, 2)} kg` : `${fmt(g)} g`);
+  // Cantidad comestible: en litros (g ≈ ml) si es agua.
+  const gramosTexto = (g, agua = false) => (agua ? (g >= 1000 ? `${fmt(g / 1000, 2)} l` : `${fmt(g)} ml`)
+    : g >= 1000 ? `${fmt(g / 1000, 2)} kg` : `${fmt(g)} g`);
 
   function horarioHoy(t) {
     const hoy = (new Date().getDay() + 6) % 7;
@@ -962,15 +1012,16 @@
       if (!(x > 0)) return;
       const comestible = x * f.gc;
       const sobra = comestible - consumo[j] * dias;
+      const agua = pr.es_agua[f.p] === 1;
       items.push({
         id_producto: pr.id[f.p], nombre: pr.nombre[f.p], marca: pr.marca[f.p], subcategoria: pr.subcategoria[f.p],
         grupo: pr.grupo_alimentario[f.p], cantidad: cantidad(f, x), unidades_compra: x, granel: f.granel,
         precio_unitario: redondear(f.precio, 2),
         precio_unidad_texto: f.granel ? `$${fmt(f.precio, 2)} /kg` : `$${fmt(f.precio, 2)} c/u`,
         subtotal: redondear(x * f.precioCompra, 2), promocion: Number.isNaN(f.promo) ? null : redondear(f.promo, 2),
-        gramos_dia: redondear(consumo[j], 1), consumo_dia_texto: gramosTexto(consumo[j]),
+        gramos_dia: redondear(consumo[j], 1), consumo_dia_texto: gramosTexto(consumo[j], agua), agua,
         por_persona: sol.dietas.map((dt) => redondear(dt.consumo[j], 1)),
-        sobrante_texto: sobra > Math.max(20, 0.05 * comestible) ? gramosTexto(sobra) : "",
+        sobrante_texto: sobra > Math.max(20, 0.05 * comestible) ? gramosTexto(sobra, agua) : "",
         fuente_nutrientes: pr.fuente_nutrientes[f.p],
       });
     });
@@ -1010,20 +1061,23 @@
     const { lat, lon } = pedido;
     const dias = pedido.dias ?? P.DIAS_PREDETERMINADO;
     const listos = Boolean(pedido.listos);
+    const agua = pedido.agua ?? P.AGUA_MODO_PREDETERMINADO;
     if (!(personas.length >= 1 && personas.length <= P.PERSONAS_MAXIMAS)) {
       throw new Error(`El hogar tiene que tener entre 1 y ${P.PERSONAS_MAXIMAS} personas.`);
     }
     if (!(String(dias) in P.DIAS_PERIODO)) {
       throw new Error(`El período tiene que ser de ${Object.keys(P.DIAS_PERIODO).join(", ")} días.`);
     }
+    if (!(agua in P.AGUA_MODOS)) throw new Error(`El agua tiene que ser ${Object.keys(P.AGUA_MODOS).join(", ")}.`);
     const nombres = personas.map((p, i) => p.nombre || `Persona ${i + 1}`);
     const errores = personas.map((p, i) => validar(p).map((e) => (personas.length > 1 ? `${nombres[i]}: ${e}` : e))).flat();
     if (errores.length) throw new Error(errores.join(" "));
-    const reqs = personas.map(calcular);
+    const reqs = personas.map((p) => calcular(p, agua));
     const pr = D.productos;
+    const compraAgua = P.AGUA_MODOS[agua].compra;          // si no, el agua es la de la canilla: no se compra
     const aptosP = [], efectos = [], sinAptos = [];
     personas.forEach((p, i) => {
-      const { apto, efecto } = aptos(p.restricciones);
+      const { apto, efecto } = aptos(p.restricciones, compraAgua);
       if (listos) {
         let excluye = 0;
         for (let k = 0; k < pr.n; k++) if (apto[k] && pr.a_cocinar[k]) { excluye++; apto[k] = 0; }
@@ -1045,8 +1099,9 @@
           productos_aptos: aptosP[i].reduce((s, v) => s + v, 0) },
       })),
       hogar: { personas: personas.length, energia_kcal: reqs.reduce((s, r) => s + r.energia_kcal, 0) },
-      opciones: { listos, listos_criterio: listos ? P.LISTOS_CRITERIO : null },
-      catalogo: { productos_total: D.productosTotal, productos_canasta: pr.n, excluidos_siempre: P.EXCLUIDOS_SIEMPRE },
+      opciones: { listos, listos_criterio: listos ? P.LISTOS_CRITERIO : null, agua, agua_nombre: P.AGUA_MODOS[agua].nombre },
+      catalogo: { productos_total: D.productosTotal,
+        productos_canasta: compraAgua ? pr.n : pr.n - pr.es_agua.reduce((s, v) => s + v, 0), excluidos_siempre: P.EXCLUIDOS_SIEMPRE },
       ubicacion: { lat, lon }, dias, periodo: P.DIAS_PERIODO[String(dias)], fecha_precios: D.fecha,
     };
     // Con tiempos caminando (de rutas.js), solo las sucursales dentro del límite; si no, las más cercanas en línea recta.

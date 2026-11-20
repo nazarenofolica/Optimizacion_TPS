@@ -31,7 +31,7 @@ NUTRIENTES = [
     "sodio_mg", "potasio_mg", "calcio_mg", "hierro_mg", "magnesio_mg", "fosforo_mg", "zinc_mg", "cobre_mg",
     "selenio_ug", "vitamina_a_ug", "vitamina_c_mg", "vitamina_d_ug", "vitamina_e_mg", "vitamina_k_ug",
     "vitamina_b1_mg", "vitamina_b2_mg", "vitamina_b3_niacina_mg", "vitamina_b6_mg", "vitamina_b9_folato_ug",
-    "vitamina_b12_ug",
+    "vitamina_b12_ug", "agua_g",
 ]
 DERIVADOS = ["azucares_libres_g", "vitamina_a_preformada_ug"]
 COLUMNAS_PRODUCTO = [
@@ -56,7 +56,7 @@ ALIMENTOS_AZUCAR_LIBRE = {"azucar", "azucar_mascabo", "miel", "jugo", "mermelada
 
 @dataclass
 class Datos:
-    productos: pd.DataFrame        # índice id_producto: los de los grupos de la canasta, con derivados
+    productos: pd.DataFrame        # índice id_producto: los de los grupos de la canasta y el agua, con derivados
     tiendas: pd.DataFrame          # índice id_tienda
     precios: pd.DataFrame          # id_producto (código en productos), precio, precio_promocion; ordenado por tienda
     rangos: dict[str, tuple[int, int]]   # id_tienda -> [desde, hasta) en precios
@@ -91,7 +91,8 @@ def cargar() -> Datos:
             if not ruta.exists():
                 raise FileNotFoundError(f"Falta {ruta}: primero hay que correr python -m sepa")
         todos = pd.read_parquet(cfg.RUTA_DIM_PRODUCTO, columns=COLUMNAS_PRODUCTO)
-        p = todos[todos["grupo_alimentario"].isin(cfg.GRUPOS_CANASTA)
+        # El agua y la soda se cargan siempre; solo se ofrecen si el hogar compra el agua (ver es_agua).
+        p = todos[(todos["grupo_alimentario"].isin(cfg.GRUPOS_CANASTA) | todos["alimento_id"].isin(cfg.ALIMENTOS_AGUA))
                   & ~todos["alimento_id"].isin(cfg.ALIMENTOS_EXCLUIDOS)
                   & ~todos["nombre"].str.upper().str.contains(cfg.NOMBRES_EXCLUIDOS, regex=True)].copy()
         p = _derivados(p).set_index("id_producto")
@@ -166,9 +167,15 @@ def criterios(restricciones: list[str]) -> list[dict]:
     return salida
 
 
-def aptos(p: pd.DataFrame, restricciones: list[str]) -> tuple[pd.Series, list[dict]]:
-    """Máscara de productos aptos y, por restricción, cuántos productos deja afuera."""
-    apto = pd.Series(True, index=p.index)
+def es_agua(p: pd.DataFrame) -> pd.Series:
+    """Agua y soda envasadas: solo se ofrecen si el hogar compra el agua (config.AGUA_MODOS)."""
+    return p["alimento_id"].isin(cfg.ALIMENTOS_AGUA)
+
+
+def aptos(p: pd.DataFrame, restricciones: list[str], base: pd.Series | None = None) -> tuple[pd.Series, list[dict]]:
+    """Máscara de productos aptos y, por restricción, cuántos productos deja afuera. base: los que se consideran
+    antes de las restricciones (por ejemplo, sin el agua si no se compra); por defecto, todos."""
+    apto = pd.Series(True, index=p.index) if base is None else base.copy()
     efecto = []
     for r in restricciones:
         if r == "celiaquia":

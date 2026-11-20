@@ -60,6 +60,11 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   en línea recta × 1,3 a 5 km/h, y la página lo dice; no se dibuja recorrido.
 - La página se sirve por `http://localhost`: abierta como archivo, las teselas de OpenStreetMap pueden no cargar y el
   navegador no comparte la ubicación. `?rutas=0` vuelve a la búsqueda anterior (las más cercanas en línea recta).
+- **Agua** (`--agua`, `?agua=` en la página, `AGUA_*` en `canasta/config.py`), un modo por hogar: `canilla` (la
+  predeterminada: no se compra; se informa cuánta tomar además de la que traen los alimentos, según la ingesta adecuada
+  de agua total de NASEM 2004), `compra` (agua y soda envasadas entran a la oferta hasta cubrir esa misma meta,
+  contando el agua de los alimentos, columna `agua_g`) y `bebidas` (2 litros de agua o soda comprada por día para un
+  adulto, los 8 vasos de las Guías Alimentarias; sin contar los alimentos). El agua no tiene el tope de dos porciones.
 
 ## Estructura
 
