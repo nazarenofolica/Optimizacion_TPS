@@ -31,6 +31,7 @@ CASOS = [
     (["bajo_peso"], (-32.94682, -60.63932), 7, False, "canilla"),                     # Rosario, aumentar de peso
     (["oficinista"], (-34.60386, -58.38419), 7, False, "compra"),                     # CABA, agua comprada
     (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
+    (["restricciones_extremas"], (-31.41670, -64.18330), 7, True, "canilla"),        # Córdoba, ninguna cubre todo
 ]
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 
@@ -61,20 +62,25 @@ class TestParidadPagina(unittest.TestCase):
 
     def test_busqueda_por_tiempo_caminando(self):
         # La página exportada sin clave estima los tiempos por distancia, igual que rutas.py sin clave: las mismas
-        # sucursales dentro del límite y los mismos costos.
-        ids, (lat, lon), minutos = ["oficinista"], (-34.60386, -58.38419), 15
-        js = self._pagina(ids, lat, lon, 7, False, extra=f"&caminata={minutos}")
-        tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
-        py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, 7, tiempos=tiempos,
-                             caminata_minutos=minutos, aviso_tiempos=aviso)
-        self.assertEqual(js["caminata"]["fuente"], "estimado")
-        self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
-        for a, b in zip(py["sucursales"], js["sucursales"]):
-            self.assertAlmostEqual(a["minutos"], b["minutos"], delta=0.11)
-            self.assertLessEqual(a["minutos"], minutos)
-            self.assertEqual(a["costo"] is None, b["costo"] is None, f"{a['id']}: {a['mensaje']} | {b['mensaje']}")
-            if a["costo"] is not None:
-                self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+        # sucursales dentro del límite y los mismos costos. El segundo es el caso de la demo en que ninguna sucursal
+        # logra todas las metas: las dos dejan sin cubrir lo mismo.
+        for ids, (lat, lon), listos in ((["oficinista"], (-34.60386, -58.38419), False),
+                                        (["restricciones_extremas"], (-31.41670, -64.18330), True)):
+            with self.subTest(perfiles=ids, listos=listos):
+                minutos = 15
+                js = self._pagina(ids, lat, lon, 7, listos, extra=f"&caminata={minutos}")
+                tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, 7, listos=listos,
+                                     tiempos=tiempos, caminata_minutos=minutos, aviso_tiempos=aviso)
+                self.assertEqual(js["caminata"]["fuente"], "estimado")
+                self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+                for a, b in zip(py["sucursales"], js["sucursales"]):
+                    self.assertAlmostEqual(a["minutos"], b["minutos"], delta=0.11)
+                    self.assertLessEqual(a["minutos"], minutos)
+                    self.assertEqual(a["costo"] is None, b["costo"] is None, f"{a['id']}: {a['mensaje']} | {b['mensaje']}")
+                    if a["costo"] is not None:
+                        self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+                        self.assertEqual(bool(a["faltantes"]), bool(b["faltantes"]), a["bandera"])
 
     def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0", agua=cfg.AGUA_MODO_PREDETERMINADO) -> dict:
         # rutas=0: la página busca las sucursales como resultado.armar sin tiempos (las más cercanas en línea recta).

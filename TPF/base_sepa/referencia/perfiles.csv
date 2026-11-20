@@ -22,3 +22,4 @@ diabetes;Diabetes tipo 2;Mujer de 52 años con diabetes tipo 2 que quiere bajar 
 alergico;Niño alérgico;Varón de 10 años alérgico al maní, a los frutos secos y al huevo;M;10;34;140;intensa;mantener;general;;sin_mani|sin_frutos_secos|sin_huevo
 vegetariana_sl;Vegetariana sin lactosa;Mujer adulta vegetariana e intolerante a la lactosa;F;41;60;166;moderada;mantener;general;;vegetariano|sin_lactosa
 bajo_peso;Bajo peso;Mujer joven con bajo peso (IMC 16,9) que quiere aumentar de peso;F;22;46;165;liviana;aumentar;general;;
+restricciones_extremas;Celíaca con alergias;Mujer adulta celíaca y alérgica a la leche, el huevo, la soja, el maní y los frutos secos;F;34;63;163;sedentaria;mantener;general;;celiaquia|sin_leche|sin_huevo|sin_soja|sin_mani|sin_frutos_secos

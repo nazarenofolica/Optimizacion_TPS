@@ -47,13 +47,16 @@ def _cantidad(fila: pd.Series, x: float) -> str:
         return f"{_num(x * cfg.PASO_GRANEL_G / 1000, 3)} kg"
     contenido = fila["contenido"]
     unidad = {"g": "g", "ml": "ml"}.get(fila["unidad_contenido"], fila["unidad_contenido"] or "")
+    hay_unidades = pd.notna(fila["unidades"]) and fila["unidades"] and fila["unidades"] > 1
+    if pd.isna(contenido):              # se vende por unidad (frutas, ajo): no hay peso del envase que mostrar
+        return f"{_num(x)} × " + (f"{_num(fila['unidades'])} u." if hay_unidades else "unidad")
     if unidad == "g" and contenido >= 1000:
         envase = f"{_num(contenido / 1000, 3 if contenido % 1000 else 0)} kg"
     elif unidad == "ml" and contenido >= 1000:
         envase = f"{_num(contenido / 1000, 2 if contenido % 1000 else 0)} l"
     else:
         envase = f"{_num(contenido)} {unidad}".strip()
-    if pd.notna(fila["unidades"]) and fila["unidades"] and fila["unidades"] > 1:
+    if hay_unidades:
         unidades = f"{_num(fila['unidades'])} u."
         envase = unidades if fila["subcategoria"] == "Huevos" else f"{envase} ({unidades})"
     return f"{_num(x)} × {envase}"
@@ -220,6 +223,33 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> d
         "costo_1000_kcal": round(total / dias / energia * 1000, 2) if energia else None,
         "promociones_disponibles": sum(1 for it in items if it["promocion"]),
     }
+
+
+def metas_cubiertas(persona: dict) -> tuple[int, int]:
+    """(cumple, total) de las metas que se le exigen a la compra: sin las informativas ni las que no aplican por las
+    restricciones. Es la misma cuenta que muestra la página (metasCubiertas en web/app.js)."""
+    exigidas = [c for c in persona["cobertura"] + persona["reglas"] if c["estado"] not in ("informativa", "no_aplica")]
+    return sum(c["estado"] == "cumple" for c in exigidas), len(exigidas)
+
+
+def resumen_metas(r: dict) -> dict:
+    """Cuántas metas logra la compra elegida, cuáles faltan (con cuánto cubre cada una) y si ninguna de las sucursales
+    evaluadas las logra todas. Con todas cumplidas, faltan queda vacío."""
+    cuentas = [metas_cubiertas(p) for p in r["personas"]]
+    varias = len(r["personas"]) > 1
+    faltan = []
+    for p in r["personas"]:
+        for c in p["cobertura"] + p["reglas"]:
+            if c["estado"] not in ("falta", "excede"):
+                continue
+            # Lo que se pasa se mide contra el máximo; lo que falta, contra el mínimo.
+            pct = (c["valor"] / c["maximo"] * 100 if c["estado"] == "excede" and c["maximo"] else c["porcentaje"]) or 0.0
+            faltan.append({"persona": p["datos"]["nombre"] if varias else "", "clave": c["clave"],
+                           "nombre": c["nombre"].split(":")[0], "estado": c["estado"], "porcentaje": round(pct, 1),
+                           "no_lo_vende": c["valor"] == 0 and "no vende" in c["nota"]})
+    validas = [s for s in r.get("sucursales", []) if s["costo"] is not None]
+    return {"cumple": sum(c for c, _ in cuentas), "total": sum(t for _, t in cuentas), "faltan": faltan,
+            "sucursales": len(validas), "ninguna_las_logra": bool(validas) and all(s["faltantes"] for s in validas)}
 
 
 def _datos_persona(p: Persona, nombre: str) -> dict:

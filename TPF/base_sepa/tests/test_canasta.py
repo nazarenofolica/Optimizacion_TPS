@@ -366,6 +366,79 @@ class TestAguaConDatos(unittest.TestCase):
         self.assertAlmostEqual(agua["minimo"], 2000)
 
 
+def _cobertura(clave, estado, valor, minimo=None, maximo=None, porcentaje=None, nota="", tipo="nutriente"):
+    return {"clave": clave, "nombre": clave.capitalize(), "estado": estado, "valor": valor, "minimo": minimo,
+            "maximo": maximo, "porcentaje": porcentaje, "nota": nota, "tipo": tipo}
+
+
+class TestResumenMetas(unittest.TestCase):
+    def test_cuenta_solo_las_exigidas_y_dice_cuanto_cubre(self):
+        from canasta import resultado
+        persona = {"datos": {"nombre": "Ana"}, "cobertura": [
+            _cobertura("energia_kcal", "cumple", 1900, 1805, 1995, 100, tipo="energia"),
+            _cobertura("calcio_mg", "falta", 760, 1000, 2500, 76.0),
+            _cobertura("sodio_mg", "excede", 2400, None, 2000, 120.0),
+            _cobertura("vitamina_d_ug", "informativa", 7, 15, 100, 46.7, tipo="informativa"),
+        ], "reglas": [
+            _cobertura("regla_lacteos", "falta", 0.0, 3, None, 0.0,
+                       nota="la sucursal no vende ningún alimento apto que cuente para esta regla", tipo="regla"),
+            _cobertura("regla_pescado", "no_aplica", None, 2, None, None, tipo="regla"),
+        ]}
+        sucursales = [{"costo": 100.0, "faltantes": ["Calcio"]}, {"costo": None, "faltantes": []}]
+        m = resultado.resumen_metas({"personas": [persona], "sucursales": sucursales})
+        self.assertEqual((m["cumple"], m["total"]), (1, 4))                    # sin la informativa ni la que no aplica
+        self.assertEqual([f["clave"] for f in m["faltan"]], ["calcio_mg", "sodio_mg", "regla_lacteos"])
+        self.assertEqual([f["porcentaje"] for f in m["faltan"]], [76.0, 120.0, 0.0])
+        self.assertEqual([f["no_lo_vende"] for f in m["faltan"]], [False, False, True])
+        self.assertEqual(m["faltan"][0]["persona"], "")                        # una sola persona: sin nombre
+        self.assertTrue(m["ninguna_las_logra"])                                # la sin solución no cuenta
+        self.assertEqual(m["sucursales"], 1)
+        hogar = resultado.resumen_metas({"personas": [persona, persona], "sucursales": [{"costo": 1.0, "faltantes": []}]})
+        self.assertEqual((hogar["cumple"], hogar["total"]), (2, 8))
+        self.assertEqual(hogar["faltan"][0]["persona"], "Ana")
+        self.assertFalse(hogar["ninguna_las_logra"])
+
+
+@unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
+class TestNingunaSucursalLograTodo(unittest.TestCase):
+    """El caso de la demo: celíaca y alérgica a la leche, el huevo, la soja, el maní y los frutos secos, solo listos
+    para comer, en el centro de Córdoba a 15 min caminando (tiempos estimados, como en la página sin clave)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from canasta import resultado, rutas
+        lat, lon = -31.41670, -64.18330
+        persona = rq.persona_desde(next(p for p in rq.perfiles() if p["id"] == "restricciones_extremas"))
+        tiempos, aviso = rutas.tiempos_caminando(lat, lon, 15, clave="")
+        cls.r = resultado.armar([persona], lat, lon, 7, listos=True, tiempos=tiempos, caminata_minutos=15,
+                                aviso_tiempos=aviso)
+        cls.m = resultado.resumen_metas(cls.r)
+
+    def test_ninguna_sucursal_cubre_todo_pero_hay_compra(self):
+        self.assertNotIn("error", self.r)
+        validas = [s for s in self.r["sucursales"] if s["costo"] is not None]
+        self.assertGreater(len(validas), 1)
+        for s in validas:
+            with self.subTest(sucursal=f"{s['bandera']} {s['sucursal']}"):
+                self.assertTrue(s["faltantes"])
+                self.assertGreater(s["puntaje"], 0)                            # déficit ponderado de lo exigido
+        self.assertIn(self.r["modelo"]["estado"], ("optima", "factible"))     # no es "sin solución"
+        self.assertTrue(self.r["ticket"]["items"])
+        self.assertGreater(self.r["ticket"]["total"], 0)
+
+    def test_la_mejor_logra_casi_todas(self):
+        m = self.m
+        self.assertEqual(m["total"], 37)                                       # agua de la canilla: informativa
+        self.assertTrue(m["ninguna_las_logra"])
+        self.assertEqual(m["cumple"] + len(m["faltan"]), m["total"])
+        self.assertLessEqual(len(m["faltan"]), 3)                              # pocas y entendibles
+        calcio = next(f for f in m["faltan"] if f["clave"] == "calcio_mg")
+        self.assertTrue(50 < calcio["porcentaje"] < 100)
+        lacteos = next(f for f in m["faltan"] if f["clave"] == "regla_lacteos")
+        self.assertEqual(lacteos["nombre"], "Leche, yogur y queso")
+        self.assertTrue(lacteos["no_lo_vende"])
+
+
 class TestListosParaComer(unittest.TestCase):
     def test_lo_que_hay_que_cocinar_existe_y_no_incluye_lo_listo(self):
         ids = set(pd.read_csv(cfg.DIR_REFERENCIA / "alimentos.csv", sep=";", dtype=str, encoding="utf-8-sig")["id"])

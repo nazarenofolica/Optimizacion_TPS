@@ -906,12 +906,15 @@
     const contenido = pr.contenido[p];
     const u = pr.unidad_contenido[p];
     const unidad = { g: "g", ml: "ml" }[u] ?? (u || "");
+    const uds = pr.unidades[p];
+    const hayUnidades = !Number.isNaN(uds) && uds && uds > 1;
+    // Se vende por unidad (frutas, ajo): no hay peso del envase que mostrar.
+    if (contenido == null || Number.isNaN(contenido)) return `${fmt(x)} × ` + (hayUnidades ? `${fmt(uds)} u.` : "unidad");
     let envase;
     if (unidad === "g" && contenido >= 1000) envase = `${fmt(contenido / 1000, contenido % 1000 ? 3 : 0)} kg`;
     else if (unidad === "ml" && contenido >= 1000) envase = `${fmt(contenido / 1000, contenido % 1000 ? 2 : 0)} l`;
     else envase = `${fmt(contenido)} ${unidad}`.trim();
-    const uds = pr.unidades[p];
-    if (!Number.isNaN(uds) && uds && uds > 1) {
+    if (hayUnidades) {
       const unidades = `${fmt(uds)} u.`;
       envase = pr.subcategoria[p] === "Huevos" ? unidades : `${envase} (${unidades})`;
     }

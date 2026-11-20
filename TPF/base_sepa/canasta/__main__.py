@@ -9,6 +9,7 @@ precios del modelo estrella de SEPA 2.0 (../datos/sepa/).
     python -m canasta --perfil oficinista,trabajo_fisico,escolar --lat -32.95 --lon -60.64 --dias 14 --listos
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15 --agua compra
+    python -m canasta --perfil restricciones_extremas --lat -31.4167 --lon -64.1833 --caminata 15 --listos
 
 Con --perfil, la canasta la arma en la consola el motor de Python (la referencia del que corre en la página). Con
 --caminata, solo se evalúan las sucursales a las que se llega caminando en esos minutos (rutas de OpenRouteService:
@@ -103,12 +104,30 @@ def _imprimir(r: dict) -> None:
             texto = (f"{num(agua['valor'] / 1000, 2)} L por día de {num(agua['minimo'] / 1000, 1)} L "
                      f"({num(agua['porcentaje'], 0)} %, {agua['estado']})")
         print(f"  {persona['datos']['nombre']}: {texto}")
+    from canasta.resultado import resumen_metas
+    m = resumen_metas(r)
+    print(f"\nMetas: {m['cumple']} de {m['total']} cubiertas.")
+    if m["faltan"]:
+        donde = (f"Ninguna de las {m['sucursales']} sucursales evaluadas logra las {m['total']}"
+                 if m["sucursales"] > 1 else f"La única sucursal evaluada no logra las {m['total']}")
+        print(f"  {donde}: es lo máximo que se puede cubrir con lo que venden.")
+        for f in m["faltan"]:
+            quien = f"{f['persona']}: " if f["persona"] else ""
+            if f["estado"] == "excede":
+                cuanto = f"se pasa: {num(f['porcentaje'])} % del máximo"
+            elif f["no_lo_vende"]:
+                cuanto = "0 %, no vende ninguno apto"
+            else:
+                cuanto = f"cubre el {num(min(f['porcentaje'], 99))} %"
+            print(f"  falta  {quien}{f['nombre']} ({cuanto})")
     for persona in r["personas"]:
         pendientes = [c for c in persona["cobertura"] + persona["reglas"] if c["estado"] not in ("cumple", "no_aplica")]
         if pendientes:
             print(f"\nCobertura de {persona['datos']['nombre']}:")
             for c in pendientes:
-                print(f"  {c['estado']:<11} {c['nombre']}: {c['valor']} {c['unidad']} ({c['nota']})")
+                nota = f" ({c['nota']})" if c["nota"] else ""
+                valor = num(c["valor"], 1) if isinstance(c["valor"], (int, float)) else c["valor"]
+                print(f"  {c['estado']:<11} {c['nombre']}: {valor} {c['unidad']}{nota}")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -462,6 +462,38 @@ input:focus-visible, select:focus-visible { outline: none; }
   background: color-mix(in srgb, var(--naranja) 10%, var(--superficie)); border: 1px solid color-mix(in srgb, var(--naranja) 35%, transparent);
 }
 .vacio .aviso, .vacio .boton-secundario { max-width: 52ch; }
+
+/* Ninguna sucursal logra todas las metas: un resultado válido, no un error. Naranja de estado ("falta"), sin rojo. */
+.aviso-metas {
+  display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--radio); font-size: 0.93rem;
+  background: color-mix(in srgb, var(--naranja) 7%, var(--superficie)); border: 1px solid color-mix(in srgb, var(--naranja) 30%, transparent);
+}
+.aviso-metas p { max-width: 62ch; }
+.am-titulo { display: flex; gap: 10px; align-items: center; font-size: 1.02rem; font-weight: 600; text-wrap: balance; }
+.am-titulo i {
+  flex: none; padding: 2px 7px; border-radius: 6px; background: var(--naranja); color: var(--superficie);
+  font: 600 0.85rem var(--ticket); font-style: normal;
+}
+.aviso-metas b { font-weight: 600; }
+.am-faltan, .am-probar { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.am-faltan li {
+  display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem minmax(0, auto); align-items: center; column-gap: 12px;
+  padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--naranja) 18%, transparent);
+}
+.am-nombre { font-weight: 600; }
+.am-nombre small { font-weight: 500; color: var(--tinta-suave); }
+.am-pista { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--naranja) 16%, var(--superficie)); overflow: hidden; }
+.am-pista i { display: block; height: 100%; width: var(--x); background: var(--naranja); border-radius: 3px; }
+@media (prefers-reduced-motion: no-preference) { .am-pista i { animation: crecer 0.8s var(--salida-fuerte) 0.2s both; } }
+.am-dato { font: 500 0.84rem var(--ticket); text-align: right; }
+.am-probar-titulo { font-weight: 600; margin-top: 2px; }
+.am-probar li { display: grid; gap: 6px; justify-items: start; color: var(--tinta-suave); }
+.ts-metas { display: inline-block; margin-right: 4px; font: 600 0.82rem var(--ticket); color: var(--naranja); white-space: nowrap; }
+@media (max-width: 520px) {
+  /* Angosto: el nombre arriba; la barra y cuánto cubre, debajo. */
+  .am-faltan li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .am-nombre { grid-column: 1 / -1; }
+}
 .marca-elegida {
   display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;
   background: var(--acento); color: #16171a; vertical-align: 1px;

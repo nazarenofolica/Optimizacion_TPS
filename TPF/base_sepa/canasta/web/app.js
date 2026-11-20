@@ -527,7 +527,7 @@ function contar(el) {
   if (SIN_MOVIMIENTO.matches || !Number.isFinite(final)) { el.textContent = pesos(final, 0); return; }
   const inicio = performance.now(), dura = 900;
   const paso = (t) => {
-    const x = Math.min(1, (t - inicio) / dura);
+    const x = Math.min(1, Math.max(0, (t - inicio) / dura));   // el primer cuadro puede ser anterior al inicio
     el.textContent = pesos(final * (1 - Math.pow(2, -10 * x)) / (1 - Math.pow(2, -10)), 0);
     if (x < 1) requestAnimationFrame(paso); else el.textContent = pesos(final, 0);
   };
@@ -551,7 +551,7 @@ function resumenOpcion(r) {
   if (!r || !r.ticket) return null;
   const s = r.ticket.tienda;
   return { minutos: r.caminata ? r.caminata.minutos : null, costo: r.ticket.total, tienda: `${s.bandera} ${s.sucursal}`,
-    minutos_tienda: s.minutos, fuente: s.fuente_tiempo };
+    minutos_tienda: s.minutos, fuente: s.fuente_tiempo, metas: metasHogar(r) };
 }
 
 function siguienteCaminata() {
@@ -667,6 +667,23 @@ function metasCubiertas(p) {
   return { cumple: exigidas.filter((c) => c.estado === "cumple").length, total: exigidas.length };
 }
 
+// Las metas de todo el hogar: cuántas se le exigen a la compra (sin las informativas ni las que no aplican) y cuántas cumple.
+const metasHogar = (d) => d.personas.map(metasCubiertas)
+  .reduce((a, b) => ({ cumple: a.cumple + b.cumple, total: a.total + b.total }), { cumple: 0, total: 0 });
+
+// "Leche, yogur y queso: 3 porciones por día (...)" se nombra "Leche, yogur y queso".
+const nombreCorto = (c) => c.nombre.split(":")[0];
+
+// Cuánto cubre una meta que no se cumple: el porcentaje del mínimo o, si se pasa, del máximo.
+function coberturaFalta(c) {
+  if (c.estado === "excede" && c.maximo) {
+    const pct = c.valor / c.maximo * 100;
+    return { pct, texto: `se pasa: llega al ${fmt(pct, 0)} % del máximo` };
+  }
+  const pct = c.porcentaje ?? 0;
+  return { pct, texto: c.valor === 0 && /no vende/.test(c.nota || "") ? "0 %: no vende ninguno apto" : `cubre el ${fmt(Math.min(pct, 99), 0)} %` };
+}
+
 function ticketHTML(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
   const fecha = t.fecha_precios.split("-").reverse().join("/");
@@ -686,7 +703,7 @@ function ticketHTML(d) {
   }).join("");
   const para = d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
   const energia = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
-  const metas = d.personas.map(metasCubiertas).reduce((a, b) => ({ cumple: a.cumple + b.cumple, total: a.total + b.total }), { cumple: 0, total: 0 });
+  const metas = metasHogar(d);
   const caminata = textoCaminata(s);
   return `<div class="ticket" role="document" aria-label="Ticket de la compra">
     <p class="t-marca">${esc(s.bandera)}</p>
@@ -754,7 +771,8 @@ function graficoBalas(titulo, lista) {
 }
 
 // Dona de calorías por grupo de alimentos, con las kcal del día en el centro.
-function dona(grupos, kcal) {
+function dona(todos, kcal) {
+  const grupos = todos.filter((g) => g.kcal_dia > 0);          // el agua no aporta calorías: no va en la dona
   const r = 54, C = 2 * Math.PI * r;
   let acum = 0;
   const arcos = grupos.map((g, k) => {
@@ -816,7 +834,7 @@ function bloquePersona(d, i) {
 
     <h3 class="subtitulo">Lo que come por día</h3>
     ${problemas.length
-      ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Para revisar: ${problemas.map((c) => `<b>${esc(c.nombre)}</b>`).join(", ")}.</span></p>`
+      ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Cubre ${m.cumple} de ${m.total} metas. No llega a: ${problemas.map((c) => `<b>${esc(nombreCorto(c))}</b> (${esc(coberturaFalta(c).texto)})`).join(", ")}. Es lo máximo que se puede con lo que vende esta sucursal.</span></p>`
       : `<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Cubre todas las metas que se le exigen a la compra.</span></p>`}
     ${canilla ? `<p class="estado-metas info"><i aria-hidden="true">i</i><span>Agua de la canilla: unos <b>${fmt(canilla.falta, 1)} L por día</b>.
       Los alimentos de esta compra aportan ${fmt(canilla.alimentos, 1)} L de los ${fmt(canilla.meta, 1)} L de agua del día.</span></p>` : ""}
@@ -863,6 +881,9 @@ function comparacionHTML(d) {
   } else {
     texto = `Con hasta ${ahora.minutos} min la compra elegida cubre mejor las metas, pero cuesta ${pesos(-dif, 0)} más que ${dondeAntes} (${pesos(a.costo, 0)}).`;
   }
+  if (a.metas && ahora.metas && a.metas.cumple !== ahora.metas.cumple) {
+    texto += ` Logra ${ahora.metas.cumple} de ${ahora.metas.total} metas (antes, ${a.metas.cumple}).`;
+  }
   return `<p class="comparacion" role="status">${texto}</p>`;
 }
 
@@ -894,7 +915,8 @@ function escaleraHTML(d) {
         <span class="p-barra vacia"></span><span class="p-costo">Sin súper</span></button></li>`;
     }
     const ancho = 30 + 70 * (r.costo / max);
-    const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}`;
+    const metas = r.metas && r.metas.cumple < r.metas.total ? ` · ${r.metas.cumple}/${r.metas.total} metas` : "";
+    const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}${metas}`;
     return `<li class="peldano ${actual ? "actual" : ""} ${m === mejorMin ? "mejor" : ""}">
       <button type="button" class="peldano-boton" data-caminata="${m}" ${actual ? 'aria-current="true"' : ""}>${etiqueta}
         <span class="p-barra"><i style="--ancho:${ancho}%"></i></span><span class="p-costo">${pesos(r.costo, 0)}</span>
@@ -922,6 +944,62 @@ function avisoTiempos(d) {
   return d.caminata && d.caminata.aviso ? `<p class="aviso">${esc(d.caminata.aviso)}</p>` : "";
 }
 
+// Ninguna sucursal logra todas las metas: no es un error, es lo máximo que se puede con lo que venden. Se dice cuántas
+// logra la mejor, cuánto cubre de cada una que falta y qué se puede probar (caminar más o quitar una restricción).
+function avisoMetasHTML(d) {
+  const elegida = d.sucursales.find((x) => x.elegida);
+  if (!elegida || !elegida.faltantes.length) return "";
+  const varias = d.personas.length > 1, m = metasHogar(d);
+  const evaluadas = d.sucursales.filter((x) => x.costo != null).length;
+  const donde = d.caminata ? `a ${d.caminata.minutos} min caminando` : "cercana";
+  const titulo = evaluadas > 1
+    ? `Ninguna sucursal ${donde} logra las ${m.total} metas${varias ? " del hogar" : ""}`
+    : `La única sucursal ${donde} no logra las ${m.total} metas${varias ? " del hogar" : ""}`;
+  const conFaltas = d.personas.filter((p) => metasCubiertas(p).cumple < metasCubiertas(p).total);
+  const faltan = conFaltas.flatMap((p) => p.cobertura.concat(p.reglas)
+    .filter((c) => c.estado === "falta" || c.estado === "excede")
+    .map((c) => ({ c, quien: varias ? p.datos.nombre : "", ...coberturaFalta(c) })));
+  const lista = faltan.map((f) => `<li class="${f.c.estado}">
+      <span class="am-nombre">${f.quien ? `<small>${esc(f.quien)}</small> ` : ""}${esc(nombreCorto(f.c))}</span>
+      <span class="am-pista" aria-hidden="true"><i style="--x:${Math.max(0, Math.min(100, f.pct))}%"></i></span>
+      <span class="am-dato">${esc(f.texto)}</span></li>`).join("");
+
+  // Qué probar: caminar más (con lo ya calculado en "¿Conviene caminar más?" o calculándolo) y quitar una restricción.
+  const probar = [];
+  if (d.caminata && CON_RUTAS) {
+    const otros = [...estado.escalera.values()].map((v) => v.resumen)
+      .filter((r) => r && r.costo != null && r.metas && r.minutos !== d.caminata.minutos);
+    const completa = otros.filter((r) => r.metas.cumple === r.metas.total).sort((a, b) => a.minutos - b.minutos)[0];
+    const mayores = otros.filter((r) => r.minutos > d.caminata.minutos).sort((a, b) => a.minutos - b.minutos);
+    const sinCalcular = estado.P.CAMINATA_OPCIONES.find((x) => x > d.caminata.minutos && !estado.escalera.has(x));
+    if (completa) {
+      probar.push(`<li>Caminando hasta ${completa.minutos} min sí se logran todas: ${pesos(completa.costo, 0)} en ${esc(completa.tienda)}.
+        <button type="button" class="boton-secundario" data-caminata="${completa.minutos}">Ver esa compra</button></li>`);
+    } else {
+      const ultima = mayores[mayores.length - 1];
+      const hecho = ultima ? `Hasta ${ultima.minutos} min tampoco: la mejor logra ${ultima.metas.cumple} de ${ultima.metas.total}. ` : "";
+      probar.push(sinCalcular != null
+        ? `<li>${hecho}Caminar más suma sucursales que quizá vendan lo que falta.
+            <button type="button" class="boton-secundario" data-caminata="${sinCalcular}">Probar hasta ${sinCalcular} min caminando</button></li>`
+        : hecho ? `<li>${hecho}</li>` : "");
+    }
+  }
+  const restricciones = conFaltas.flatMap((p) => p.datos.restricciones.map((r) => r[0].toLowerCase() + r.slice(1))
+    .concat(d.opciones.listos ? ["solo listos para comer"] : []));
+  const unicas = [...new Set(restricciones)];
+  if (unicas.length) {
+    const quien = varias ? ` de ${conFaltas.map((p) => esc(p.datos.nombre)).join(" y ")}` : "";
+    probar.push(`<li>Quitar alguna restricción${quien} y volver a armar la canasta: ${esc(unicas.join(", "))}.</li>`);
+  }
+  return `<div class="aviso-metas" role="status">
+    <p class="am-titulo"><i aria-hidden="true">${m.cumple}/${m.total}</i><span>${titulo}</span></p>
+    <p>La que más se acerca logra <b>${m.cumple} de ${m.total}</b>. Es lo máximo que se puede cubrir con lo que venden estas
+      sucursales${unicas.length ? " con estas restricciones" : ""}: la compra es válida, solo que no completa.</p>
+    <ul class="am-faltan">${lista}</ul>
+    ${probar.filter(Boolean).length ? `<p class="am-probar-titulo">Qué podés probar</p><ul class="am-probar">${probar.join("")}</ul>` : ""}
+  </div>`;
+}
+
 function mostrarSinResultado(d) {
   const sig = siguienteCaminata();
   $("#resultado").innerHTML = `<div class="vacio">
@@ -941,6 +1019,7 @@ function mostrar(d) {
   const masBarataOtra = otras.length ? otras.reduce((m, x) => (x.costo < m.costo ? x : m)) : null;
   const avisos = d.personas.flatMap((p) => p.requerimientos.avisos.map((a) => (varias ? `${p.datos.nombre}: ${a}` : a)));
   const metas = d.personas.map(metasCubiertas);
+  const totalMetas = metasHogar(d).total;
   const porTiempo = Boolean(d.caminata);
   const pestanas = varias ? `<div class="pestanas" role="tablist" aria-label="Persona">${d.personas.map((p, i) =>
     `<button type="button" role="tab" aria-selected="${i === estado.vista}" aria-controls="por-persona" data-vista="${i}" style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</button>`).join("")}</div>` : "";
@@ -953,7 +1032,7 @@ function mostrar(d) {
     ? `<p class="ayuda">Agua de la canilla: ${varias ? "entre todos, " : ""}unos <b>${fmt(canillas.reduce((s, c) => s + c.falta, 0), 1)} L por día</b>, además de la que traen los alimentos.</p>`
     : "";
   const motivo = elegida && elegida.faltantes.length
-    ? `Ninguna sucursal a tu alcance cubre todo; esta es la que más se acerca y, entre las que cubren igual, la más barata.`
+    ? `Es la que más se acerca a todas las metas y, entre las que cubren igual, la más barata.`
     : `Es la más barata entre las que cubren todas las metas${varias ? " de todos" : ""}.`;
 
   $("#resultado").innerHTML = `
@@ -972,6 +1051,7 @@ function mostrar(d) {
         <li><span>${metas.reduce((a, m) => a + m.cumple, 0)}/${metas.reduce((a, m) => a + m.total, 0)}</span>metas cubiertas</li>
       </ul>
       <p class="sr-only">${cubre}</p>
+      ${avisoMetasHTML(d)}
       ${agua}
       <div class="llegar">
         <p class="llegar-tiempo">${ICONO.caminar}<span>${caminata ? esc(caminata) : `${fmt(s.distancia_km, 1)} km en línea recta`}</span></p>
@@ -1002,7 +1082,8 @@ function mostrar(d) {
         <td class="num" data-etiqueta="${porTiempo ? "Caminando" : "Distancia"}">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
         <td class="num" data-etiqueta="Costo">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
         <td class="num" data-etiqueta="Diferencia">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : "—"}</td>
-        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
+        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length
+          ? `<span class="ts-metas">${totalMetas - x.faltantes.length}/${totalMetas} metas</span> ${esc(x.faltantes.join("; "))}` : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
   </section>
 
   <section class="bloque"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>
