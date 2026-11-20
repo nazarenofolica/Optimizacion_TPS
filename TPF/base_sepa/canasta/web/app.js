@@ -37,7 +37,11 @@ const estado = {
   P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
   caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
   mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
-  escalera: new Map(),   // minutos -> {resumen, resultado, rutas}: la mejor compra con cada límite de caminata
+  escalera: new Map(),   // minutos -> {resumen, resultado, rutas, pedido}: la mejor compra con cada límite de caminata
+  pedido: null,          // el pedido con el que se armó estado.resultado (dosSuper necesita exactamente ese)
+  dos: new WeakMap(),    // resultado -> {ds, rutas}: la compra en dos súper calculada sobre ese resultado
+  vistaDos: false,       // el ticket muestra la compra en dos súper (si conviene) en lugar de la de uno
+  capaDos: null, puntosMapa: null,
 };
 const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
 const PARAMETROS = new URLSearchParams(location.search);
@@ -82,6 +86,7 @@ const motor = (() => {
       const M = window.MotorCanasta;
       if (tipo === "paquete") return M.cargarPaquete(datos.meta, datos.binario).then((resumen) => ({ resumen }));
       if (tipo === "candidatas") return Promise.resolve({ candidatas: M.candidatasCaminando(datos.lat, datos.lon, datos.minutos) });
+      if (tipo === "dos_super") return M.dosSuper(datos.pedido, datos.resultado, avance).then((dos_super) => ({ dos_super }));
       return M.armar(datos.pedido, avance).then((resultado) => ({ resultado }));
     }
     const id = ++siguiente;
@@ -571,6 +576,7 @@ async function calcularCaminata(minutos) {
   if (hecho) {
     estado.anterior = previo;
     estado.resultado = hecho.resultado;
+    estado.pedido = hecho.pedido;
     estado.ultimaRuta = hecho.rutas;
     if (hecho.resultado.ticket) mostrar(hecho.resultado); else mostrarSinResultado(hecho.resultado);
     return;
@@ -618,9 +624,10 @@ async function armar(e, anterior = null) {
       (a) => cargando(a.hechas ? `Sucursales resueltas: ${a.hechas} de ${a.total} (la última, ${a.sucursal})`
         : `Resolviendo la canasta en ${a.total} sucursales ${CON_RUTAS ? "a tu alcance" : "cercanas"}…`, 0.08 + 0.92 * a.hechas / a.total));
     estado.resultado = resultado;
+    estado.pedido = pedido;
     estado.ultimaRuta = rutas;
     estado.vista = 0;
-    if (resultado.caminata) estado.escalera.set(resultado.caminata.minutos, { resumen: resumenOpcion(resultado), resultado, rutas });
+    if (resultado.caminata) estado.escalera.set(resultado.caminata.minutos, { resumen: resumenOpcion(resultado), resultado, rutas, pedido });
     if (resultado.error && !resultado.ticket) {
       mostrarSinResultado(resultado);
     } else {
@@ -684,11 +691,11 @@ function coberturaFalta(c) {
   return { pct, texto: c.valor === 0 && /no vende/.test(c.nota || "") ? "0 %: no vende ninguno apto" : `cubre el ${fmt(Math.min(pct, 99), 0)} %` };
 }
 
-function ticketHTML(d) {
-  const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
-  const fecha = t.fecha_precios.split("-").reverse().join("/");
+// Los renglones del ticket (agrupados por grupo de alimentos), con quién come cada cosa si son varios.
+function renglonesHTML(d, lista) {
+  const varias = d.personas.length > 1;
   let grupoActual = "";
-  const items = t.items.map((it) => {
+  return lista.map((it) => {
     const cabeza = it.grupo !== grupoActual ? `<p class="t-grupo">${esc(it.grupo)}</p>` : "";
     grupoActual = it.grupo;
     const quien = varias
@@ -701,7 +708,15 @@ function ticketHTML(d) {
       ${it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : ""}
     </div>`;
   }).join("");
-  const para = d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
+}
+
+const paraQuien = (d) => d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
+
+function ticketHTML(d) {
+  const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
+  const fecha = t.fecha_precios.split("-").reverse().join("/");
+  const items = renglonesHTML(d, t.items);
+  const para = paraQuien(d);
   const energia = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
   const metas = metasHogar(d);
   const caminata = textoCaminata(s);
@@ -729,6 +744,62 @@ function ticketHTML(d) {
     <p class="t-linea"><span>Energía por día</span><span>${fmt(energia)} kcal</span></p>
     <p class="t-linea"><span>Meta del hogar</span><span>${fmt(d.hogar.energia_kcal)} kcal</span></p>
     <p class="t-linea"><span>Metas cubiertas</span><span>${metas.cumple} de ${metas.total}</span></p>
+    <hr>
+    <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
+    <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
+  </div>`;
+}
+
+// "≈ 3 min" o "6 min" (los estimados, con ≈).
+const minutosTexto = (minutos, fuente) => textoCaminata({ minutos, fuente_tiempo: fuente }, true);
+const nombreTienda = (s) => `${s.bandera} ${s.sucursal}`;
+
+// La compra en dos súper en un solo ticket: un tramo por sucursal (encabezado, renglones y subtotal) separados por la
+// línea de corte, y al pie el total de las dos y la comparación con comprar todo en la primera.
+function ticketDivididoHTML(d, ds) {
+  const t = ds.ticket, varias = d.personas.length > 1;
+  const fecha = t.fecha_precios.split("-").reverse().join("/");
+  const articulos = t.sucursales.reduce((n, x) => n + x.items.length, 0);
+  const tramos = t.sucursales.map((x, k) => {
+    const s = x.tienda;
+    const llegar = k === 0 ? textoCaminata(s)
+      : `${minutosTexto(ds.b.minutos_desde_a, "estimado")} caminando desde ${nombreTienda(ds.a)} (estimado)`;
+    return `${k ? '<p class="t-corte" aria-hidden="true"><span>✂</span></p>' : ""}
+    <p class="t-centro t-paso">Súper ${k + 1} de ${t.sucursales.length}</p>
+    <p class="t-marca">${esc(s.bandera)}</p>
+    <p class="t-centro">${esc(s.comercio)}${s.cuit ? `<br>CUIT ${esc(cuit(s.cuit))}` : ""}</p>
+    <p class="t-centro">Suc. ${esc(s.sucursal)}<br>${esc(s.direccion)}${s.localidad ? `<br>${esc(s.localidad)}` : ""}</p>
+    ${llegar ? `<p class="t-centro t-destacado">A ${esc(llegar)}</p>` : ""}
+    <p class="t-centro">Horario de hoy (${esc(s.hoy.dia)}): ${esc(s.hoy.horario)}</p>
+    <hr>
+    <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
+    ${renglonesHTML(d, x.items)}
+    <hr>
+    <p class="t-linea t-subtotal"><span>Subtotal ${esc(s.bandera)} (${x.items.length} art.)</span><span>${pesos(x.subtotal)}</span></p>`;
+  }).join("");
+  const m = ds.metas_despues, circuito = ds.minutos;
+  return `<div class="ticket ticket-dividido" role="document" aria-label="Ticket de la compra en dos supermercados">
+    <p class="t-marca">CANASTA SALUDABLE</p>
+    <p class="t-centro t-destacado">Compra en dos supermercados</p>
+    <hr>
+    <p>Canasta saludable para ${esc(d.periodo)}</p>
+    <p>Para: ${paraQuien(d)}</p>
+    ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
+    <p>Precios SEPA del ${fecha}</p>
+    <hr>
+    ${tramos}
+    <hr class="t-doble">
+    ${t.sucursales.map((x, k) => `<p class="t-linea"><span>${k + 1}. ${esc(nombreTienda(x.tienda))}</span><span>${pesos(x.subtotal)}</span></p>`).join("")}
+    <p class="t-linea"><span>${articulos} artículos</span><span></span></p>
+    <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
+    <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
+    ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
+    <hr>
+    <p class="t-linea"><span>Todo en ${esc(ds.a.bandera)}</span><span>${pesos(ds.costo_a)}</span></p>
+    <p class="t-linea t-destacado"><span>${ds.ahorro >= 0 ? "Ahorrás" : "Pagás de más"}</span><span>${pesos(Math.abs(ds.ahorro))}</span></p>
+    <p class="t-linea"><span>Metas cubiertas</span><span>${m.cumple} de ${m.total}</span></p>
+    <p class="t-linea"><span>Caminata ida y vuelta</span><span>${minutosTexto(circuito.circuito, circuito.fuente)}</span></p>
+    ${circuito.fuente === "estimado" ? '<p class="t-centro t-nota">Minutos estimados: el tramo entre<br>los dos súper va en línea recta.</p>' : ""}
     <hr>
     <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
     <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
@@ -926,6 +997,332 @@ function escaleraHTML(d) {
     <p class="escalera-ayuda">La compra más barata con cada tiempo máximo. Tocá uno para calcularlo o verlo.</p><ol>${filas}</ol></div>`;
 }
 
+// ============================================================
+// ¿Conviene sumar un segundo súper? Se calcula a pedido (MotorCanasta.dosSuper) sobre el resultado que se está viendo
+// y se guarda con ese resultado: cada límite de caminata tiene el suyo y armar de nuevo lo descarta.
+// ============================================================
+
+const TITULO_DOS = '<p class="escalera-titulo">¿Conviene sumar un segundo súper?</p>';
+
+// La compra en dos súper que se propone (la que conviene), o null.
+function dosQueConviene(d) {
+  const c = d && estado.dos.get(d);
+  return c && c.ds && c.ds.estado === "conviene" && c.ds.ticket ? c.ds : null;
+}
+
+const conEstimado = (t) => `${minutosTexto(t.minutos, t.fuente)}${t.fuente === "estimado" ? " <small>estimado</small>" : ""}`;
+
+// "caminando ≈ 5 min más (estimado)". No se le pone precio al minuto: se dice cuánto más y la persona decide.
+function caminandoMas(ds) {
+  const m = ds.minutos, est = m.fuente === "estimado", nota = est ? " <small>(estimado)</small>" : "";
+  return m.extra >= 1 ? `caminando ${est ? "≈ " : ""}${fmt(Math.round(m.extra))} min más${nota}` : `casi sin caminar de más${nota}`;
+}
+
+function decisionDosHTML(d, ds) {
+  if (ds.estado === "conviene" && ds.motivo === "ahorro") {
+    return `<p class="dos-decision">Conviene: ahorrás <mark>${pesos(ds.ahorro, 0)}</mark> (${fmt(ds.ahorro_pct, 1)} %) ${caminandoMas(ds)}.</p>`;
+  }
+  if (ds.estado === "conviene") {
+    const a = ds.metas_antes, b = ds.metas_despues;
+    const logro = b.cumple > a.cumple ? `llegás a <mark>${b.cumple} de ${b.total}</mark> metas` : "cubrís mejor las metas que faltan";
+    const plata = ds.ahorro > 0 ? `Además ahorrás ${pesos(ds.ahorro, 0)}`
+      : ds.ahorro < 0 ? `Cuesta ${pesos(-ds.ahorro, 0)} más (${fmt(-ds.ahorro_pct, 1)} %)` : "Cuesta lo mismo";
+    return `<p class="dos-decision">Con un segundo súper ${logro}.</p><p class="dos-texto">${plata}, ${caminandoMas(ds)}.</p>`;
+  }
+  if (ds.estado === "sin_vecinas") {
+    return `<p class="dos-decision no">No hay otro súper cerca con otros precios.</p>
+      <p class="dos-texto">Buscamos a menos de ${ds.minutos_entre_max} min caminando de ${esc(nombreTienda(ds.a))}${d.caminata ? ", dentro de tu límite de caminata" : ""}: la compra queda en uno solo.</p>`;
+  }
+  const texto = ds.mensaje.replace(/^No conviene dividir la compra:\s*/, "");
+  return `<p class="dos-decision no">No conviene dividir la compra.</p>
+    <p class="dos-texto">${esc(texto.charAt(0).toUpperCase() + texto.slice(1))}</p>`;
+}
+
+// Un súper contra dos, lado a lado: costo, metas y caminata de ida y vuelta.
+function compararDosHTML(ds) {
+  const m = ds.minutos, metas = (x) => `${x.cumple} de ${x.total}`;
+  const mejor = (a, b, menor = true) => (a === b ? ["", ""] : (menor ? b < a : b > a) ? ["", ' class="dc-mejor"'] : [' class="dc-mejor"', ""]);
+  const [c1, c2] = mejor(Math.round(ds.costo_a), Math.round(ds.costo_combinado));
+  const [m1, m2] = mejor(ds.metas_antes.cumple, ds.metas_despues.cumple, false);
+  return `<table class="dos-comparar">
+    <thead><tr><td></td><th scope="col">Un súper</th><th scope="col">Dos súper <span class="marca-elegida">conviene</span></th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Costo</th><td${c1}>${pesos(ds.costo_a, 0)}</td><td${c2}>${pesos(ds.costo_combinado, 0)}</td></tr>
+      <tr><th scope="row">Metas cubiertas</th><td${m1}>${metas(ds.metas_antes)}</td><td${m2}>${metas(ds.metas_despues)}</td></tr>
+      <tr><th scope="row">Caminata ida y vuelta</th><td>${minutosTexto(m.solo_a, m.tramos[0].fuente)}</td><td>${minutosTexto(m.circuito, m.fuente)}</td></tr>
+    </tbody></table>`;
+}
+
+// Con motivo "metas": cómo queda cada meta que faltaba con un súper.
+function metasDosHTML(ds) {
+  if (ds.motivo !== "metas") return "";
+  const pct = (f) => (f.estado === "excede" ? `se pasa (${fmt(f.porcentaje, 0)} % del máx.)` : `${fmt(Math.min(f.porcentaje, 99), 0)} %`);
+  const clave = (f) => `${f.persona}|${f.clave}`;
+  const antes = new Map(ds.metas_antes.faltan.map((f) => [clave(f), f]));
+  const despues = new Map(ds.metas_despues.faltan.map((f) => [clave(f), f]));
+  // Solo las que cambian (una que no vende nadie sigue en 0 % con dos súper: no suma nada mostrarla).
+  const claves = [...new Set([...antes.keys(), ...despues.keys()])].filter((k) => {
+    const a = antes.get(k), b = despues.get(k);
+    return !(a && b && a.estado === b.estado && pct(a) === pct(b));
+  });
+  if (!claves.length) return "";
+  const filas = claves.map((k) => {
+    const a = antes.get(k), b = despues.get(k), f = a || b;
+    return `<li><span>${f.persona ? `<small>${esc(f.persona)}</small> ` : ""}${esc(f.nombre)}</span>
+      <span class="dm-dato">${a ? pct(a) : "cumple"} <i aria-hidden="true">→</i><span class="sr-only">ahora</span> <b>${b ? pct(b) : "cumple"}</b></span></li>`;
+  }).join("");
+  return `<div><p class="dr-titulo">Las metas que faltaban, con un súper y con dos</p><ul class="dos-metas">${filas}</ul></div>`;
+}
+
+const numeroSuper = (n) => `<span class="n-super" aria-hidden="true">${n}</span>`;
+
+// Qué se compra en cada sucursal.
+function paradasHTML(ds) {
+  const [sa, sb] = ds.ticket.sucursales;
+  const productos = (n) => (n === 1 ? "1 producto" : `${n} productos`);
+  const cuales = ds.productos_b.slice(0, 5).join("; ") + (ds.productos_b.length > 5 ? ` y ${ds.productos_b.length - 5} más` : "");
+  return `<ol class="dos-paradas">
+    <li>${numeroSuper(1)}<span><b>${esc(nombreTienda(ds.a))}</b> <small>${esc(ds.a.direccion)}</small>
+      <span class="dp-que">El resto de la compra: ${productos(sa.items.length)}, <span class="dp-plata">${pesos(sa.subtotal, 0)}</span></span></span></li>
+    <li>${numeroSuper(2)}<span><b>${esc(nombreTienda(ds.b))}</b> <small>${esc(ds.b.direccion)}</small>
+      <span class="dp-que">${esc(cuales)}: ${productos(sb.items.length)}, <span class="dp-plata">${pesos(sb.subtotal, 0)}</span></span></span></li>
+  </ol>`;
+}
+
+// La ruta real entre los dos súper (si la página tiene clave), al lado del estimado que usa el cálculo.
+function porCalleHTML(r) {
+  if (!r || r.minutos == null) return "";
+  const metros = r.metros == null ? "" : r.metros >= 1000 ? `, ${fmt(r.metros / 1000, 1)} km` : `, ${fmt(Math.round(r.metros))} m`;
+  return `Por la calle: ${fmt(Math.max(1, Math.round(r.minutos)))} min${metros} (OpenRouteService). Las cuentas usan el estimado.`;
+}
+
+// Casa → 1 → 2 → casa, con los minutos de cada tramo como los da el motor (los estimados, marcados).
+function recorridoDosHTML(ds, c) {
+  const [t1, t2, t3] = ds.minutos.tramos;
+  const calle = c.recorridos ? porCalleHTML(c.recorridos.ab) : c.rutas ? "Buscando la ruta por la calle…" : "";
+  return `<div class="dos-recorrido"><p class="dr-titulo">El recorrido</p><ol>
+    <li><span class="dr-tramo">Vos <i aria-hidden="true">→</i> ${numeroSuper(1)} ${esc(ds.a.bandera)}</span><span class="dr-min">${conEstimado(t1)}</span></li>
+    <li><span class="dr-tramo">${numeroSuper(1)} <i aria-hidden="true">→</i> ${numeroSuper(2)} ${esc(ds.b.bandera)}</span><span class="dr-min">${conEstimado(t2)}</span>
+      <small class="dr-calle" id="dos-por-calle">${calle}</small></li>
+    <li><span class="dr-tramo">${numeroSuper(2)} <i aria-hidden="true">→</i> Vos</span><span class="dr-min">${conEstimado(t3)}</span></li>
+    <li class="dr-total"><span class="dr-tramo">En total</span><span class="dr-min">${conEstimado({ minutos: ds.minutos.circuito, fuente: ds.minutos.fuente })}</span></li>
+  </ol></div>`;
+}
+
+// Las vecinas que se probaron, para verificar la decisión.
+function vecinasHTML(ds) {
+  if (!ds.vecinas.length) return "";
+  const propuesta = ds.estado === "conviene" && ds.b ? ds.b.id : null;
+  const filas = ds.vecinas.map((v) => {
+    const costo = v.costo == null ? "sin compra posible" : !v.compra_en_b ? "no suma nada" : `entre los dos, ${pesos(v.costo, 0)}`;
+    return `<li><span>${esc(v.bandera)} ${esc(v.sucursal)}${v.id === propuesta ? ' <span class="marca-elegida">elegido</span>' : ""}
+      <small>a ${minutosTexto(v.minutos_desde_a, "estimado")} de ${esc(ds.a.bandera)}</small></span><span class="dv-costo">${costo}</span></li>`;
+  }).join("");
+  const P = estado.P;
+  return `<details class="dos-vecinas"><summary>Qué súper probamos (${ds.vecinas.length})</summary><ul>${filas}</ul>
+    <p class="ayuda">Comprando todo en ${esc(nombreTienda(ds.a))} sale ${pesos(ds.costo_a, 0)}. Proponemos dividir la compra si cubre más
+      metas o si ahorra al menos ${pesos(ds.ahorro_minimo, 0)} (el ${fmt(P.DOS_SUPER_AHORRO_MINIMO_PCT, 0)} % de la compra, con un piso
+      de ${pesos(P.DOS_SUPER_AHORRO_MINIMO_PESOS, 0)}). No le ponemos precio a tus minutos: decidís vos.</p></details>`;
+}
+
+function dosInterior(d) {
+  const c = estado.dos.get(d);
+  if (!c || c.error) {
+    return `${TITULO_DOS}
+      <p class="escalera-ayuda">Probamos repartir la compra entre ${esc(nombreTienda(d.ticket.tienda))} y otro súper a menos de
+        ${estado.P.DOS_SUPER_MINUTOS_ENTRE} min caminando de ahí. Te lo proponemos si sale más barato o cubre más metas.</p>
+      ${c ? `<p class="mensaje">No se pudo calcular: ${esc(c.error)}</p>` : ""}
+      <button type="button" class="boton-secundario" data-dos>${c ? "Probar de nuevo" : "Probar con un segundo súper"}</button>`;
+  }
+  const ds = c.ds;
+  if (ds.estado !== "conviene") return `${TITULO_DOS}<div class="dos-resultado no">${decisionDosHTML(d, ds)}${vecinasHTML(ds)}</div>`;
+  const viendo = estado.vistaDos;
+  return `${TITULO_DOS}<div class="dos-resultado">
+    ${decisionDosHTML(d, ds)}
+    ${compararDosHTML(ds)}
+    ${metasDosHTML(ds)}
+    ${paradasHTML(ds)}
+    ${recorridoDosHTML(ds, c)}
+    <button type="button" class="boton-secundario" data-vista="${viendo ? "uno" : "dos"}">${viendo
+      ? "Volver a la compra en un solo súper" : "Ver el ticket en dos súper"}</button>
+    ${vecinasHTML(ds)}
+  </div>`;
+}
+
+function pintarDos(d) {
+  const caja = $("#dos");
+  if (caja) caja.innerHTML = dosInterior(d);
+}
+
+// Mientras calcula: la barra y el texto de avance, sin tocar el resto del resultado.
+function dosCargando(texto, fraccion) {
+  const caja = $("#dos");
+  if (!caja) return;
+  if (!$(".dos-cargando", caja)) {
+    caja.innerHTML = `${TITULO_DOS}<div class="dos-cargando">
+      <div class="progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la compra en dos súper"><i></i></div>
+      <p class="cargando-texto" aria-live="polite"></p></div>`;
+  }
+  const pct = Math.round(fraccion * 100), barra = $(".progreso", caja);
+  barra.setAttribute("aria-valuenow", pct);
+  barra.firstElementChild.style.width = `${pct}%`;
+  $(".cargando-texto", caja).textContent = texto;
+}
+
+const bloquearResultado = (si) => $$("#resultado [data-caminata], #resultado [data-ampliar], #resultado [data-dos], #resultado [data-vista]")
+  .forEach((b) => { b.disabled = si; });
+
+async function calcularDos(desdeEnlace = false) {
+  const d = estado.resultado, pedido = estado.pedido;
+  if (!d || !d.ticket || !pedido || estado.ocupado || !$("#dos")) return;
+  const previo = estado.dos.get(d);
+  if (previo && !previo.error) { pintarDos(d); return; }
+  const nombreA = nombreTienda(d.ticket.tienda);
+  estado.ocupado = true;
+  $("#armar").disabled = true;
+  bloquearResultado(true);
+  dosCargando(`Buscando súper a menos de ${estado.P.DOS_SUPER_MINUTOS_ENTRE} min caminando de ${nombreA}…`, 0.04);
+  let c;
+  try {
+    // pedido: el mismo con el que se armó d (dosSuper lee las personas y los tiempos caminando de ahí).
+    const { dos_super: ds } = await motor.pedir("dos_super", { pedido, resultado: d }, (a) => dosCargando(a.hechas
+      ? `Combinaciones resueltas: ${a.hechas} de ${a.total} (la última, con ${a.sucursal})`
+      : `Probando ${a.total === 1 ? "un súper" : `${a.total} súper`} junto con ${nombreA}…`, a.total ? 0.1 + 0.9 * a.hechas / a.total : 0.9));
+    c = { ds, rutas: null, recorridos: null };
+  } catch (err) {
+    c = { error: err.message };
+  } finally {
+    estado.ocupado = false;
+    marcarPasos();
+  }
+  estado.dos.set(d, c);
+  if (estado.resultado !== d) return;
+  if (dosQueConviene(d) && Rutas.tieneClave()) buscarRecorridosDos(d, c);
+  pintarDos(d);
+  bloquearResultado(false);
+  if (dosQueConviene(d) && !$(".vista-ticket")) $(".columna-ticket").insertAdjacentHTML("afterbegin", selectorVistaHTML());
+  dibujarDosEnMapa(d);
+  if (desdeEnlace) $("#dos").scrollIntoView({ behavior: SIN_MOVIMIENTO.matches ? "auto" : "smooth", block: "center" });
+}
+
+// Con clave de OpenRouteService: la ruta a pie de verdad entre los dos súper y de vuelta a casa (para el mapa y para
+// decir cuánto se tarda por la calle). Sin clave o si falla, no hay línea y los minutos quedan como estimados.
+function buscarRecorridosDos(d, c) {
+  const { a, b } = c.ds;
+  c.rutas = Promise.all([Rutas.recorrido(estado.P, a, b), Rutas.recorrido(estado.P, b, d.ubicacion)]).then(([ab, bc]) => {
+    c.recorridos = { ab, bc };
+    const el = $("#dos-por-calle");
+    if (el && estado.resultado === d) el.innerHTML = porCalleHTML(ab);
+    return c.recorridos;
+  });
+}
+
+// Un súper o dos: el ticket, el total y las cifras de arriba cambian juntos.
+function cambiarVista(dos, boton) {
+  const d = estado.resultado;
+  if (!d || estado.ocupado || (dos && !dosQueConviene(d)) || dos === estado.vistaDos) return;
+  estado.vistaDos = dos;
+  pintarCompra(d);
+  pintarDos(d);
+  if (boton && boton.closest("#dos")) {
+    $("#dos [data-vista]").focus({ preventScroll: true });
+    const col = $(".columna-ticket"), r = col.getBoundingClientRect();
+    if (r.top < 0 || r.top > innerHeight * 0.5) col.scrollIntoView({ behavior: SIN_MOVIMIENTO.matches ? "auto" : "smooth", block: "start" });
+  } else {
+    const nuevo = $(`.vista-ticket [data-vista="${dos ? "dos" : "uno"}"]`);
+    if (nuevo) nuevo.focus({ preventScroll: true });
+  }
+}
+
+function selectorVistaHTML() {
+  const dos = estado.vistaDos;
+  return `<div class="vista-ticket" role="group" aria-label="Qué compra ver">
+    <button type="button" data-vista="uno" aria-pressed="${!dos}">Un súper</button>
+    <button type="button" data-vista="dos" aria-pressed="${dos}">Dos súper</button></div>`;
+}
+
+function columnaTicketHTML(d) {
+  const ds = dosQueConviene(d), dos = Boolean(ds && estado.vistaDos);
+  return `${ds ? selectorVistaHTML() : ""}<div class="impresora"><div class="ranura"></div>${dos ? ticketDivididoHTML(d, ds) : ticketHTML(d)}</div>
+    <button type="button" class="boton-texto con-icono" id="imprimir">${ICONO.imprimir}Imprimir o guardar el ticket</button>`;
+}
+
+// Las cifras de arriba del resumen, de la compra en uno o en dos súper.
+function cifrasCompra(d, ds) {
+  const varias = d.personas.length > 1, t = ds ? ds.ticket : d.ticket;
+  const productos = ds ? t.sucursales.reduce((n, x) => n + x.items.length, 0) : t.items.length;
+  const m = ds ? ds.metas_despues : metasHogar(d);
+  return {
+    total: t.total,
+    donde: ds ? `en <b>${esc(nombreTienda(ds.a))}</b> y <b>${esc(nombreTienda(ds.b))}</b>` : `en <b>${esc(nombreTienda(t.tienda))}</b>`,
+    datos: `<li><span>${pesos(t.costo_diario, 0)}</span>por día${varias ? ` · ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</li>
+      <li><span>${productos}</span>productos</li>
+      <li><span>${m.cumple}/${m.total}</span>metas cubiertas</li>`,
+  };
+}
+
+function animarTicket() {
+  const tk = $(".columna-ticket .ticket");
+  if (!tk) return;
+  [...tk.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 60)));
+  tk.classList.add("imprimiendo");
+}
+
+function pintarCompra(d) {
+  $(".columna-ticket").innerHTML = columnaTicketHTML(d);
+  animarTicket();
+  const k = cifrasCompra(d, estado.vistaDos ? dosQueConviene(d) : null);
+  const total = $("#resumen-total");
+  total.dataset.valor = k.total;
+  contar(total);
+  $("#resumen-donde").innerHTML = k.donde;
+  $("#datos-compra").innerHTML = k.datos;
+}
+
+// Los súper de la compra en dos en el mapa: el segundo resaltado y las vecinas probadas, atenuadas. Las líneas, solo
+// si vinieron de OpenRouteService (nunca se dibuja un recorrido inventado).
+function dibujarDosEnMapa(d) {
+  if (estado.capaDos) { estado.capaDos.remove(); estado.capaDos = null; }
+  const mapa = estado.mapaResultado, c = estado.dos.get(d), leyenda = $("#mapa-leyenda-dos");
+  if (leyenda) leyenda.textContent = "";
+  if (!mapa || !c || !c.ds || !leyenda) return;
+  const ds = c.ds, capa = L.layerGroup().addTo(mapa), propuesta = dosQueConviene(d);
+  estado.capaDos = capa;
+  const yaEstan = new Set(d.sucursales.map((x) => x.id));
+  for (const v of ds.vecinas) {
+    if ((propuesta && v.id === propuesta.b.id) || yaEstan.has(v.id)) continue;
+    L.circleMarker([v.lat, v.lon], { radius: 5, color: color("--tinta-suave"), weight: 1.5, dashArray: "2 3", fillOpacity: 0.15 })
+      .addTo(capa).bindTooltip(`Probado para dividir la compra: ${v.bandera} ${v.sucursal}`);
+  }
+  if (!propuesta) return;
+  const a = propuesta.a, b = propuesta.b, nombreA = nombreTienda(a), nombreB = nombreTienda(b);
+  L.circleMarker([b.lat, b.lon], { radius: 9, color: color("--tinta"), fillColor: color("--acento"), weight: 3, fillOpacity: 0.85 })
+    .addTo(capa).bindTooltip(`2.º súper: ${b.bandera}`, { permanent: true, direction: "right", offset: [8, 0] });
+  if (estado.puntosMapa) {
+    estado.puntosMapa.push([b.lat, b.lon]);
+    mapa.fitBounds(estado.puntosMapa, { padding: [30, 30], maxZoom: 16 });
+  }
+  if (!c.rutas) {
+    leyenda.textContent = `Sin recorrido entre los dos súper: de ${nombreA} a ${nombreB} son ${minutosTexto(b.minutos_desde_a, "estimado")} estimados en línea recta.`;
+    return;
+  }
+  leyenda.textContent = "Buscando el recorrido a pie con los dos súper…";
+  c.rutas.then(({ ab, bc }) => {
+    if (estado.mapaResultado !== mapa || estado.capaDos !== capa) return;     // ya se armó otra canasta
+    mapa.attributionControl.addAttribution('Rutas &copy; <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT');
+    const partes = [[ab, nombreA, nombreB], [bc, nombreB, "vos"]].map(([r, desde, hasta]) => {
+      if (!r) return `de ${desde} a ${hasta}, sin ruta (tiempo estimado)`;
+      const linea = L.polyline(r.puntos, { color: color("--ruta"), weight: 4, opacity: 0.7, className: "ruta-animada ruta-dos",
+        lineCap: "round", lineJoin: "round" }).addTo(capa);
+      const trazo = linea.getElement();
+      if (trazo) trazo.setAttribute("pathLength", "1");
+      return `de ${desde} a ${hasta}, ${textoCaminata({ minutos: r.minutos, metros: r.metros ? Math.round(r.metros) : null, fuente_tiempo: "ruta" })}`;
+    });
+    leyenda.textContent = ab || bc ? `Con dos súper (rutas de OpenRouteService): ${partes.join("; ")}.`
+      : `No se pudo trazar el recorrido entre los dos súper: de ${nombreA} a ${nombreB} son ${minutosTexto(b.minutos_desde_a, "estimado")} estimados.`;
+  });
+}
+
 function botonAmpliar(texto = null) {
   const sig = siguienteCaminata();
   if (!CON_RUTAS || sig == null) return "";
@@ -1034,22 +1431,17 @@ function mostrar(d) {
   const motivo = elegida && elegida.faltantes.length
     ? `Es la que más se acerca a todas las metas y, entre las que cubren igual, la más barata.`
     : `Es la más barata entre las que cubren todas las metas${varias ? " de todos" : ""}.`;
+  estado.vistaDos = false;
+  const cifras = cifrasCompra(d, null);
 
   $("#resultado").innerHTML = `
   <div class="encabezado-resultado">
-    <div class="columna-ticket">
-      <div class="impresora"><div class="ranura"></div>${ticketHTML(d)}</div>
-      <button type="button" class="boton-texto con-icono" id="imprimir">${ICONO.imprimir}Imprimir o guardar el ticket</button>
-    </div>
+    <div class="columna-ticket">${columnaTicketHTML(d)}</div>
     <div class="resumen">
       <p class="resumen-etiqueta">Tu compra para ${esc(d.periodo)}</p>
-      <p class="resumen-total"><b data-valor="${t.total}">${pesos(t.total, 0)}</b></p>
-      <p class="resumen-donde">en <b>${esc(s.bandera)} ${esc(s.sucursal)}</b></p>
-      <ul class="datos-compra">
-        <li><span>${pesos(t.costo_diario, 0)}</span>por día${varias ? ` · ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</li>
-        <li><span>${t.items.length}</span>productos</li>
-        <li><span>${metas.reduce((a, m) => a + m.cumple, 0)}/${metas.reduce((a, m) => a + m.total, 0)}</span>metas cubiertas</li>
-      </ul>
+      <p class="resumen-total"><b id="resumen-total" data-valor="${cifras.total}">${pesos(cifras.total, 0)}</b></p>
+      <p class="resumen-donde" id="resumen-donde">${cifras.donde}</p>
+      <ul class="datos-compra" id="datos-compra">${cifras.datos}</ul>
       <p class="sr-only">${cubre}</p>
       ${avisoMetasHTML(d)}
       ${agua}
@@ -1064,6 +1456,7 @@ function mostrar(d) {
         : masBarataOtra ? ` La siguiente opción cuesta ${pesos(masBarataOtra.costo, 0)}.` : ""}</p>
       ${comparacionHTML(d)}
       ${escaleraHTML(d)}
+      <div class="dos" id="dos">${dosInterior(d)}</div>
       ${varias ? `<div class="comensales">${d.personas.map((p, i) => `<span style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</span>`).join("")}</div>` : ""}
       <div class="avisos">${avisoTiempos(d)}${avisos.map((a) => `<p class="aviso">${esc(a)}</p>`).join("")}</div>
     </div>
@@ -1075,6 +1468,7 @@ function mostrar(d) {
       : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}</p>
     <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
     <p class="ayuda" id="mapa-leyenda"></p>
+    <p class="ayuda" id="mapa-leyenda-dos"></p>
     <div class="tabla-envoltorio"><table class="tabla-sucursales">
       <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
       <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
@@ -1123,14 +1517,12 @@ function mostrar(d) {
     $$(".pestanas button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
     $("#por-persona").innerHTML = bloquePersona(d, estado.vista);
   }));
-  $("#imprimir").addEventListener("click", () => window.print());
   enlazarAmpliar();
   // El ticket sale de la impresora renglón por renglón; el total cuenta hasta su valor.
-  const tk = $(".columna-ticket .ticket");
-  [...tk.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 60)));
-  tk.classList.add("imprimiendo");
-  contar($(".resumen-total b"));
+  animarTicket();
+  contar($("#resumen-total"));
   dibujarMapa(d);
+  dibujarDosEnMapa(d);
   const suave = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#resultado").scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
 }
@@ -1139,12 +1531,15 @@ const color = (variable) => getComputedStyle(document.documentElement).getProper
 
 function dibujarMapa(d) {
   if (estado.mapaResultado) { estado.mapaResultado.remove(); estado.mapaResultado = null; }
+  estado.capaDos = null;
+  estado.puntosMapa = null;
   if (typeof L === "undefined") { $("#mapa").hidden = true; return; }
   const mapa = L.map("mapa", { scrollWheelZoom: false });
   estado.mapaResultado = mapa;
   capaBase().addTo(mapa);
   const origen = [d.ubicacion.lat, d.ubicacion.lon];
   const puntos = [origen];
+  estado.puntosMapa = puntos;      // la compra en dos súper suma el segundo (y el recorrido encuadra todo)
   const comparadas = new Set(d.sucursales.map((x) => x.id));
   // Las que se consultaron pero quedan fuera del límite: atenuadas, para ver qué hay un poco más lejos.
   const r = estado.ultimaRuta;
@@ -1165,7 +1560,9 @@ function dibujarMapa(d) {
   }
   L.circleMarker(origen, { radius: 8, color: color("--foco"), fillOpacity: 0.9 }).addTo(mapa).bindTooltip("Vos");
   mapa.fitBounds(puntos, { padding: [30, 30], maxZoom: 16 });
-  if (window.ResizeObserver) new ResizeObserver(() => mapa.invalidateSize()).observe($("#mapa"));
+  // Solo mientras sea el mapa vigente: al cambiar de resultado, el contenedor viejo se achica a cero después de que el
+  // mapa ya se quitó, e invalidateSize sobre un mapa quitado rompe Leaflet.
+  if (window.ResizeObserver) new ResizeObserver(() => { if (estado.mapaResultado === mapa) mapa.invalidateSize(); }).observe($("#mapa"));
 
   // Recorrido a pie hasta la elegida, solo con rutas reales (nunca se dibuja una ruta inventada).
   const s = d.ticket.tienda, leyenda = $("#mapa-leyenda");
@@ -1192,7 +1589,7 @@ function dibujarMapa(d) {
 // ============================================================
 
 // Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1&agua=compra arma esa canasta
-// directamente (agua: compra, bebidas o canilla, la predeterminada).
+// directamente (agua: compra, bebidas o canilla, la predeterminada); con &dos=1, también la compra en dos súper.
 function desdeEnlace() {
   const q = PARAMETROS;
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
@@ -1271,7 +1668,16 @@ async function iniciar() {
   cargarEditor();
   dibujarPersonas();
   $("#formulario").addEventListener("submit", armar);
-  if (automatico) armar();
+  // Los botones del resultado que no se rehacen con cada vista: imprimir, la compra en dos súper y el selector del ticket.
+  $("#resultado").addEventListener("click", (e) => {
+    const b = e.target.closest("#imprimir, [data-dos], [data-vista]");
+    if (!b || b.disabled) return;
+    if (b.id === "imprimir") window.print();
+    else if (b.hasAttribute("data-dos")) calcularDos();
+    else cambiarVista(b.dataset.vista === "dos", b);
+  });
+  // ?dos=1: después de armar la canasta, calcula también la compra en dos súper (para mostrarla de una).
+  if (automatico) armar().then(() => { if (PARAMETROS.get("dos") === "1") calcularDos(true); });
 }
 
 iniciar();

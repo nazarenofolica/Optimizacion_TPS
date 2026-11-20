@@ -451,6 +451,100 @@ input:focus-visible, select:focus-visible { outline: none; }
   font: 600 0.7rem var(--texto); vertical-align: 2px;
 }
 .peldano.sin .p-costo { color: var(--tinta-suave); font-family: var(--texto); font-weight: 500; }
+.peldano-boton:disabled, .boton-secundario:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ¿Conviene sumar un segundo súper? La pregunta como la escalera; la respuesta, en una tarjeta. */
+.dos > .boton-secundario { margin-top: 10px; }
+.dos > .mensaje { margin-top: 8px; }
+.dos-cargando { display: grid; gap: 8px; margin-top: 12px; color: var(--tinta-suave); }
+.dos-resultado {
+  display: grid; gap: 14px; margin-top: 10px; padding: 16px 18px 14px; border-radius: var(--radio);
+  background: var(--superficie); box-shadow: var(--sombra);
+}
+.dos-resultado > .boton-secundario { justify-self: start; }
+.dos-resultado.no { background: var(--hundido); box-shadow: none; border: 1px solid var(--linea-suave); gap: 8px; }
+@media (prefers-reduced-motion: no-preference) { .dos-resultado { animation: subir 0.45s var(--salida-fuerte) both; } }
+.dos-decision { font-size: 1.22rem; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.dos-decision.no { font-size: 1.05rem; }
+.dos-decision small { font-size: 0.8em; font-weight: 400; }
+.dos-decision mark { background: var(--acento); color: #16171a; padding: 0 4px; font-family: var(--ticket); font-weight: 600; }
+.dos-texto { margin-top: -8px; font-size: 0.93rem; color: var(--tinta-suave); max-width: 62ch; }
+.dos-resultado.no .dos-texto { margin-top: 0; }
+.dos-texto small { font-size: 1em; }
+
+/* Lado a lado: la columna propuesta, con el amarillo suave de "la elegida". */
+.dos-comparar { font-size: 0.9rem; }
+.dos-comparar th, .dos-comparar td { padding: 7px 10px; background: none; border-bottom: 1px solid var(--linea-suave); vertical-align: baseline; }
+.dos-comparar thead th { font-size: 0.82rem; font-weight: 600; color: var(--tinta); text-align: right; white-space: nowrap; }
+.dos-comparar tbody th { font-size: 0.85rem; font-weight: 500; color: var(--tinta-suave); padding-left: 0; }
+.dos-comparar td { text-align: right; font-family: var(--ticket); color: var(--tinta-suave); white-space: nowrap; }
+.dos-comparar td.dc-mejor { color: var(--tinta); font-weight: 600; }
+.dos-comparar tr > :last-child { background: var(--acento-suave); }
+.dos-comparar tbody tr:hover { background: none; }
+.dos-comparar tbody tr:last-child > * { border-bottom: 0; }
+.dos-comparar .marca-elegida { margin-left: 2px; }
+
+.dos-metas { list-style: none; padding: 0; margin: 0; display: grid; font-size: 0.9rem; }
+.dos-metas li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--linea-suave); }
+.dos-metas li:first-child { border-top: 0; }
+.dos-metas small { font-weight: 500; }
+.dm-dato { font: 500 0.84rem var(--ticket); color: var(--tinta-suave); white-space: nowrap; }
+.dm-dato i { font-style: normal; }
+.dm-dato b { color: var(--tinta); font-weight: 600; }
+
+.n-super {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; flex: none;
+  background: var(--tinta); color: var(--superficie); font: 600 0.78rem/1 var(--ticket);
+}
+.dos-paradas { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.dos-paradas li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; font-size: 0.93rem; }
+.dos-paradas b { font-weight: 600; }
+.dp-que { display: block; margin-top: 2px; color: var(--tinta-suave); font-size: 0.88rem; }
+.dp-plata { font-family: var(--ticket); font-weight: 600; color: var(--tinta); white-space: nowrap; }
+
+/* El recorrido, con renglones de ticket: líneas punteadas y los minutos en mono. */
+.dr-titulo { font-weight: 600; font-size: 0.92rem; margin-bottom: 4px; }
+.dos-recorrido ol { list-style: none; padding: 0; margin: 0; display: grid; }
+.dos-recorrido li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  padding: 7px 0; border-top: 1px dashed var(--linea); font-size: 0.92rem;
+}
+.dr-tramo { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dr-tramo .n-super { width: 20px; height: 20px; font-size: 0.72rem; }
+.dr-tramo i { font-style: normal; color: var(--tinta-suave); }
+.dr-min { font: 600 0.9rem var(--ticket); white-space: nowrap; text-align: right; }
+.dr-min small { font: 400 0.78rem var(--texto); }
+.dr-calle { grid-column: 1 / -1; margin-top: 2px; }
+.dr-calle:empty { display: none; }
+.dos-recorrido .dr-total { border-top: 1.5px solid var(--tinta); font-weight: 600; }
+
+.dos-vecinas ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; }
+.dos-vecinas li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid var(--linea-suave); font-size: 0.88rem; }
+.dos-vecinas li small { display: block; }
+.dv-costo { font: 500 0.84rem var(--ticket); white-space: nowrap; text-align: right; }
+.dos-vecinas .ayuda { font-size: 0.84rem; max-width: 62ch; }
+
+/* Un súper o dos: el selector arriba del ticket. */
+.vista-ticket {
+  display: inline-flex; gap: 3px; padding: 3px; margin-bottom: 10px; border-radius: 9px;
+  border: 1px solid var(--linea); background: var(--superficie);
+}
+.vista-ticket button {
+  font: inherit; font-size: 0.88rem; font-weight: 500; min-height: 36px; padding: 6px 14px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--tinta-suave); cursor: pointer; transition: background 0.18s var(--salida), color 0.18s;
+}
+.vista-ticket button:hover { color: var(--tinta); }
+.vista-ticket button[aria-pressed=true] { background: var(--tinta); color: var(--superficie); font-weight: 600; }
+.vista-ticket button:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 520px) {
+  .dos-resultado { padding: 14px 14px 12px; }
+  .dos-decision { font-size: 1.12rem; }
+  .dos-comparar th, .dos-comparar td { padding: 6px 6px; }
+  .dos-comparar tbody th { font-size: 0.8rem; }
+  .dos-comparar .marca-elegida { display: block; width: max-content; margin: 2px 0 0 auto; }
+  .dos-vecinas li { flex-direction: column; gap: 2px; }
+  .dv-costo { text-align: left; }
+}
 
 .comparacion { padding: 12px 14px; border-radius: 8px; background: var(--acento-suave); font-size: 0.95rem; }
 .comparacion b { font-family: var(--ticket); font-weight: 600; }
@@ -545,6 +639,14 @@ input:focus-visible, select:focus-visible { outline: none; }
 .ticket .t-promo { color: #7a4f00; font-size: 12px; padding-left: 10px; }
 .ticket .t-destacado { font-weight: 600; }
 .ticket .t-gracias { margin-top: 8px; letter-spacing: 0.04em; }
+.ticket .t-paso { font-size: 11px; letter-spacing: 0.08em; color: #5a5a5a; margin-bottom: 2px; }
+.ticket .t-subtotal { font-weight: 600; }
+.ticket .t-nota { font-size: 11.5px; color: #5f5f5f; margin-top: 4px; }
+.ticket hr.t-doble { border-top: 3px double #8a8a8a; }
+/* Entre las dos sucursales, la línea de corte de punta a punta del papel. */
+.ticket .t-corte { display: flex; align-items: center; gap: 8px; margin: 18px -18px 16px; color: #8a8a8a; }
+.ticket .t-corte::before, .ticket .t-corte::after { content: ""; flex: 1; border-top: 1px dashed #8a8a8a; }
+.ticket .t-corte span { font-size: 15px; line-height: 1; transform: rotate(180deg); }
 .ticket-vacio { color: #8f8f8f; }
 .ticket-vacio .t-linea span:last-child { color: var(--verde); font-weight: 600; }
 
@@ -609,7 +711,7 @@ tr.elegida td { background: var(--acento-suave); font-weight: 600; }
 
 #mapa { height: 400px; border-radius: var(--radio); margin-top: 16px; isolation: isolate; box-shadow: var(--sombra); }
 #mapa-leyenda { display: flex; align-items: center; gap: 8px; }
-#mapa-leyenda:empty { display: none; }
+#mapa-leyenda:empty, #mapa-leyenda-dos:empty { display: none; }
 .ruta-animada { stroke-dasharray: 1; stroke-dashoffset: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .ruta-animada { animation: trazar 1.6s var(--salida) 0.2s both; }
@@ -771,7 +873,7 @@ details > :not(summary) { margin-top: 8px; }
 /* Imprimir: solo el ticket, como sale de la caja. */
 @media print {
   body { background: #fff; }
-  .cabecera, .panel, .pie, .resumen, .bloque, #imprimir, .ranura, .cargando .progreso { display: none !important; }
+  .cabecera, .panel, .pie, .resumen, .bloque, #imprimir, .ranura, .cargando .progreso, .vista-ticket { display: none !important; }
   .mostrador { display: block; padding: 0; margin: 0; }
   .resultado { padding: 0; }
   .encabezado-resultado { display: block; }
