@@ -67,11 +67,21 @@ Lo que pidieron el docente y un compañero después de la presentación del POC.
 - [x] 114 tests de Python y paridad (2/2) con 8 casos, incluidos el agua y el caso que no llega.
 - [x] Presentación: casos nuevos en la demo, etiquetas de agua y peso, límites y etapas que siguen.
 
-## Etapa 2 · Compra en varias sucursales
+## Etapa 2 (20/11/2026) · Compra en dos supermercados
 
-- [ ] MILP con una binaria "visito la sucursal s" y un costo por visita; máximo de dos visitas para empezar.
-- [ ] Comparación contra la mejor sucursal sola ("partiendo la compra ahorrás $X").
-- [ ] Ticket por sucursal y recorrido a pie entre las dos; paridad Python / navegador.
+Lo que pidió el docente: si dos súper quedan cerca, comprar parte en cada uno.
+
+- [x] Formulación con binarias de visita (`y_A = 1`, `Σ y_s ≤ 2`, `x_p ≤ x_max_p · y_s(p)`), resuelta enumerando
+      los pares (A, B): equivalente, y el MILP con binarias no fue más rápido y dio compras más caras. Se sacan de B
+      los productos que A vende igual o más barato.
+- [x] Vecinas a ≤ 10 min caminando de la sucursal elegida, hasta 4, primero de otras cadenas.
+- [x] Decisión lexicográfica sin precio al minuto: conviene si cubre mejor las metas o, con las mismas, si ahorra
+      ≥ 3 % y ≥ $1.000; "ahorrás $X (Y %) caminando Z min más (estimado)".
+- [x] A pedido: botón "¿Conviene sumar un segundo súper?", `&dos=1` en el enlace y `--dos-super` en la consola.
+- [x] Página: decisión, tabla un súper vs dos súper, qué se compra en cada uno, recorrido casa → A → B → casa (A → B
+      estimado; ruta de ORS solo para dibujar), ticket dividido por sucursal con subtotales y mapa con el 2.º súper.
+- [x] 127 tests de Python y paridad (3/3), también para dos súper (Microcentro, Córdoba a 15 y a 30 min).
+- [x] Presentación: caso "Dos súper" en la demo, la formulación en la diapositiva del motor, etapa 2 en "Hecho".
 
 ## Etapa 3 · ETL diario y CI
 

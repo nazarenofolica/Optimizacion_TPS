@@ -48,6 +48,7 @@ copy .env.example .env               # ORS_API_KEY=... (gratis en openrouteservi
 python -m canasta                    # exporta ../datos/sepa/canasta_local.html con la clave y la sirve en localhost
 python -m canasta --exportar         # ../datos/sepa/canasta.html, la versionada (nunca lleva la clave)
 python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15   # en la consola
+python -m canasta --perfil oficinista --lat -34.60386 --lon -58.38419 --caminata 15 --dos-super   # y si conviene un 2.º súper
 CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                         # paridad Python / navegador
 ```
 
@@ -65,6 +66,11 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   de agua total de NASEM 2004), `compra` (agua y soda envasadas entran a la oferta hasta cubrir esa misma meta,
   contando el agua de los alimentos, columna `agua_g`) y `bebidas` (2 litros de agua o soda comprada por día para un
   adulto, los 8 vasos de las Guías Alimentarias; sin contar los alimentos). El agua no tiene el tope de dos porciones.
+- **Dos supermercados** (`--dos-super`, `&dos=1` en el enlace de la página o el botón "¿Conviene sumar un segundo
+  súper?", `DOS_SUPER_*` en `canasta/config.py`): después del resultado, a la sucursal elegida se le prueba sumar una
+  vecina a ≤ 10 min caminando, enumerando los pares con el modelo de siempre (`resultado.dos_super`). Conviene si cubre
+  mejor las metas o, con las mismas, si ahorra al menos 3 % y $1.000; se informan el ahorro y los minutos de más
+  (tramo entre las dos, estimado) y el ticket sale dividido por sucursal.
 
 ## Estructura
 

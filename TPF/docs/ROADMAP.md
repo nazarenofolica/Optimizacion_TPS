@@ -38,6 +38,52 @@ Estado al 20/11/2026. Las herramientas citadas están evaluadas, con enlaces y e
 - Tests: 114 en Python y 2 de paridad entre el navegador y Python, con 8 casos (incluidos el agua y el caso que no
   llega a las 37).
 
+### Etapa 2 del MVP (20/11/2026): compra en dos supermercados
+
+El pedido del docente: si dos súper quedan cerca, quizás conviene comprar parte en cada uno (las naranjas más baratas
+en B aunque la compra general convenga en A). Se calcula a pedido, después del resultado de siempre, que no cambia:
+botón "¿Conviene sumar un segundo súper?" en la página, `&dos=1` en el enlace y `--dos-super` en la consola
+(`resultado.dos_super` en Python, `MotorCanasta.dosSuper` en `motor.js`, también por el Worker).
+
+- **Candidatas.** Se parte de la sucursal ganadora A y se le prueba sumar una vecina B: las que quedan a lo sumo
+  `DOS_SUPER_MINUTOS_ENTRE` (10 min) caminando de A (estimado por distancia) y dentro del límite de caminata; hasta
+  `DOS_SUPER_VECINAS` (4), primero la más cercana de cada otra cadena.
+- **Formulación.** El modelo de siempre con binarias de visita, sobre la unión de las ofertas de A y de sus vecinas
+  (cada fila es un producto p en una sucursal s(p); el mismo producto en dos sucursales son dos filas):
+  - `y_s ∈ {0, 1}` "visito la sucursal s", con `y_A = 1` y `Σ_s y_s ≤ 2` (`DOS_SUPER_MAXIMO`).
+  - Etapa 1 (MILP): minimizar el déficit ponderado `Σ peso_k · d_ik` con las restricciones de siempre y
+    `c_ip ≤ tope_ip · y_s(p)` (no se come de donde no se compra; `tope_ip`, el de variedad de la subcategoría).
+  - Etapa 2 (MILP): minimizar `Σ precio_p · x_p` con el déficit fijo (`d_ik ≤ d*_ik + holgura`), las de siempre y
+    `x_p ≤ x_max_p · y_s(p)` (no se compra en una sucursal que no se visita).
+- **Se resuelve por pares.** Como `y_A = 1` y se visitan a lo sumo dos, las soluciones son "A sola" o "A y una B_j";
+  fijadas las y, cada par (A, B_j) es el modelo de siempre sobre la unión de las dos ofertas, sin binarias, y el óptimo
+  con binarias es el mejor par en el mismo orden lexicográfico. Así se resuelve: es equivalente, cada par es un modelo
+  que ya se sabe resolver (también con HiGHS en WebAssembly, sin otra formulación en `motor.js`) y es más robusto. El
+  MILP con binarias, probado, no fue más rápido y dio compras más caras. Medido con el oficinista en el Microcentro
+  (A y 4 vecinas): A sola, 0,9 s; un par, 1 a 3,5 s; los 4 pares, 4 a 10 s en paralelo; el MILP con las 5 binarias,
+  4,6 a 5 s y $495 más caro que el mejor par, porque la etapa 2 se arma sobre las subcategorías que usa su relajación
+  y con las y fraccionarias esa relajación elige peor. **Dominancia exacta:** en la unión se sacan los
+  productos de B que A vende igual o más barato (mismos nutrientes y gramos: nunca son mejores); el óptimo no cambia
+  y, entre dos sucursales de una misma cadena, el modelo era 5 veces más lento con esas filas repetidas.
+- **Regla de decisión, lexicográfica y sin inventar el valor del minuto.** Conviene si el par cubre mejor las metas
+  (aunque cueste más: nunca se cambia nutrición por plata) o, con las mismas metas, si ahorra al menos el 3 % del
+  costo de A y al menos $1.000 (`DOS_SUPER_AHORRO_MINIMO_PCT` y `_PESOS`; el 3 % queda bien por encima del 1 % de
+  brecha del solver, que es ruido y no un precio mejor). Si no, "no conviene" (con lo que se ahorraría). Se muestra
+  "ahorrás $X (Y %) caminando Z min más (estimado)" y la persona decide.
+- **Recorrido.** Circuito casa → A → B → casa: los tramos desde y hacia casa salen de la matriz de rutas; el tramo
+  A → B es estimado por distancia y se dice estimado. Con clave de OpenRouteService se pide la ruta real A → B → casa
+  solo para dibujarla y decir cuánto es por la calle; las cuentas usan el estimado.
+- **Página.** La decisión, una tabla "Un súper" vs "Dos súper" (costo, metas, caminata), qué se compra en cada uno,
+  el recorrido con los tramos estimados marcados, el ticket dividido por sucursal con subtotales (selector "Un súper"
+  / "Dos súper", también al imprimir) y el mapa con el segundo súper.
+- **Resultados** (una semana). Oficinista en el Microcentro, 15 min: Coto Mitre $23.406 → con DIA 439
+  Monserrat, $21.947: ahorra ~$1.460 (6,2 %) con ~5 min más de caminata (entre $1.460 y $1.549 según la corrida, por
+  la brecha del 1 % del solver). Celíaca en el Microcentro, ~11 %; hogar de tres en Caballito, ~7 %. El caso
+  `restricciones_extremas` en Córdoba a 15 min: no conviene (las vecinas son de la misma cadena y tampoco venden
+  lácteos aptos); a 30 min, conviene porque cubre más metas.
+- Tests: 127 en Python y 3 opcionales de paridad entre el navegador y Python, ahora también para dos súper
+  (Microcentro, conviene por ahorro; Córdoba a 15 min, no conviene; Córdoba a 30 min, conviene por metas).
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -69,28 +115,16 @@ mostrar el intercambio sin inventar cuánto vale un minuto para cada persona. Se
 de una vez (una matriz con el radio de 60 min y un modelo por sucursal, cacheado) y mostrarlo como una lista
 escalonada: "15 min: $23.406 · 30 min: $21.900 (−6 %)".
 
-**Comprar en varias sucursales.** Hoy la compra es en una sola. La extensión es un MILP con variables binarias de
-"visito la sucursal s" y un costo fijo por visita; con dos sucursales se resuelve rápido. Es la etapa 2 (abajo).
+**Comprar en varias sucursales.** Hecho para dos (etapa 2, arriba): binarias de visita `y_s` con `y_A = 1` y
+`Σ y_s ≤ 2`, que se resuelven enumerando los pares (A, B), cada uno con el modelo de siempre sobre la unión de las
+ofertas. No se le pone un costo en pesos a la visita: con el mismo esquema lexicográfico, primero las metas y después
+el costo, se propone el segundo súper si cubre mejor las metas o si ahorra al menos 3 % y $1.000, y se muestra el
+ahorro junto a los minutos de más para que la persona decida. Con más de dos visitas los pares dejan de alcanzar:
+haría falta el MILP con binarias (o enumerar tríos acotados) y, para el orden de las visitas, un problema de ruteo.
 
-## El camino al MVP: etapas 2 a 6
+## El camino al MVP: etapas 3 a 6
 
 Cada etapa se planifica y se cierra por separado, con sus tests y la paridad entre los dos motores.
-
-### Etapa 2 · Compra en varias sucursales (híbrido)
-
-Si dos supermercados quedan cerca, puede convenir llevar casi todo de uno y algo puntual del otro (las naranjas más
-baratas en B aunque la compra general convenga en A).
-
-- MILP sobre las sucursales alcanzables: `x[p,s]` envases del producto `p` en la sucursal `s` y una binaria `y[s]`
-  de "visito la sucursal s", con `x[p,s] ≤ M · y[s]`.
-- Un costo por visita (en pesos, o minutos convertidos con un valor que se muestra) para que no aparezcan compras
-  partidas por ahorros mínimos, y un máximo de visitas (dos, para empezar).
-- Se mantiene el esquema lexicográfico: primero cumplir, después lo más barato (ahora con las visitas). Se compara
-  contra la mejor sucursal sola y se muestra la diferencia ("partiendo la compra ahorrás $X").
-- Ticket por sucursal y recorrido a pie entre las dos (el tiempo entre sucursales sale de la misma matriz de rutas).
-  Si se quiere el recorrido óptimo entre varias, es un problema de ruteo (OR-Tools).
-- Tamaño: con 10 sucursales y ~200 alimentos son unas 2.000 variables enteras más 10 binarias; hay que medir el
-  tiempo en el navegador antes de permitir más de dos visitas.
 
 ### Etapa 3 · ETL diario y CI
 
@@ -169,6 +203,8 @@ el formulario actual cubre lo que el motor sabe hacer.
 ## Otros pendientes (sin etapa asignada)
 
 - **Frente costo vs. minutos** y objetivos secundarios con tolerancia de costo (ver "Lógica de negocio").
+- **Más de dos sucursales:** el MILP con binarias de visita (o tríos acotados) y el orden del recorrido como problema
+  de ruteo (OR-Tools); antes, medir el tiempo en el navegador.
 - **Rutas para público:** autoalojar OpenRouteService u OSRM con el extracto de Argentina de Geofabrik (un VPS de
   4 a 8 GB alcanza para el perfil peatonal), o pasar a Mapbox/Google detrás del backend. Teselas de un proveedor con
   cuota (las de OpenStreetMap no son para tráfico alto).

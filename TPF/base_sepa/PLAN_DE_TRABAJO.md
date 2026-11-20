@@ -39,9 +39,18 @@ kcal/día), distinto de "Ganar masa muscular"; el agua como restricción con tre
 predeterminada e informativa, que no cambia los resultados de antes; `compra`, agua total de NASEM 2004 contando la de
 los alimentos; `bebidas`, los 8 vasos de las Guías), y un caso precargado que no llega a las 37 metas
 (`restricciones_extremas`: celíaca con cinco alergias, solo listos, Córdoba, 15 min; la mejor sucursal cubre 35) que
-la página explica meta por meta. Tests: 114 en Python más dos de paridad con el navegador, ahora con 8 casos. Las
-etapas 2 a 6 (compra en varias sucursales, ETL diario y CI, restricciones nuevas, promociones con condiciones, Groq)
-están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+la página explica meta por meta. Tests: 114 en Python más dos de paridad con el navegador, ahora con 8 casos.
+
+**Etapa 2 del MVP (2026-11-20)**, compra en dos supermercados, pedida por el docente: a pedido (botón "¿Conviene
+sumar un segundo súper?", `&dos=1`, `--dos-super`), a la sucursal elegida A se le prueba sumar una vecina B a ≤ 10 min
+caminando (hasta 4, primero de otras cadenas). La formulación lleva binarias de visita (`y_A = 1`, `Σ y_s ≤ 2`,
+`x_p ≤ x_max_p · y_s(p)`); como es equivalente, se resuelve enumerando los pares (A, B) con el modelo de siempre sobre
+la unión de las ofertas, sin los productos de B que A vende igual o más barato (el MILP con binarias no fue más rápido
+y dio compras más caras). Conviene si cubre mejor las metas o, con las mismas, si ahorra ≥ 3 % y ≥ $1.000; se informa
+el ahorro y los minutos de más (tramo A → B estimado) y la persona decide. La página muestra la decisión, la
+comparación, el recorrido, el ticket dividido por sucursal y el mapa. El oficinista en el Microcentro ahorra ~6 % con
+~5 min más. Tests: 127 en Python más 3 de paridad con el navegador, también para dos súper. Las etapas 3 a 6 (ETL
+diario y CI, restricciones nuevas, promociones con condiciones, Groq) están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
 
 ## Para revisar
 
