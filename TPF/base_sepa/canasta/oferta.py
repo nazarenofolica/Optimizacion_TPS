@@ -282,6 +282,34 @@ def sucursales_cercanas(d: Datos, lat: float, lon: float, n: int = cfg.SUCURSALE
     return _una_por_cadena_primero(cerca, n).sort_values("distancia_km", kind="stable")
 
 
+def sucursales_por_id(d: Datos, lat: float, lon: float, ids: list[str]) -> pd.DataFrame:
+    """Esas sucursales (las evaluables entre ellas), con su distancia desde el lugar, de la más cercana a la más
+    lejana."""
+    t = _evaluables(d, lat, lon)
+    return t[t.index.isin(list(ids))]
+
+
+def vecinas_de(t: pd.DataFrame, id_a: str, minutos_max: float) -> pd.DataFrame:
+    """Las sucursales de t (sin A) a las que se llega caminando desde A en a lo sumo minutos_max, estimado con la
+    distancia en línea recta (minutos_estimados), con km_desde_a y minutos_desde_a. De la más cercana a A a la más
+    lejana; a igual distancia, por id_tienda."""
+    a = t.loc[id_a]
+    v = t.drop(index=id_a).copy()
+    v["km_desde_a"] = distancia_km(float(a["lat"]), float(a["lon"]), v["lat"].to_numpy(float), v["lon"].to_numpy(float))
+    v["minutos_desde_a"] = minutos_estimados(v["km_desde_a"].to_numpy())
+    v = v[v["minutos_desde_a"] <= minutos_max]
+    return v.sort_index(kind="stable").sort_values("minutos_desde_a", kind="stable")
+
+
+def elegir_vecinas(v: pd.DataFrame, bandera_a: str, n: int) -> pd.DataFrame:
+    """A lo sumo n de las vecinas v (ordenadas por cercanía a A): la más cercana de cada otra cadena primero, después la
+    más cercana de la cadena de A (con otros precios: las de mismos precios ya se sacaron) y, si faltan, las que
+    siguen. Se devuelven de la más cercana a A a la más lejana."""
+    misma = (v["bandera"] == bandera_a).to_numpy()
+    elegidas = _una_por_cadena_primero(pd.concat([v[~misma], v[misma]]), n)
+    return v[v.index.isin(elegidas.index)]
+
+
 def _podar(o: pd.DataFrame) -> np.ndarray:
     """En cada subcategoría, los más baratos cada 100 g comestibles y el envase más barato (posiciones en o)."""
     pos = np.arange(len(o))

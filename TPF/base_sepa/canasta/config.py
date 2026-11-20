@@ -284,6 +284,21 @@ CANDIDATAS_MAXIMAS_RUTEO = 50
 # Cuántas de las alcanzables se optimizan: la más cercana de cada cadena (y, si faltan, las que siguen). Es más que
 # SUCURSALES_A_EVALUAR para que ampliar el tiempo sume cadenas nuevas en lugar de dejar todo igual.
 SUCURSALES_A_EVALUAR_CAMINATA = 10
+# Compra en dos supermercados (resultado.dos_super, a pedido después del resultado): a la sucursal elegida A se le
+# puede sumar una vecina B para comprar ahí lo que convenga. No se le pone precio al minuto: se informa el ahorro y los
+# minutos de más, y la persona decide. Vecinas: las que quedan a lo sumo DOS_SUPER_MINUTOS_ENTRE de A caminando
+# (estimado: línea recta × FACTOR_DESVIO_CAMINATA a VELOCIDAD_CAMINATA_KMH) y dentro del límite de caminata (o entre
+# las evaluadas, si no se buscó por tiempo); se prueban hasta DOS_SUPER_VECINAS, la más cercana a A de cada otra cadena
+# primero. Se propone si la combinación cubre mejor las metas (aunque cueste más: nunca se cambia nutrición por plata)
+# o, si las cubre igual, si ahorra al menos el DOS_SUPER_AHORRO_MINIMO_PCT % del costo de A y al menos
+# DOS_SUPER_AHORRO_MINIMO_PESOS: en la canasta de una semana (~$23.000) el 3 % son ~$700, poco para caminar 10 minutos
+# más y hacer dos colas; en la de un mes o de un hogar grande, el 3 % ya es plata. El 3 % también tiene que quedar
+# bien por encima de GAP_RELATIVO (1 %): un "ahorro" del tamaño del gap del solver es ruido, no un precio mejor.
+DOS_SUPER_MAXIMO = 2                     # sucursales por compra (la enumeración de pares supone 2)
+DOS_SUPER_MINUTOS_ENTRE = 10
+DOS_SUPER_VECINAS = 4
+DOS_SUPER_AHORRO_MINIMO_PCT = 3.0
+DOS_SUPER_AHORRO_MINIMO_PESOS = 1000.0
 RUTEO_SERVIDOR = "https://api.openrouteservice.org"
 RUTEO_PERFIL = "foot-walking"
 RUTEO_TIEMPO_ESPERA_S = 12

@@ -439,6 +439,187 @@ class TestNingunaSucursalLograTodo(unittest.TestCase):
         self.assertTrue(lacteos["no_lo_vende"])
 
 
+def _sucursal(precios: dict[str, float]) -> tuple[pd.DataFrame, list[np.ndarray]]:
+    """La oferta de _oferta_modelo con otros precios (los mismos productos, en otra sucursal)."""
+    o = _oferta_modelo()
+    for p, precio in precios.items():
+        o.loc[p, "precio_compra"] = precio
+    return o, [np.ones(len(o), dtype=bool)]
+
+
+class TestDosSuper(unittest.TestCase):
+    """Compra en dos supermercados, sin datos: A es la sucursal de _oferta_modelo (fideos $100, lentejas $400, arroz
+    $250) y las vecinas venden lo mismo a otros precios."""
+
+    def setUp(self):
+        from canasta import resultado
+        self.r = resultado
+        self.a = _sucursal({})
+
+    def comprado(self, s: modelo.Solucion, tienda: str) -> set[str]:
+        de = s.oferta["id_tienda"].to_numpy()
+        return set(s.oferta.index[(s.compra > 0) & (de == tienda)])
+
+    def test_compra_en_b_lo_que_es_mas_barato_ahi_y_el_resto_en_a(self):
+        b = _sucursal({"l": 150.0, "f": 160.0, "a": 300.0})          # en B solo las lentejas son más baratas
+        s = self.r._par([_req(60)], self.a, b, "A", "B", 7)
+        solo = modelo.resolver([(_req(60), TODOS)], self.a[0], 7)
+        self.assertEqual(s.estado, "optima")
+        self.assertEqual(self.comprado(s, "B"), {"l"})
+        self.assertNotIn("l", self.comprado(s, "A"))
+        self.assertTrue(self.comprado(s, "A"))                        # los fideos (o el arroz) siguen en A
+        self.assertTrue(self.r._compra_en(s, "B"))
+        self.assertLess(s.costo, solo.costo)
+        self.assertTrue(np.all(s.dietas[0].deficit[1:] <= 0.005))   # cubre lo mismo
+
+    def test_la_union_saca_lo_que_a_vende_igual_o_mas_barato(self):
+        b = _sucursal({"l": 150.0, "f": 100.0, "a": 900.0})
+        b[0].loc["q"] = b[0].loc["a"]                                 # un producto que A no vende
+        b = (b[0], [np.ones(4, dtype=bool)])
+        o, aptos = self.r._union(self.a, b, "A", "B")
+        self.assertEqual(o[o["id_tienda"] == "B"].index.tolist(), ["l", "q"])
+        self.assertEqual(o[o["id_tienda"] == "A"].index.tolist(), ["f", "l", "a"])
+        self.assertEqual(len(aptos[0]), len(o))
+
+    def test_si_b_no_aporta_es_a_sola(self):
+        b = _sucursal({"l": 400.0, "f": 120.0, "a": 250.0})           # nada más barato que en A
+        s = self.r._par([_req(60)], self.a, b, "A", "B", 7)
+        solo = modelo.resolver([(_req(60), TODOS)], self.a[0], 7)
+        self.assertFalse(self.r._compra_en(s, "B"))
+        self.assertAlmostEqual(s.costo, solo.costo)
+        vecina = {"id": "B", "costo": round(s.costo, 2), "puntaje": 0.0, "compra_en_b": False}
+        self.assertEqual(self.r._decidir(round(solo.costo, 2), 0.0, [vecina]), ("no_conviene", None, None))
+
+    def test_a_lo_sumo_dos_sucursales(self):
+        # B tiene las lentejas más baratas y C los fideos: comprar en las tres no es una opción (cada par es A y una).
+        b = _sucursal({"l": 150.0})
+        c = _sucursal({"f": 50.0, "l": 300.0})
+        pares = {i: self.r._par([_req(60)], self.a, o, "A", i, 7) for i, o in (("B", b), ("C", c))}
+        vecinas = [{"id": i, "costo": round(s.costo, 2), "puntaje": 0.0, "compra_en_b": self.r._compra_en(s, i)}
+                   for i, s in pares.items()]
+        _, _, mejor = self.r._decidir(10_000.0, 0.0, vecinas)
+        s = pares[mejor["id"]]
+        tiendas = set(s.oferta["id_tienda"].to_numpy()[s.compra > 0])
+        self.assertLessEqual(len(tiendas), cfg.DOS_SUPER_MAXIMO)
+        self.assertEqual(mejor["costo"], min(v["costo"] for v in vecinas))
+
+    def test_una_sucursal_no_cambia(self):
+        # La columna de la sucursal y una vecina que no aporta nada no cambian la compra de A.
+        solo = modelo.resolver([(_req(60), TODOS)], self.a[0], 7)
+        con_columna = modelo.resolver([(_req(60), TODOS)], self.a[0].assign(id_tienda="A"), 7)
+        igual = self.r._par([_req(60)], self.a, _sucursal({}), "A", "B", 7)
+        for s in (con_columna, igual):
+            self.assertEqual(s.compra.tolist(), solo.compra.tolist())
+            self.assertEqual(s.costo, solo.costo)
+            self.assertEqual(s.consumo.tolist(), solo.consumo.tolist())
+
+    def test_decidir(self):
+        decidir = self.r._decidir
+        par = lambda costo, puntaje, en_b=True: {"id": "B", "costo": costo, "puntaje": puntaje, "compra_en_b": en_b}
+        self.assertEqual(decidir(100_000.0, 0.0, []), ("sin_vecinas", None, None))
+        self.assertEqual(decidir(100_000.0, 0.0, [par(90_000.0, 0.0, en_b=False)]), ("no_conviene", None, None))
+        # Cubre más metas: conviene aunque cueste más (nunca se cambia nutrición por plata).
+        self.assertEqual(decidir(100_000.0, 0.741, [par(110_000.0, 0.545)])[:2], ("conviene", "metas"))
+        # Cubre menos: no conviene aunque sea más barato.
+        self.assertEqual(decidir(100_000.0, 0.0, [par(50_000.0, 0.2)])[:2], ("no_conviene", None))
+        # Igual de metas (al 1 %): decide el ahorro, que tiene que pasar el porcentaje y los pesos.
+        self.assertEqual(decidir(100_000.0, 0.741, [par(97_000.0, 0.744)])[:2], ("conviene", "ahorro"))
+        self.assertEqual(decidir(100_000.0, 0.0, [par(97_100.0, 0.0)])[:2], ("no_conviene", None))
+        self.assertEqual(decidir(20_000.0, 0.0, [par(19_100.0, 0.0)])[:2], ("no_conviene", None))   # 4,5 %: $900
+        self.assertEqual(self.r.ahorro_minimo(20_000.0), cfg.DOS_SUPER_AHORRO_MINIMO_PESOS)
+        self.assertEqual(self.r.ahorro_minimo(100_000.0), 100_000.0 * cfg.DOS_SUPER_AHORRO_MINIMO_PCT / 100)
+        # El mejor par: menor déficit y, a igual déficit, el más barato.
+        vecinas = [{**par(95_000.0, 0.0), "id": "B"}, {**par(93_000.0, 0.0), "id": "C"},
+                   {**par(80_000.0, 0.0, en_b=False), "id": "D"}]
+        self.assertEqual(decidir(100_000.0, 0.0, vecinas)[2]["id"], "C")
+
+    def test_minutos_del_circuito(self):
+        tienda = lambda minutos, desde_a=None, km=None: pd.Series(
+            {"minutos": minutos, "fuente_tiempo": "ruta", "minutos_desde_a": desde_a, "km_desde_a": km})
+        m = self.r._circuito(tienda(8.0), tienda(6.0, 4.0, 0.25))
+        self.assertEqual((m["solo_a"], m["circuito"], m["extra"], m["fuente"]), (16.0, 18.0, 2.0, "estimado"))
+        self.assertEqual([t["fuente"] for t in m["tramos"]], ["ruta", "estimado", "ruta"])
+        m = self.r._circuito(tienda(10.0), tienda(3.0, 2.0, 0.1))     # B queda de camino: no se camina de más
+        self.assertEqual(m["extra"], 0.0)
+
+    def test_vecinas(self):
+        # A en el origen; una sucursal cada ~100 m hacia el norte (0,0009° de latitud ≈ 100 m).
+        t = pd.DataFrame({"bandera": ["X", "X", "Y", "Y", "Z", "X"], "lat": [0.0, 0.0009, 0.0018, 0.0027, 0.0036, 0.09],
+                          "lon": [0.0] * 6}, index=["a", "x1", "y1", "y2", "z1", "lejos"])
+        v = oferta.vecinas_de(t, "a", cfg.DOS_SUPER_MINUTOS_ENTRE)
+        self.assertEqual(v.index.tolist(), ["x1", "y1", "y2", "z1"])                  # "lejos": ~10 km
+        self.assertTrue((v["minutos_desde_a"] <= cfg.DOS_SUPER_MINUTOS_ENTRE).all())
+        self.assertAlmostEqual(v.loc["x1", "minutos_desde_a"], oferta.minutos_estimados(0.1), delta=0.05)
+        # Primero la más cercana de cada otra cadena, después la de la misma cadena que A.
+        self.assertEqual(oferta.elegir_vecinas(v, "X", 2).index.tolist(), ["y1", "z1"])
+        self.assertEqual(oferta.elegir_vecinas(v, "X", 3).index.tolist(), ["x1", "y1", "z1"])
+
+
+@unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
+class TestDosSuperConDatos(unittest.TestCase):
+    """Con los datos reales y tiempos estimados (sin red): el oficinista en el Microcentro, donde hay varias cadenas a
+    pocas cuadras, y el caso que no llega a las 37 metas en el centro de Córdoba."""
+
+    @classmethod
+    def setUpClass(cls):
+        import copy
+        from canasta import resultado, rutas
+        cls.casos = {}
+        for nombre, perfil, lat, lon, listos in (("caba", "oficinista", -34.60386, -58.38419, False),
+                                                  ("cordoba", "restricciones_extremas", -31.41670, -64.18330, True)):
+            persona = rq.persona_desde(next(p for p in rq.perfiles() if p["id"] == perfil))
+            tiempos, aviso = rutas.tiempos_caminando(lat, lon, 15, clave="")
+            r = resultado.armar([persona], lat, lon, 7, listos=listos, tiempos=tiempos, caminata_minutos=15,
+                                aviso_tiempos=aviso)
+            antes = copy.deepcopy(r)
+            cls.casos[nombre] = (r, antes, resultado.dos_super([persona], r, tiempos))
+
+    def test_cuentas_y_forma(self):
+        import json
+        for nombre, (r, antes, ds) in self.casos.items():
+            with self.subTest(caso=nombre):
+                self.assertEqual(r, antes)                                   # no toca el resultado normal
+                json.dumps(ds)                                               # se puede mandar a la página
+                elegida = next(s for s in r["sucursales"] if s.get("elegida"))
+                self.assertEqual((ds["a"]["id"], ds["costo_a"]), (elegida["id"], elegida["costo"]))
+                self.assertLessEqual(len(ds["vecinas"]), cfg.DOS_SUPER_VECINAS)
+                for v in ds["vecinas"]:
+                    self.assertNotEqual(v["id"], ds["a"]["id"])
+                    self.assertLessEqual(v["minutos_desde_a"], cfg.DOS_SUPER_MINUTOS_ENTRE)
+                if ds["b"] is None:
+                    continue
+                self.assertAlmostEqual(ds["ahorro"], ds["costo_a"] - ds["costo_combinado"], places=2)
+                self.assertGreaterEqual(ds["minutos"]["extra"], 0)
+                self.assertEqual(ds["minutos"]["fuente"], "estimado")
+                t = ds["ticket"]
+                self.assertEqual([b["tienda"]["id"] for b in t["sucursales"]], [ds["a"]["id"], ds["b"]["id"]])
+                self.assertAlmostEqual(sum(b["subtotal"] for b in t["sucursales"]), ds["costo_combinado"], delta=0.05)
+                self.assertAlmostEqual(t["total"], ds["costo_combinado"], delta=0.05)
+                for b in t["sucursales"]:
+                    self.assertTrue(all(it["id_tienda"] == b["tienda"]["id"] for it in b["items"]))
+                    self.assertAlmostEqual(b["subtotal"], sum(it["subtotal"] for it in b["items"]), places=2)
+                self.assertTrue(t["sucursales"][1]["items"])                 # si no compra nada en B, no hay B
+                self.assertEqual(ds["productos_b"],
+                                 list(dict.fromkeys(it["subcategoria"] for it in t["sucursales"][1]["items"])))
+                self.assertGreaterEqual(ds["metas_despues"]["cumple"], ds["metas_antes"]["cumple"])
+
+    def test_microcentro_conviene_por_ahorro(self):
+        _, _, ds = self.casos["caba"]
+        self.assertEqual((ds["estado"], ds["motivo"]), ("conviene", "ahorro"))
+        self.assertGreaterEqual(ds["ahorro"], ds["ahorro_minimo"])
+        self.assertGreaterEqual(ds["ahorro_pct"], cfg.DOS_SUPER_AHORRO_MINIMO_PCT)
+        self.assertNotEqual(ds["b"]["bandera"], ds["a"]["bandera"])
+        self.assertEqual(ds["metas_despues"]["cumple"], ds["metas_despues"]["total"])
+        self.assertIsNone(ds["personas"])                                    # las metas no cambian
+
+    def test_cordoba_con_dos_super_no_llega_a_mas_metas(self):
+        # Las vecinas son de la misma cadena: ninguna vende bebida vegetal apta ni más calcio.
+        _, _, ds = self.casos["cordoba"]
+        self.assertEqual(ds["estado"], "no_conviene")
+        self.assertEqual(ds["metas_antes"]["cumple"], 35)
+        self.assertTrue(all(round(v["puntaje"], 2) >= round(ds["puntaje_a"], 2) for v in ds["vecinas"]))
+
+
 class TestListosParaComer(unittest.TestCase):
     def test_lo_que_hay_que_cocinar_existe_y_no_incluye_lo_listo(self):
         ids = set(pd.read_csv(cfg.DIR_REFERENCIA / "alimentos.csv", sep=";", dtype=str, encoding="utf-8-sig")["id"])

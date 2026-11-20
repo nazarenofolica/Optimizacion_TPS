@@ -10,10 +10,12 @@ precios del modelo estrella de SEPA 2.0 (../datos/sepa/).
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15 --agua compra
     python -m canasta --perfil restricciones_extremas --lat -31.4167 --lon -64.1833 --caminata 15 --listos
+    python -m canasta --perfil oficinista --lat -34.60386 --lon -58.38419 --caminata 15 --dos-super
 
 Con --perfil, la canasta la arma en la consola el motor de Python (la referencia del que corre en la página). Con
 --caminata, solo se evalúan las sucursales a las que se llega caminando en esos minutos (rutas de OpenRouteService:
-ORS_API_KEY en base_sepa/.env).
+ORS_API_KEY en base_sepa/.env). Con --dos-super, después del resultado se ve si conviene sumar un segundo
+supermercado cerca de la elegida (resultado.dos_super).
 """
 
 from __future__ import annotations
@@ -57,8 +59,51 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="Cómo toma agua el hogar: " + "; ".join(f"{k}, {m['nombre'].lower()}"
                                                               for k, m in cfg.AGUA_MODOS.items())
                         + f" (por defecto, {cfg.AGUA_MODO_PREDETERMINADO}).")
+    p.add_argument("--dos-super", action="store_true",
+                   help="Con --perfil: después del resultado, ver si conviene sumar un segundo supermercado cerca de "
+                        "la sucursal elegida.")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
+
+
+def _num(x, d=0):
+    return f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _imprimir_dos_super(ds: dict) -> None:
+    num = _num
+    print(f"\n{'=' * 64}\n¿Conviene comprar en dos supermercados? ({ds['estado'].replace('_', ' ')})\n{'-' * 64}")
+    print(ds["mensaje"])
+    if ds["vecinas"]:
+        print(f"\nVecinas probadas (a menos de {ds['minutos_entre_max']} min caminando de "
+              f"{ds['a']['bandera']} {ds['a']['sucursal']}, estimado):")
+        for v in ds["vecinas"]:
+            costo = f"${num(v['costo'])}" if v["costo"] is not None else v["estado"]
+            marca = "→" if ds["b"] and v["id"] == ds["b"]["id"] else " "
+            nada = "" if v["compra_en_b"] else "  (no compra nada ahí)"
+            print(f" {marca} {v['bandera'] + ' ' + v['sucursal']:<40} ≈{num(v['minutos_desde_a'], 1):>4} min  "
+                  f"A+B {costo}{nada}")
+    if not ds["ticket"]:
+        return
+    m = ds["minutos"]
+    tramos = " + ".join(f"{'≈' if t['fuente'] == 'estimado' else ''}{num(t['minutos'], 1)}" for t in m["tramos"])
+    print(f"\nSolo A: ${num(ds['costo_a'])}  ·  A + B: ${num(ds['costo_combinado'])}  ·  "
+          f"ahorro ${num(ds['ahorro'])} ({num(ds['ahorro_pct'], 1)} %; "
+          f"mínimo para proponerlo ${num(ds['ahorro_minimo'])})")
+    print(f"Caminata: lugar → A → B → lugar = {tramos} = ≈{num(m['circuito'], 1)} min, contra "
+          f"{num(m['solo_a'], 1)} min de ida y vuelta a A: ≈{num(m['extra'], 1)} min más (estimado)")
+    antes, despues = ds["metas_antes"], ds["metas_despues"]
+    print(f"Metas: {antes['cumple']} de {antes['total']} con A sola → "
+          f"{despues['cumple']} de {despues['total']} con A + B")
+    if ds["estado"] != "conviene":
+        return                                  # el ticket dividido, solo si se propone
+    for bloque in ds["ticket"]["sucursales"]:
+        t = bloque["tienda"]
+        print(f"\n{t['bandera']} — {t['sucursal']} ({t['direccion']})")
+        for it in bloque["items"]:
+            print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
+        print(f"{'subtotal':>52} ${num(bloque['subtotal'], 2):>11}")
+    print(f"{'-' * 64}\n{'TOTAL':>52} ${num(ds['ticket']['total'], 2):>11}")
 
 
 def _imprimir(r: dict) -> None:
@@ -170,11 +215,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ubicación: {lugares[0]['nombre']} ({lugares[0]['precision']})")
     hogar = [persona_desde({**por_id[x], "nombre": por_id[x]["nombre"]}) for x in ids]
     print("Hogar: " + "; ".join(f"{por_id[x]['nombre']} ({por_id[x]['descripcion']})" for x in ids))
-    extra = {}
+    extra, tiempos = {}, None
     if args.caminata:
         tiempos, aviso = rutas.tiempos_caminando(lat, lon, args.caminata)
         extra = {"tiempos": tiempos, "caminata_minutos": args.caminata, "aviso_tiempos": aviso}
-    _imprimir(resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, agua=args.agua, **extra))
+    r = resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, agua=args.agua, **extra)
+    _imprimir(r)
+    if args.dos_super and "ticket" in r:
+        _imprimir_dos_super(resultado.dos_super(hogar, r, tiempos))
     return 0
 
 
