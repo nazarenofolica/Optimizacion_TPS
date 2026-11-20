@@ -1,6 +1,6 @@
-# Checklist: POC de la canasta saludable
+# Checklist: de POC a MVP de la canasta saludable
 
-Estado al 14/11/2026. Detalle del camino a producción en [docs/ROADMAP.md](docs/ROADMAP.md); investigación de
+Estado al 20/11/2026. Detalle del camino a producción en [docs/ROADMAP.md](docs/ROADMAP.md); investigación de
 herramientas en [docs/GITHUB_RESEARCH.md](docs/GITHUB_RESEARCH.md).
 
 ## Hecho
@@ -51,18 +51,58 @@ herramientas en [docs/GITHUB_RESEARCH.md](docs/GITHUB_RESEARCH.md).
 - [x] Presentación con la demo en vivo: `informe/presentacion.html` (`python informe/presentar.py`).
 - [x] Commit en la rama `POC`.
 
-## MVP (no empezado)
+## Etapa 1 (20/11/2026)
 
-- [ ] ETL diario automático con GitHub Actions: bajar SEPA, rearmar la base, exportar y publicar la página.
-- [ ] Backend chico (FastAPI) que guarde la clave de rutas y cachee las consultas.
+Lo que pidieron el docente y un compañero después de la presentación del POC.
+
+- [x] Objetivo "Aumentar de peso", distinto de "Ganar masa muscular": +500 kcal/día sobre el gasto, proteína
+      1,2 g/kg y aviso si el IMC es de sobrepeso. Perfil `bajo_peso` (mujer de 22 años, IMC 16,9): 2.310 kcal/día.
+- [x] El agua como restricción, con tres modos: `canilla` (predeterminado, informativo y gratis; los resultados de
+      antes no cambian), `compra` (agua total de NASEM 2004, contando la de los alimentos) y `bebidas` (los 8 vasos
+      de las Guías). Selector en la página, `?agua=` y `--agua`.
+- [x] Caso precargado que no llega a las 37 metas (`restricciones_extremas`, solo listos, Córdoba, 15 min): la mejor
+      sucursal cubre 35; la página avisa cuánto cubre cada meta y qué probar.
+- [x] Arreglos: productos por unidad sin "NaN" en el ticket, contador del total que podía arrancar negativo, dona
+      sin grupos de 0 kcal.
+- [x] 114 tests de Python y paridad (2/2) con 8 casos, incluidos el agua y el caso que no llega.
+- [x] Presentación: casos nuevos en la demo, etiquetas de agua y peso, límites y etapas que siguen.
+
+## Etapa 2 · Compra en varias sucursales
+
+- [ ] MILP con una binaria "visito la sucursal s" y un costo por visita; máximo de dos visitas para empezar.
+- [ ] Comparación contra la mejor sucursal sola ("partiendo la compra ahorrás $X").
+- [ ] Ticket por sucursal y recorrido a pie entre las dos; paridad Python / navegador.
+
+## Etapa 3 · ETL diario y CI
+
+- [ ] GitHub Actions cada mañana: bajar SEPA, rearmar la base, exportar y publicar la página.
+- [ ] Si la verificación falla, no se publica y queda la del día anterior; aviso por mail o issue.
+- [ ] Tests de Python y paridad en cada push; tests de la página con Playwright; motor JavaScript con Node.
+- [ ] Entorno reproducible con `uv`.
+
+## Etapa 4 · Restricciones nuevas
+
+- [ ] Kosher, halal y sin cerdo (y pescetariano, exclusión de ingredientes); recargar la base.
+- [ ] Vitaminas y condiciones médicas con fuente y aviso de supervisión profesional (`referencia/condiciones.csv`).
+
+## Etapa 5 · Promociones con condiciones
+
+- [ ] Fuente de promociones con sus condiciones (catálogos web de las cadenas).
+- [ ] 2×1, 2.ª unidad y porcentaje en el modelo; el ticket muestra precio de lista, descuento y precio efectivo.
+
+## Etapa 6 · LLM con Groq
+
+- [ ] Backend chico (FastAPI) que guarde las claves (Groq y rutas) y cachee las consultas de rutas.
+- [ ] Texto libre (por ejemplo, una prescripción médica) → restricciones y metas que la persona confirma.
+
+## Otros pendientes
+
 - [ ] Rutas para uso público: autoalojar OpenRouteService u OSRM.
 - [ ] Costo con 15, 30, 45 y 60 min de una vez; objetivos secundarios con un tope de costo explícito.
-- [ ] Tests de la página con Playwright y CI en cada push.
 - [ ] Autocompletado de direcciones y lista de compras para compartir.
+- [ ] Deploy y monitoreo.
 
-## Después del MVP
+## Fuera de alcance
 
-- [ ] Promociones aplicadas, con sus condiciones.
-- [ ] Condiciones médicas con fuentes y aviso de supervisión profesional.
-- [ ] Groq para interpretar pedidos en lenguaje natural.
-- [ ] Deploy, monitoreo y compra en más de una sucursal.
+- Historial de precios.
+- Promociones bancarias.

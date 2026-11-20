@@ -18,6 +18,7 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | Introducción: el problema de la dieta original y nuestro planteo | ✅ [`docs/introduccion.md`](docs/introduccion.md) |
 | Fuentes | ✅ [`docs/fuentes.md`](docs/fuentes.md) |
 | **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
+| **MVP, etapa 1** (objetivo "Aumentar de peso", el agua como restricción en tres modos, un caso que no llega a las 37 metas) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 2 a 6 que siguen |
 | Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
 | Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
 | Consigna, resultados e informe | ⏳ Pendiente |

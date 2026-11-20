@@ -137,12 +137,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pregunta { margin: 0 0 8px; font: italic 400 40px/1.15 var(--serif); max-width: 40ch; }
 
 /* ---------- 3 · Objetivo y restricciones ---------- */
-.dos { flex: 1; display: grid; grid-template-columns: 640px 1fr; gap: 72px; margin-top: 40px; }
+.dos { flex: 1; display: grid; grid-template-columns: 640px 1fr; gap: 72px; margin-top: 32px; }
 .formula { font: 400 66px/1.1 var(--serif); }
 .formula .min { font-style: italic; color: var(--amarillo); }
 .formula sub { font: 400 30px var(--serif); }
-.formula small { display: block; font: 400 22px/1.5 var(--mono); color: var(--gris-claro); margin-top: 16px; }
-.etapas2 { margin-top: 44px; display: grid; gap: 14px; }
+.formula small { display: block; font: 400 19px/1.5 var(--mono); color: var(--gris-claro); margin-top: 16px; }
+.etapas2 { margin-top: 30px; display: grid; gap: 14px; }
 .etapa2 { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 18px; padding: 18px 22px; border: 1px solid #333; border-radius: 14px; }
 .etapa2 b { font: 400 58px/1 var(--serif); color: var(--amarillo); }
 .etapa2 p { margin: 0; font-size: 21px; color: var(--gris-claro); }
@@ -155,6 +155,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .etiqueta::before { content: ""; position: absolute; left: 16px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--tinta); }
 .etiqueta small { display: block; font: 400 15px var(--mono); opacity: .6; margin-top: 4px; }
 .etiqueta.dest { background: var(--amarillo); }
+/* lo que se sumó después del POC (etapa 1 del MVP) */
+.etiqueta.nueva::after {
+  content: "nuevo"; position: absolute; top: -11px; right: 22px; padding: 3px 8px 4px; border-radius: 5px;
+  background: var(--amarillo); color: var(--tinta); font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+}
 .etiqueta.rota { transform: rotate(-1.5deg); }
 .etiqueta.rota2 { transform: rotate(1.2deg); }
 
@@ -184,13 +189,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .herramienta span { font-size: 21px; color: var(--gris-claro); line-height: 1.35; display: block; margin-top: 6px; }
 
 /* ---------- 6 · Demo ---------- */
-.demo { padding: 40px 40px 80px; }
-.demo-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; padding: 0 16px; }
+.demo { padding: 48px 40px 80px; }
+.demo-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 14px; padding: 0 16px; }
 .demo-cabecera h2 { font: 400 64px/.9 var(--serif); margin: 12px 0 0; }
 .demo-cabecera h2 em { color: var(--amarillo); }
-.casos { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-.caso { border: 1px solid #3a3a40; background: var(--tinta-2); color: var(--papel); padding: 11px 16px; border-radius: 999px; font: 500 16px var(--sans); text-align: left; transition: background .15s, border-color .15s; }
-.caso small { display: block; font: 400 12px var(--mono); color: var(--gris); letter-spacing: .04em; }
+/* Dos filas de casos: los del POC y los de la etapa 1, cada una con su rótulo a la izquierda. */
+.casos { display: grid; grid-template-columns: auto auto; gap: 8px 14px; align-items: center; }
+.casos .grupo { font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--gris); text-align: right; }
+.casos .grupo b { color: var(--amarillo); font-weight: 500; }
+.fila-casos { display: flex; gap: 8px; }
+.caso { border: 1px solid #3a3a40; background: var(--tinta-2); color: var(--papel); padding: 6px 15px 7px; border-radius: 999px; font: 500 15px/1.25 var(--sans); text-align: left; transition: background .15s, border-color .15s; }
+.caso small { display: block; font: 400 11px/1.3 var(--mono); color: var(--gris); letter-spacing: .04em; }
 .caso:hover { border-color: var(--amarillo); }
 .caso[aria-pressed="true"] { background: var(--amarillo); color: var(--tinta); border-color: var(--amarillo); }
 .caso[aria-pressed="true"] small { color: #4a4430; }
@@ -212,16 +221,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cargando-demo b { font: 400 44px var(--serif); color: var(--tinta); }
 
 /* ---------- 7 · Límites ---------- */
-.columnas { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; margin-top: 44px; }
-.columnas h3 { font: 500 16px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; display: flex; align-items: center; gap: 12px; }
-.columnas h3 .pastilla { padding: 5px 10px; border-radius: 6px; background: var(--tinta); color: var(--papel); }
-.columnas h3 .pastilla.si { background: var(--amarillo); color: var(--tinta); }
-.lista { list-style: none; padding: 0; margin: 0; }
-.lista li { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: baseline; padding: 15px 0; border-bottom: 1px solid rgba(15,15,16,.15); font-size: 25px; }
-.lista li span { font: 400 16px var(--mono); opacity: .55; text-align: right; }
-.lista.tachada li:first-child { border-top: 2px solid var(--tinta); }
-.lista.sigue li:first-child { border-top: 2px solid var(--tinta); }
-.lista.sigue li::before { content: none; }
+/* Tres bloques: hecho en la etapa 1 (y lo que queda del POC), etapas 2 a 6, fuera de alcance. */
+.columnas { flex: 1; display: grid; grid-template-columns: 1fr 1.2fr .72fr; gap: 56px; margin-top: 40px; align-items: start; }
+.columnas h3 { font: 500 16px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 16px; display: flex; align-items: center; gap: 12px; }
+.columnas h4 { font: 500 14px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 26px 0 4px; opacity: .6; }
+.pastilla { padding: 5px 10px; border-radius: 6px; background: var(--tinta); color: var(--papel); }
+.pastilla.si { background: var(--amarillo); color: var(--tinta); }
+.pastilla.no { background: none; color: var(--tinta); box-shadow: inset 0 0 0 1.5px var(--tinta); }
+.lista { list-style: none; padding: 0; margin: 0; border-top: 2px solid var(--tinta); }
+.lista li { display: grid; grid-template-columns: 34px 1fr; column-gap: 14px; align-items: baseline; padding: 12px 0 13px; border-bottom: 1px solid rgba(15,15,16,.15); font-size: 23px; line-height: 1.2; }
+.lista li small { grid-column: 2; display: block; margin-top: 5px; font: 400 15px/1.3 var(--mono); opacity: .62; }
+.lista .marca-li { font: 600 15px/1 var(--mono); text-align: center; align-self: start; margin-top: 3px; padding: 5px 0; border-radius: 6px; }
+.lista .marca-li.hecho { color: var(--tinta); box-shadow: inset 0 0 0 1.5px var(--tinta); }
+.lista .marca-li.etapa { background: var(--tinta); color: var(--papel); }
+.lista.queda { border-top-width: 1px; }
+.lista.queda li { grid-template-columns: 1fr auto; padding: 9px 0 10px; font-size: 20px; }
+.lista.queda li span { font: 400 15px var(--mono); opacity: .55; text-align: right; }
+.lista.afuera li { grid-template-columns: 1fr; color: rgba(15,15,16,.72); }
+.lista.afuera li small { grid-column: 1; }
 
 /* ---------- 8 · Conclusiones ---------- */
 .conclusiones { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 52px; }
@@ -316,14 +333,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
       </div>
       <div class="etiquetas">
         <span class="etiqueta dest r rota" style="--d:2">Energía ±5 %<small>FAO/OMS/UNU 2004</small></span>
-        <span class="etiqueta r" style="--d:3">19 vitaminas y minerales<small>mínimo y máximo · NASEM</small></span>
-        <span class="etiqueta r rota2" style="--d:4">Macronutrientes<small>proteína, grasas, azúcares</small></span>
-        <span class="etiqueta r" style="--d:5">Guías Alimentarias<small>verduras, frutas, lácteos…</small></span>
-        <span class="etiqueta r rota" style="--d:6">Variedad<small>≤ 2 porciones por alimento</small></span>
-        <span class="etiqueta r" style="--d:7">Dieta<small>celiaquía · vegano · 8 alergias · NOVA 4</small></span>
-        <span class="etiqueta r rota2" style="--d:8">Salud<small>hipertensión · diabetes</small></span>
-        <span class="etiqueta r" style="--d:9">Hogar<small>hasta 8 personas, compra común</small></span>
-        <span class="etiqueta dest r rota2" style="--d:10">≤ 15 · 30 · 45 · 60 min<small>caminando, por la calle</small></span>
+        <span class="etiqueta nueva r" style="--d:3">Peso<small>mantener · bajar · aumentar · músculo</small></span>
+        <span class="etiqueta r rota2" style="--d:4">19 vitaminas y minerales<small>mínimo y máximo · NASEM</small></span>
+        <span class="etiqueta r" style="--d:5">Macronutrientes<small>proteína, grasas, azúcares</small></span>
+        <span class="etiqueta r" style="--d:6">Guías Alimentarias<small>verduras, frutas, lácteos…</small></span>
+        <span class="etiqueta r rota" style="--d:7">Variedad<small>≤ 2 porciones por alimento</small></span>
+        <span class="etiqueta nueva r rota2" style="--d:8">Agua<small>canilla · compra · 8 vasos</small></span>
+        <span class="etiqueta r" style="--d:9">Salud<small>hipertensión · diabetes</small></span>
+        <span class="etiqueta r rota" style="--d:10">Dieta<small>celiaquía · vegano · 8 alergias · NOVA 4</small></span>
+        <span class="etiqueta r" style="--d:11">Hogar<small>hasta 8 personas, compra común</small></span>
+        <span class="etiqueta dest r rota2" style="--d:12">≤ 15 · 30 · 45 · 60 min<small>caminando, por la calle</small></span>
       </div>
     </div>
   </section>
@@ -367,7 +386,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="herramientas">
       <div class="herramienta r" style="--d:6"><b>HiGHS</b><span>Solver MILP: scipy en Python y WebAssembly en el navegador</span></div>
       <div class="herramienta r" style="--d:7"><b>OpenRouteService</b><span>Tiempos a pie por la calle (foot-walking)</span></div>
-      <div class="herramienta r" style="--d:8"><b>101 tests</b><span>+ paridad: el navegador y Python dan la misma compra</span></div>
+      <div class="herramienta r" style="--d:8"><b>114 tests</b><span>+ paridad en 8 casos: el navegador y Python dan la misma compra</span></div>
     </div>
   </section>
 
@@ -379,10 +398,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <h2>La demo, <em>en vivo.</em></h2>
       </div>
       <div class="casos" role="group" aria-label="Casos de la demo">
-        <button type="button" class="caso" data-caso="" aria-pressed="true">Desde cero<small>armarlo en vivo</small></button>
-        <button type="button" class="caso" data-caso="perfiles=oficinista&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Oficinista<small>Microcentro · 15 min</small></button>
-        <button type="button" class="caso" data-caso="perfiles=oficinista,escolar&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Mamá + nena<small>Microcentro · 15 min</small></button>
-        <button type="button" class="caso" data-caso="perfiles=celiaca,vegano&amp;lat=-31.41670&amp;lon=-64.18330&amp;caminata=30">Celíaca + vegano<small>Córdoba · 30 min</small></button>
+        <span class="grupo" id="grupo-poc">POC</span>
+        <div class="fila-casos" role="group" aria-labelledby="grupo-poc">
+          <button type="button" class="caso" data-caso="" aria-pressed="true">Desde cero<small>armarlo en vivo</small></button>
+          <button type="button" class="caso" data-caso="perfiles=oficinista&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Oficinista<small>Microcentro · 15 min</small></button>
+          <button type="button" class="caso" data-caso="perfiles=oficinista,escolar&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Mamá + nena<small>Microcentro · 15 min</small></button>
+          <button type="button" class="caso" data-caso="perfiles=celiaca,vegano&amp;lat=-31.41670&amp;lon=-64.18330&amp;caminata=30">Celíaca + vegano<small>Córdoba · 30 min</small></button>
+        </div>
+        <span class="grupo" id="grupo-etapa1"><b>Etapa 1</b></span>
+        <div class="fila-casos" role="group" aria-labelledby="grupo-etapa1">
+          <button type="button" class="caso" data-caso="perfiles=bajo_peso&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15">Aumentar de peso<small>Microcentro · 15 min</small></button>
+          <button type="button" class="caso" data-caso="perfiles=oficinista&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15&amp;agua=compra">Agua comprada<small>Microcentro · 15 min</small></button>
+          <button type="button" class="caso" data-caso="perfiles=restricciones_extremas&amp;lat=-31.41670&amp;lon=-64.18330&amp;caminata=15&amp;listos=1">No llega a 37<small>Córdoba · 15 min</small></button>
+        </div>
       </div>
     </div>
     <div class="navegador">
@@ -402,28 +430,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
   <!-- 7 · Limitaciones y mejoras -->
   <section class="slide papel" data-seccion="Limitaciones" aria-label="Limitaciones y cosas para mejorar">
-    <p class="kicker r">05 · Limitaciones</p>
-    <h2 class="titulo r" style="--d:1">Lo que falta <em>pulir.</em></h2>
+    <p class="kicker r">05 · Limitaciones y próximos pasos</p>
+    <h2 class="titulo r" style="--d:1">Del POC <em>al MVP.</em></h2>
     <div class="columnas">
       <div class="r" style="--d:2">
-        <h3><span class="pastilla">Hoy</span>límites conocidos</h3>
-        <ul class="lista tachada">
-          <li>Precios de un solo día<span>SEPA 23/10</span></li>
-          <li>Promociones sin aplicar<span>tienen condiciones</span></li>
-          <li>Compra en una sola sucursal</li>
+        <h3><span class="pastilla">Hecho</span>etapa 1</h3>
+        <ul class="lista">
+          <li><span class="marca-li hecho" aria-hidden="true">✓</span>Aumentar de peso<small>+500 kcal/día · proteína 1,2 g/kg</small></li>
+          <li><span class="marca-li hecho" aria-hidden="true">✓</span>El agua, como restricción<small>de la canilla · comprada · 8 vasos</small></li>
+          <li><span class="marca-li hecho" aria-hidden="true">✓</span>Cuando no llega a 37 metas<small>cuánto cubre cada una y qué probar</small></li>
+        </ul>
+        <h4>Quedan del POC</h4>
+        <ul class="lista queda">
           <li>Barato ≠ habitual<span>harina, hígado</span></li>
           <li>Rutas con cuota gratuita<span>ORS</span></li>
           <li>10 a 18 s por cálculo</li>
         </ul>
       </div>
       <div class="r" style="--d:3">
-        <h3><span class="pastilla si">Sigue</span>el MVP</h3>
-        <ul class="lista sigue">
-          <li>Precios actualizados cada día<span>GitHub Actions</span></li>
-          <li>Backend con caché de rutas<span>FastAPI</span></li>
-          <li>Rutas propias, sin cuota<span>OSRM / ORS</span></li>
-          <li>Variedad con tope de costo<span>multiobjetivo</span></li>
-          <li>Tests de la página en cada push<span>Playwright + CI</span></li>
+        <h3><span class="pastilla si">Sigue</span>etapas 2 a 6</h3>
+        <ul class="lista">
+          <li><span class="marca-li etapa">2</span>Comprar en varias sucursales<small>MILP con una binaria por visita</small></li>
+          <li><span class="marca-li etapa">3</span>Precios de cada día<small>ETL con GitHub Actions · tests en cada push</small></li>
+          <li><span class="marca-li etapa">4</span>Restricciones nuevas<small>kosher · halal · sin cerdo · condiciones médicas</small></li>
+          <li><span class="marca-li etapa">5</span>Promociones con condiciones<small>2×1 · 2.ª unidad · porcentaje</small></li>
+          <li><span class="marca-li etapa">6</span>Contarlo en texto libre<small>LLM con Groq → metas para confirmar</small></li>
+        </ul>
+      </div>
+      <div class="r" style="--d:4">
+        <h3><span class="pastilla no">Afuera</span>de alcance</h3>
+        <ul class="lista afuera">
+          <li>Historial de precios<small>cada día reemplaza al anterior</small></li>
+          <li>Promociones bancarias<small>según el banco de cada uno</small></li>
         </ul>
       </div>
     </div>

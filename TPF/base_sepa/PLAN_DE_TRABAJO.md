@@ -1,6 +1,6 @@
 # Plan de trabajo
 
-Estado al 2026-11-04 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
+Estado al 2026-11-20 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
 [README](README.md); acá van los avances en resumen, los problemas conocidos y los próximos pasos, en orden de
 prioridad dentro de cada bloque.
 
@@ -16,7 +16,7 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 
 - Requerimientos por persona: energía (FAO/OMS/UNU 2004), proteína, macronutrientes, 19 vitaminas y minerales por
   etapa de la vida (NASEM), reglas de las Guías Alimentarias, embarazo, lactancia, objetivo de peso, peso ajustado
-  con obesidad. 15 perfiles de ejemplo.
+  con obesidad. 16 perfiles de ejemplo.
 - Restricciones estrictas: celiaquía (incluido nada seco a granel), vegetariano, vegano, sin lactosa, ocho alergias
   con trazas, sin ultraprocesados, hipertensión, diabetes; y la opción de solo alimentos listos para comer.
 - Hogar: hasta 8 personas, cada una con su dieta y sus restricciones, con la compra en común.
@@ -31,8 +31,17 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 (`canasta/rutas.py` y `web/rutas.js`), ampliación del límite con comparación de ahorro, recorrido en el mapa, arreglos
 de mapas (teselas, servidor local, superposición en el celular), ticket rediseñado (minutos caminando, columnas,
 promociones "no aplicadas", resumen nutricional, impresión), página versionada sin clave. Tests: 101 en Python más
-dos de paridad con el navegador (también por tiempo caminando). Lo que sigue está en
-[../docs/ROADMAP.md](../docs/ROADMAP.md).
+dos de paridad con el navegador (también por tiempo caminando).
+
+**Etapa 1 del MVP (2026-11-20)**, con lo que se pidió después de la presentación: objetivo "Aumentar de peso"
+(+500 kcal/día sobre el gasto, proteína 1,2 g/kg, aviso si el IMC es de sobrepeso; perfil `bajo_peso`, 2.310
+kcal/día), distinto de "Ganar masa muscular"; el agua como restricción con tres modos (`AGUA_MODOS`: `canilla`, la
+predeterminada e informativa, que no cambia los resultados de antes; `compra`, agua total de NASEM 2004 contando la de
+los alimentos; `bebidas`, los 8 vasos de las Guías), y un caso precargado que no llega a las 37 metas
+(`restricciones_extremas`: celíaca con cinco alergias, solo listos, Córdoba, 15 min; la mejor sucursal cubre 35) que
+la página explica meta por meta. Tests: 114 en Python más dos de paridad con el navegador, ahora con 8 casos. Las
+etapas 2 a 6 (compra en varias sucursales, ETL diario y CI, restricciones nuevas, promociones con condiciones, Groq)
+están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
 
 ## Para revisar
 
@@ -63,7 +72,8 @@ dos de paridad con el navegador (también por tiempo caminando). Lo que sigue es
 4. **No modelado todavía:** seguridad alimentaria en el embarazo (hígado, quesos sin pasteurizar), calidad de la
    proteína, sal y condimentos que se agregan al cocinar, menores de 4 años. (El agua ya se modela: de la canilla,
    comprada contando la de los alimentos, o 2 litros de bebida; ver `AGUA_MODOS`.)
-5. **Promociones**: se muestran pero no se aplican al total (muchas exigen condiciones).
+5. **Promociones**: se muestran pero no se aplican al total (muchas exigen condiciones). Las de la cadena (2×1,
+   2.ª unidad, porcentaje) son la etapa 5 del roadmap; las bancarias quedan fuera de alcance.
 
 ### Página
 
@@ -75,12 +85,14 @@ dos de paridad con el navegador (también por tiempo caminando). Lo que sigue es
 
 ## Próximos pasos
 
-1. **Actualización diaria automática**: `python -m sepa --descargar` y `python -m canasta --exportar` en una tarea
-   programada, y publicar la página (por ejemplo en GitHub Pages, ya que es un archivo estático).
+1. **Actualización diaria automática** (etapa 3 del roadmap): `python -m sepa --descargar` y `python -m canasta
+   --exportar` en una tarea programada, y publicar la página (por ejemplo en GitHub Pages, ya que es un archivo
+   estático).
 2. **Velocidad**: una persona tarda ~10 s y un hogar de tres para dos semanas ~18 s. Ideas: resolver primero solo la
    sucursal más prometedora, cachear la oferta por cadena, acotar el modelo entero a los productos que usa la
    relajación.
 3. **Ticket para llevar**: imprimir o descargar en PDF, y compartir el enlace con los datos cargados.
 4. **Comparar contra la Canasta Básica Alimentaria del INDEC** (costo por adulto equivalente) como referencia en la
    página.
-5. **Tests del motor JavaScript sin navegador** (Node) y una integración continua que corra los tests en cada push.
+5. **Tests del motor JavaScript sin navegador** (Node) y una integración continua que corra los tests en cada push
+   (etapa 3 del roadmap).
