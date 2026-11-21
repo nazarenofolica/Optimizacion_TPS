@@ -102,6 +102,17 @@ class TestMicronutrientes(unittest.TestCase):
         self.assertEqual(meta(embarazada.metas, "hierro_mg").minimo, 27)
         self.assertEqual(meta(embarazada.metas, "hierro_mg").maximo, 45)
 
+    def test_minimo_vegetariano_no_pasa_el_maximo(self):
+        # Embarazada vegetariana: 27 × 1,8 = 48,6 mg de hierro superaría el máximo tolerable de 45 mg.
+        r = rq.calcular(rq.Persona(sexo="F", edad=27, peso_kg=61, etapa="embarazo", trimestre=2,
+                                   restricciones=["vegetariano"]))
+        hierro = meta(r.metas, "hierro_mg")
+        self.assertEqual((hierro.minimo, hierro.maximo), (45, 45))
+        self.assertTrue(any("suplemento" in a and "hierro" in a for a in r.avisos))
+        for m in r.metas:
+            if m.minimo is not None and m.maximo is not None:
+                self.assertLessEqual(m.minimo, m.maximo, m.clave)
+
     def test_hipertension_y_metas_informativas(self):
         r = rq.calcular(rq.Persona(sexo="M", edad=58, peso_kg=80, restricciones=["hipertension", "vegano"]))
         self.assertEqual(meta(r.metas, "sodio_mg").maximo, cfg.SODIO_HIPERTENSION_MG)
@@ -639,7 +650,7 @@ class TestListosParaComer(unittest.TestCase):
             self.assertNotIn(listo, cfg.ALIMENTOS_A_COCINAR)
 
 
-PERFILES_VISIBLES = ["deportista", "aumentar_peso", "embarazada_sin_lactosa", "adulto_mayor", "caso_extremo"]
+PERFILES_VISIBLES = ["deportista", "aumentar_peso", "embarazada_vegetariana", "adulto_mayor", "caso_extremo"]
 
 
 @unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
@@ -706,7 +717,7 @@ class TestPerfiles(unittest.TestCase):
         self.assertEqual((f["deportista"]["actividad"], f["deportista"]["objetivo"]), ("muy_intensa", "subir"))
         self.assertEqual(f["aumentar_peso"]["objetivo"], "aumentar")
         self.assertLess(imc(f["aumentar_peso"]), 18.5)                                   # bajo peso (OMS)
-        self.assertEqual((f["embarazada_sin_lactosa"]["etapa"], f["embarazada_sin_lactosa"]["trimestre"]), ("embarazo", 2))
+        self.assertEqual((f["embarazada_vegetariana"]["etapa"], f["embarazada_vegetariana"]["trimestre"]), ("embarazo", 2))
         self.assertEqual(set(f["adulto_mayor"]["restricciones"]), {"diabetes", "hipertension"})
         self.assertGreaterEqual(imc(f["adulto_mayor"]), 25)                              # sobrepeso
         self.assertGreaterEqual(len(f["caso_extremo"]["restricciones"]), 5)

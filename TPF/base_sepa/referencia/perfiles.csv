@@ -26,6 +26,6 @@ vegetariana_sl;Vegetariana sin lactosa;Mujer adulta vegetariana e intolerante a 
 bajo_peso;Bajo peso;Mujer joven con bajo peso (IMC 16,9) que quiere aumentar de peso;F;22;46;165;liviana;aumentar;general;;;no
 restricciones_extremas;Celíaca con alergias;Mujer adulta celíaca y alérgica a la leche, el huevo, la soja, el maní y los frutos secos;F;34;63;163;sedentaria;mantener;general;;celiaquia|sin_leche|sin_huevo|sin_soja|sin_mani|sin_frutos_secos;no
 aumentar_peso;Aumentar de peso;Estudiante de 20 años, muy flaco (IMC 17), que quiere subir de peso;M;20;52;175;liviana;aumentar;general;;;si
-embarazada_sin_lactosa;Embarazada sin lactosa;Mujer de 27 años en el 2.º trimestre, intolerante a la lactosa;F;27;61;160;liviana;mantener;embarazo;2;sin_lactosa;si
+embarazada_vegetariana;Embarazada vegetariana;Mujer de 27 años en el 2.º trimestre, vegetariana;F;27;61;160;liviana;mantener;embarazo;2;vegetariano;si
 adulto_mayor;Adulto mayor;Varón de 67 años con diabetes, hipertensión y sobrepeso, que quiere bajar de peso;M;67;84;170;sedentaria;bajar;general;;diabetes|hipertension;si
 caso_extremo;Caso extremo;Celíaca y vegana, alérgica al maní, los frutos secos, la soja y el sésamo;F;31;58;162;moderada;mantener;general;;celiaquia|vegano|sin_mani|sin_frutos_secos|sin_soja|sin_sesamo;si

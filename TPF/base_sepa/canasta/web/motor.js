@@ -305,6 +305,15 @@
         const f = P.FACTOR_VEGETARIANO[c];
         nota = `× ${fmt(f, 1)} por dieta vegetariana (menor absorción)`;
         mn *= f;
+        // El mínimo ajustado no puede pasar el máximo tolerable (hierro de una embarazada vegetariana: 27 × 1,8 =
+        // 48,6 mg contra 45 mg): se apunta al máximo y lo que falta lo indica un profesional, como suplemento.
+        if (mx !== null && mn > mx) {
+          avisos.push(`Con dieta vegetariana, el ${minusc(D.nombres[c][0])} que hace falta (${fmt(mn, 1)} ${D.nombres[c][1]}) ` +
+            `supera el máximo tolerable (${fmt(mx, 1)} ${D.nombres[c][1]}): la canasta apunta al máximo y la diferencia ` +
+            "se cubre con un suplemento indicado por un profesional.");
+          nota += `; se limita al máximo tolerable (${fmt(mx, 1)})`;
+          mn = mx;
+        }
       }
       if (c === "sodio_mg" && p.restricciones.includes("hipertension")) {
         mx = Math.min(mx, P.SODIO_HIPERTENSION_MG);

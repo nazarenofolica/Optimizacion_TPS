@@ -294,6 +294,15 @@ def _micronutrientes(p: Persona, pasos: list[dict], avisos: list[str]) -> list[M
             f = cfg.FACTOR_VEGETARIANO[c]
             nota = f"× {_fmt(f, 1)} por dieta vegetariana (menor absorción)"
             mn *= f
+            # El mínimo ajustado no puede pasar el máximo tolerable (hierro de una embarazada vegetariana: 27 × 1,8 =
+            # 48,6 mg contra 45 mg): se apunta al máximo y lo que falta lo indica un profesional, como suplemento.
+            if mx is not None and mn > mx:
+                nombre, unidad = NOMBRES[c]
+                avisos.append(f"Con dieta vegetariana, el {nombre.lower()} que hace falta ({_fmt(mn, 1)} {unidad}) supera "
+                              f"el máximo tolerable ({_fmt(mx, 1)} {unidad}): la canasta apunta al máximo y la "
+                              "diferencia se cubre con un suplemento indicado por un profesional.")
+                nota += f"; se limita al máximo tolerable ({_fmt(mx, 1)})"
+                mn = mx
         if c == "sodio_mg" and "hipertension" in p.restricciones:
             mx = min(mx, cfg.SODIO_HIPERTENSION_MG)
             nota = "tope de 1.500 mg por hipertensión (AHA)"
