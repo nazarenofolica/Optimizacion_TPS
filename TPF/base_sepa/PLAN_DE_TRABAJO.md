@@ -16,7 +16,8 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 
 - Requerimientos por persona: energía (FAO/OMS/UNU 2004), proteína, macronutrientes, 19 vitaminas y minerales por
   etapa de la vida (NASEM), reglas de las Guías Alimentarias, embarazo, lactancia, objetivo de peso, peso ajustado
-  con obesidad. 16 perfiles de ejemplo.
+  con obesidad. 20 perfiles de ejemplo; la página ofrece cinco (columna `visible` de `referencia/perfiles.csv`) y los
+  demás se cargan por enlace o desde la consola.
 - Restricciones estrictas: celiaquía (incluido nada seco a granel), vegetariano, vegano, sin lactosa, ocho alergias
   con trazas, sin ultraprocesados, hipertensión, diabetes; y la opción de solo alimentos listos para comer.
 - Hogar: hasta 8 personas, cada una con su dieta y sus restricciones, con la compra en común.

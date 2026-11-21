@@ -401,7 +401,7 @@ class TestResumenMetas(unittest.TestCase):
 
 @unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
 class TestNingunaSucursalLograTodo(unittest.TestCase):
-    """El caso de la demo: celíaca y alérgica a la leche, el huevo, la soja, el maní y los frutos secos, solo listos
+    """El primer caso en que ninguna sucursal logra todo (la demo ahora usa caso_extremo): celíaca y alérgica a la leche, el huevo, la soja, el maní y los frutos secos, solo listos
     para comer, en el centro de Córdoba a 15 min caminando (tiempos estimados, como en la página sin clave)."""
 
     @classmethod
@@ -639,11 +639,77 @@ class TestListosParaComer(unittest.TestCase):
             self.assertNotIn(listo, cfg.ALIMENTOS_A_COCINAR)
 
 
+PERFILES_VISIBLES = ["deportista", "aumentar_peso", "embarazada_sin_lactosa", "adulto_mayor", "caso_extremo"]
+
+
+@unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
+class TestPerfilesVisiblesConDatos(unittest.TestCase):
+    """Los cinco perfiles que ofrece la página arman una canasta con los datos reales, a 15 min caminando del
+    Microcentro (tiempos estimados, como la página sin clave). El caso extremo es el de la demo: ninguna sucursal
+    logra todas sus metas, pero hay compra."""
+
+    @classmethod
+    def setUpClass(cls):
+        from canasta import resultado, rutas
+        cls.resultado = resultado
+        lat, lon = -34.60386, -58.38419
+        tiempos, aviso = rutas.tiempos_caminando(lat, lon, 15, clave="")
+        por_id = {p["id"]: p for p in rq.perfiles()}
+        cls.r = {i: resultado.armar([rq.persona_desde(por_id[i])], lat, lon, 7, tiempos=tiempos, caminata_minutos=15,
+                                    aviso_tiempos=aviso) for i in PERFILES_VISIBLES}
+
+    def test_cada_uno_arma_una_canasta(self):
+        for i, r in self.r.items():
+            with self.subTest(perfil=i):
+                self.assertNotIn("error", r)
+                self.assertIn(r["modelo"]["estado"], ("optima", "factible"))
+                self.assertTrue(r["ticket"]["items"])
+                self.assertGreater(r["ticket"]["total"], 0)
+                if i != "caso_extremo":
+                    m = self.resultado.resumen_metas(r)
+                    self.assertEqual(m["cumple"], m["total"], m["faltan"])
+
+    def test_caso_extremo_ninguna_sucursal_logra_todo(self):
+        m = self.resultado.resumen_metas(self.r["caso_extremo"])
+        self.assertTrue(m["ninguna_las_logra"])
+        self.assertGreater(m["sucursales"], 1)
+        self.assertLessEqual(len(m["faltan"]), 2)                              # pocas y entendibles
+        self.assertLess(self.r["caso_extremo"]["ticket"]["total"], 80_000)     # una semana, no un costo absurdo
+
+
 class TestPerfiles(unittest.TestCase):
     def test_todos_los_perfiles_son_validos(self):
         for f in rq.perfiles():
             with self.subTest(perfil=f["id"]):
                 self.assertEqual(rq.persona_desde(f).validar(), [])
+
+    def test_columna_visible(self):
+        # La página ofrece solo estos cinco; los demás siguen para los enlaces, la consola y los tests.
+        todos = rq.perfiles()
+        self.assertTrue(all(isinstance(f["visible"], bool) for f in todos))
+        self.assertEqual([f["id"] for f in todos if f["visible"]], PERFILES_VISIBLES)
+        self.assertGreater(len(todos), len(PERFILES_VISIBLES))
+        self.assertEqual(len({f["id"] for f in todos}), len(todos))
+
+    def test_perfiles_visibles_sin_metas_contradictorias(self):
+        for f in rq.perfiles():
+            if not f["visible"]:
+                continue
+            with self.subTest(perfil=f["id"]):
+                for m in rq.calcular(rq.persona_desde(f)).metas:
+                    if m.minimo is not None and m.maximo is not None:
+                        self.assertLessEqual(m.minimo, m.maximo, m.clave)
+
+    def test_perfiles_visibles_son_lo_que_dicen(self):
+        f = {x["id"]: x for x in rq.perfiles()}
+        imc = lambda x: x["peso_kg"] / (x["altura_cm"] / 100) ** 2                      # noqa: E731
+        self.assertEqual((f["deportista"]["actividad"], f["deportista"]["objetivo"]), ("muy_intensa", "subir"))
+        self.assertEqual(f["aumentar_peso"]["objetivo"], "aumentar")
+        self.assertLess(imc(f["aumentar_peso"]), 18.5)                                   # bajo peso (OMS)
+        self.assertEqual((f["embarazada_sin_lactosa"]["etapa"], f["embarazada_sin_lactosa"]["trimestre"]), ("embarazo", 2))
+        self.assertEqual(set(f["adulto_mayor"]["restricciones"]), {"diabetes", "hipertension"})
+        self.assertGreaterEqual(imc(f["adulto_mayor"]), 25)                              # sobrepeso
+        self.assertGreaterEqual(len(f["caso_extremo"]["restricciones"]), 5)
 
     def test_perfil_bajo_peso(self):
         f = next(f for f in rq.perfiles() if f["id"] == "bajo_peso")

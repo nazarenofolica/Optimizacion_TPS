@@ -33,7 +33,7 @@ CASOS = [
     (["bajo_peso"], (-32.94682, -60.63932), 7, False, "canilla"),                     # Rosario, aumentar de peso
     (["oficinista"], (-34.60386, -58.38419), 7, False, "compra"),                     # CABA, agua comprada
     (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
-    (["restricciones_extremas"], (-31.41670, -64.18330), 7, True, "canilla"),        # Córdoba, ninguna cubre todo
+    (["caso_extremo"], (-34.60386, -58.38419), 7, False, "canilla"),                  # CABA, ninguna cubre todo
 ]
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 CASOS_DOS_SUPER = [
@@ -108,9 +108,9 @@ class TestParidadPagina(unittest.TestCase):
     def test_busqueda_por_tiempo_caminando(self):
         # La página exportada sin clave estima los tiempos por distancia, igual que rutas.py sin clave: las mismas
         # sucursales dentro del límite y los mismos costos. El segundo es el caso de la demo en que ninguna sucursal
-        # logra todas las metas: las dos dejan sin cubrir lo mismo.
+        # logra todas las metas (caso_extremo en el Microcentro): las dos dejan sin cubrir lo mismo.
         for ids, (lat, lon), listos in ((["oficinista"], (-34.60386, -58.38419), False),
-                                        (["restricciones_extremas"], (-31.41670, -64.18330), True)):
+                                        (["caso_extremo"], (-34.60386, -58.38419), False)):
             with self.subTest(perfiles=ids, listos=listos):
                 minutos = 15
                 js = self._pagina(ids, lat, lon, 7, listos, extra=f"&caminata={minutos}")

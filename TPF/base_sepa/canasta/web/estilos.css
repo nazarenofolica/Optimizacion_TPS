@@ -267,6 +267,52 @@ input:focus-visible, select:focus-visible { outline: none; }
 .persona .quitar:hover { color: var(--rojo); }
 .editor { margin-top: 6px; }
 
+/* Perfiles de ejemplo: el cargado queda marcado como la persona activa (borde de tinta y tilde); si se le cambió algún
+   dato, el borde pasa a punteado y dice "con cambios". */
+.perfiles-campo { margin-top: 10px; }
+.perfiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.perfil {
+  position: relative; display: grid; align-content: start; gap: 2px; padding: 8px 30px 9px 11px; min-height: 44px;
+  border: 1px solid var(--linea); border-radius: 8px; background: var(--superficie); color: var(--tinta);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.1s;
+}
+.perfil:hover { border-color: var(--tinta-suave); }
+.perfil:active { transform: scale(0.985); }
+.perfil b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.92rem; font-weight: 600; line-height: 1.25; }
+.perfil small { display: block; font-size: 0.8rem; line-height: 1.3; }
+.perfil[aria-pressed=true] { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); }
+.perfil[aria-pressed=true]::after {
+  content: ""; position: absolute; top: 9px; right: 9px; width: 15px; height: 15px; border-radius: 4px;
+  background: var(--tinta) center / 11px no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.2l2.2 2.2L8.5 2.6' fill='none' stroke='white' stroke-width='1.8'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  .perfil[aria-pressed=true]::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.2l2.2 2.2L8.5 2.6' fill='none' stroke='%231c1d20' stroke-width='1.8'/%3E%3C/svg%3E");
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .perfil[aria-pressed=true]::after { animation: tilde 0.25s var(--salida); }
+}
+.perfil.con-cambios { border-style: dashed; border-color: var(--tinta); }
+.perfil-cambios {
+  font-size: 0.72rem; font-weight: 500; line-height: 1.4; padding: 0 6px; border-radius: 999px;
+  border: 1px solid var(--linea); background: var(--hundido); color: var(--tinta-suave);
+}
+.perfil-estado:empty { display: none; }
+
+/* Hay una canasta guardada de una visita anterior: se ofrece, no se carga sola. */
+.retomar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 18px; margin-top: 16px; padding: 6px 14px;
+  border: 1px solid var(--linea); border-radius: 8px; background: var(--hundido); font-size: 0.9rem;
+}
+.retomar p { flex: 1 1 260px; padding: 6px 0; }
+.retomar b { font-weight: 600; }
+.retomar-acciones { display: flex; gap: 18px; }
+.retomar .boton-texto { margin-top: 0; min-height: 40px; }
+@media (prefers-reduced-motion: no-preference) { .retomar { animation: subir 0.3s var(--salida); } }
+
 /* Ubicación */
 .buscador-fila { display: flex; gap: 8px; }
 .buscador-fila input { flex: 1; min-width: 0; }

@@ -43,6 +43,13 @@
         <span class="paso-texto">La compra<small id="sub-compra"></small></span></button>
     </div>
     <div class="panel-cuerpo">
+      <div id="retomar" class="retomar" role="region" aria-label="Canasta de la última vez" hidden>
+        <p id="retomar-texto"></p>
+        <span class="retomar-acciones">
+          <button type="button" class="boton-texto" id="retomar-si">Retomarla</button>
+          <button type="button" class="boton-texto" id="retomar-no">Descartar</button>
+        </span>
+      </div>
 
       <section class="paso" id="paso-hogar" data-panel="hogar" role="tabpanel" aria-labelledby="t-hogar">
         <h2 id="t-hogar" class="sr-only">Quiénes comen</h2>
@@ -52,14 +59,15 @@
         </div>
 
         <div id="editor" class="editor" role="tabpanel">
+         <div class="campo perfiles-campo">
+           <span class="etiqueta" id="l-perfiles">Empezar con un perfil de ejemplo <small>opcional</small></span>
+           <div id="perfiles-ejemplo" class="perfiles" role="group" aria-labelledby="l-perfiles"></div>
+           <p id="perfil-estado" class="ayuda perfil-estado" aria-live="polite"></p>
+         </div>
          <div class="editor-grid">
           <div class="columna">
-          <div class="fila2">
-            <label class="campo"><span class="etiqueta">Nombre</span>
-              <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
-            <label class="campo"><span class="etiqueta">Cargar un perfil de ejemplo</span>
-              <select id="p-perfil"></select></label>
-          </div>
+          <label class="campo"><span class="etiqueta">Nombre</span>
+            <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
           <div class="campo">
             <span class="etiqueta" id="l-sexo">Sexo biológico</span>
             <div class="segmentado" role="radiogroup" aria-labelledby="l-sexo">

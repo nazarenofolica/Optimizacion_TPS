@@ -438,9 +438,13 @@ def calcular(p: Persona, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> Requerimie
 # ------------------------------------------------------------
 
 def perfiles() -> list[dict]:
-    """referencia/perfiles.csv con los tipos de cada campo."""
+    """referencia/perfiles.csv con los tipos de cada campo. visible: si la página lo ofrece entre los perfiles de
+    ejemplo (los demás se cargan por enlace, ?perfiles=id, o desde la consola)."""
     salida = []
     for f in leer_tabla(cfg.RUTA_PERFILES).to_dict("records"):
+        if f["visible"] not in ("si", "no"):
+            raise ValueError(f"Perfil {f['id']}: visible tiene que ser si o no, no {f['visible']!r}")
+        f["visible"] = f["visible"] == "si"
         f["edad"], f["peso_kg"] = int(f["edad"]), float(f["peso_kg"])
         f["altura_cm"] = float(f["altura_cm"]) if f["altura_cm"] else None
         f["trimestre"] = int(f["trimestre"]) if f["trimestre"] else None

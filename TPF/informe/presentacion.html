@@ -200,7 +200,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .demo-cabecera h2 { font: 400 64px/.9 var(--serif); margin: 12px 0 0; }
 .demo-cabecera h2 em { color: var(--amarillo); }
 /* Dos filas de casos: los del POC y los del MVP (etapas 1 y 2), cada grupo con su rótulo a la izquierda.
-   Los enlaces llevan dias, listos y agua explícitos: la página toma lo que falta de lo guardado por el caso anterior. */
+   Un enlace con caso arranca de los valores predeterminados (no hereda nada guardado); dias, listos y agua van
+   explícitos igual, para que se lean en la URL de la demo. */
 .casos { display: grid; grid-template-columns: auto auto; gap: 8px 14px; align-items: center; }
 .casos .grupo { font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--gris); text-align: right; }
 .casos .grupo b { color: var(--amarillo); font-weight: 500; }
@@ -421,9 +422,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <span class="grupo" id="grupo-etapa1"><b>Etapa 1</b></span>
         <div class="fila-casos">
           <div class="subgrupo" role="group" aria-labelledby="grupo-etapa1">
-            <button type="button" class="caso" data-caso="perfiles=bajo_peso&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15&amp;dias=7&amp;listos=0&amp;agua=canilla">Aumentar de peso<small>Microcentro · 15 min</small></button>
+            <button type="button" class="caso" data-caso="perfiles=aumentar_peso&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15&amp;dias=7&amp;listos=0&amp;agua=canilla">Aumentar de peso<small>Microcentro · 15 min</small></button>
             <button type="button" class="caso" data-caso="perfiles=oficinista&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15&amp;dias=7&amp;listos=0&amp;agua=compra">Agua comprada<small>Microcentro · 15 min</small></button>
-            <button type="button" class="caso" data-caso="perfiles=restricciones_extremas&amp;lat=-31.41670&amp;lon=-64.18330&amp;caminata=15&amp;dias=7&amp;listos=1&amp;agua=canilla">No llega a 37<small>Córdoba · 15 min</small></button>
+            <button type="button" class="caso" data-caso="perfiles=caso_extremo&amp;lat=-34.60386&amp;lon=-58.38419&amp;caminata=15&amp;dias=7&amp;listos=0&amp;agua=canilla">No llega a todas<small>Microcentro · 15 min</small></button>
           </div>
           <span class="grupo en-fila" id="grupo-etapa2"><b>Etapa 2</b></span>
           <div class="subgrupo" role="group" aria-labelledby="grupo-etapa2">

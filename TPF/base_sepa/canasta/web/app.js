@@ -45,6 +45,9 @@ const estado = {
 };
 const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
 const PARAMETROS = new URLSearchParams(location.search);
+// Un enlace con un caso (?perfiles=…&lat=…) arranca de los valores predeterminados más lo que trae: no mezcla nada
+// guardado de una sesión anterior.
+const CON_CASO = ["perfiles", "perfil", "lat", "lon", "dias", "listos", "agua", "caminata"].some((k) => PARAMETROS.has(k));
 // ?rutas=0 busca como antes (la más cercana de cada cadena, en línea recta): lo usa el test de paridad con Python.
 const CON_RUTAS = PARAMETROS.get("rutas") !== "0";
 
@@ -99,28 +102,74 @@ const motor = (() => {
 })();
 
 // ============================================================
-// Guardado local (comodidad: si el navegador no deja, no pasa nada)
+// Guardado local (comodidad: si el navegador no deja, no pasa nada). La página siempre abre limpia; si hay una
+// canasta guardada de antes, un aviso ofrece retomarla.
 // ============================================================
+
+let guardoEnEstaVisita = false;
 
 function guardar() {
   try {
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias,
       listos: estado.listos, agua: estado.agua, caminata: estado.caminata }));
+    guardoEnEstaVisita = true;
   } catch (err) { /* sin almacenamiento */ }
 }
 
-function recuperar() {
+// Lo guardado, ya validado, o null si no hay nada (o si es igual a como abre la página).
+function leerGuardado() {
   try {
     const g = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) || "null");
-    if (g && Array.isArray(g.hogar) && g.hogar.length) {
-      estado.hogar = g.hogar.slice(0, estado.P.PERSONAS_MAXIMAS).map((p) => ({ ...PERSONA_NUEVA, ...p }));
-      estado.lugar = g.lugar || null;
-      estado.dias = String(g.dias) in estado.P.DIAS_PERIODO ? g.dias : 7;
-      estado.listos = Boolean(g.listos);
-      if (g.agua in estado.P.AGUA_MODOS) estado.agua = g.agua;
-      if (estado.P.CAMINATA_OPCIONES.includes(g.caminata)) estado.caminata = g.caminata;
-    }
-  } catch (err) { /* sin almacenamiento */ }
+    if (!g || !Array.isArray(g.hogar) || !g.hogar.length) return null;
+    const P = estado.P;
+    const hogar = g.hogar.slice(0, P.PERSONAS_MAXIMAS).map((p) => ({ ...PERSONA_NUEVA, ...p,
+      restricciones: Array.isArray(p.restricciones) ? p.restricciones.filter((r) => r in P.RESTRICCIONES) : [] }));
+    const lugar = g.lugar && Number.isFinite(g.lugar.lat) && Number.isFinite(g.lugar.lon) ? g.lugar : null;
+    const comoNueva = (p) => JSON.stringify(Object.keys(PERSONA_NUEVA).map((k) => p[k])) ===
+      JSON.stringify(Object.values(PERSONA_NUEVA));
+    if (!lugar && hogar.length === 1 && comoNueva(hogar[0])) return null;
+    return { hogar, lugar, dias: String(g.dias) in P.DIAS_PERIODO ? Number(g.dias) : 7, listos: Boolean(g.listos),
+      agua: g.agua in P.AGUA_MODOS ? g.agua : P.AGUA_MODO_PREDETERMINADO,
+      caminata: P.CAMINATA_OPCIONES.includes(g.caminata) ? g.caminata : P.CAMINATA_MINUTOS };
+  } catch (err) {
+    return null;   // sin almacenamiento o con algo ilegible
+  }
+}
+
+function avisoRetomar(g) {
+  const el = $("#retomar");
+  const n = g.hogar.length;
+  const quienes = n === 1 ? nombrePersona(g.hogar[0], 0) : `${n} personas`;
+  const donde = g.lugar ? `, cerca de ${g.lugar.corto || g.lugar.nombre}` : "";
+  $("#retomar-texto").innerHTML = `Tenés una canasta de la última vez: <b>${esc(quienes + donde)}</b>.`;
+  el.hidden = false;
+  $("#retomar-si").addEventListener("click", () => {
+    Object.assign(estado, { hogar: g.hogar, actual: 0, lugar: g.lugar, dias: g.dias, listos: g.listos, agua: g.agua,
+      caminata: g.caminata, anterior: null });
+    estado.escalera.clear();
+    el.hidden = true;
+    sincronizarControles();
+    guardar();
+    $(".persona-boton").focus();
+  }, { once: true });
+  $("#retomar-no").addEventListener("click", () => {
+    // Si en esta visita ya se guardó algo nuevo, lo de antes ya no está: no hay que borrar lo nuevo.
+    if (!guardoEnEstaVisita) try { localStorage.removeItem(CLAVE_GUARDADO); } catch (err) { /* sin almacenamiento */ }
+    el.hidden = true;
+    const primero = $("[data-perfil]");
+    if (primero) primero.focus();
+  }, { once: true });
+}
+
+// Después de cambiar el estado entero (al retomar lo guardado), cada control vuelve a mostrar lo que hay.
+function sincronizarControles() {
+  $$('[name="caminata"]').forEach((c) => { c.checked = Number(c.value) === estado.caminata; });
+  $$('[name="dias"]').forEach((c) => { c.checked = Number(c.value) === estado.dias; });
+  $$('[name="agua"]').forEach((c) => { c.checked = c.value === estado.agua; });
+  $("#listos").checked = estado.listos;
+  if (estado.lugar) elegirLugar(estado.lugar, true, false);
+  cargarEditor();
+  dibujarPersonas();
 }
 
 // ============================================================
@@ -232,7 +281,6 @@ function prepararPasos() {
 function cargarEditor() {
   const p = estado.hogar[estado.actual];
   $("#p-nombre").value = p.nombre;
-  $("#p-perfil").value = "";
   form()["p-sexo"].value = p.sexo;
   $("#p-edad").value = p.edad ?? "";
   $("#p-peso").value = p.peso_kg ?? "";
@@ -243,6 +291,7 @@ function cargarEditor() {
   form()["p-objetivo"].value = p.objetivo;
   $$('[name="p-restriccion"]').forEach((c) => { c.checked = p.restricciones.includes(c.value); });
   actualizarVisibles();
+  marcarPerfil();
 }
 
 function leerEditor() {
@@ -279,17 +328,46 @@ function alCambiarEditor(e) {
   }
   leerEditor();
   actualizarVisibles();
+  marcarPerfil();
   dibujarPersonas();
   guardar();
+}
+
+// Los datos de una persona tal como los carga un perfil de ejemplo (el nombre va aparte).
+const datosDePerfil = (f) => ({ sexo: f.sexo, edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm,
+  actividad: f.actividad, objetivo: f.objetivo, etapa: f.etapa, trimestre: f.trimestre || 2, restricciones: [...f.restricciones] });
+
+// ¿La persona sigue teniendo exactamente los datos del perfil que cargó? El nombre no cuenta.
+function sigueIgual(p, f) {
+  const d = datosDePerfil(f), lista = (r) => [...r].sort().join("|");
+  return ["sexo", "edad", "peso_kg", "altura_cm", "actividad", "objetivo", "etapa"].every((k) => (p[k] ?? null) === (d[k] ?? null))
+    && (p.etapa !== "embarazo" || p.trimestre === d.trimestre) && lista(p.restricciones) === lista(d.restricciones);
+}
+
+// El perfil de la persona que se está editando queda marcado; si se cambió algún dato, dice "con cambios".
+function marcarPerfil() {
+  const p = estado.hogar[estado.actual];
+  const f = p.perfil ? estado.perfiles.find((x) => x.id === p.perfil) : null;
+  const igual = Boolean(f) && sigueIgual(p, f);
+  $$("[data-perfil]").forEach((b) => {
+    const suyo = Boolean(f) && b.dataset.perfil === f.id;
+    b.setAttribute("aria-pressed", String(suyo && igual));
+    b.classList.toggle("con-cambios", suyo && !igual);
+    $(".perfil-cambios", b).hidden = !(suyo && !igual);
+  });
+  $("#perfil-estado").textContent = !f ? ""
+    : igual ? `Cargaste el perfil ${f.nombre}. Podés cambiar cualquier dato.`
+    : `Basado en el perfil ${f.nombre}, con cambios. Tocalo de nuevo para volver a sus datos.`;
 }
 
 function cargarPerfil(id) {
   const f = estado.perfiles.find((x) => x.id === id);
   if (!f) return;
   const p = estado.hogar[estado.actual];
-  Object.assign(p, { sexo: f.sexo, edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm, actividad: f.actividad,
-    objetivo: f.objetivo, etapa: f.etapa, trimestre: f.trimestre || 2, restricciones: [...f.restricciones] });
-  if (!p.nombre.trim()) p.nombre = f.nombre;
+  const anterior = p.perfil ? estado.perfiles.find((x) => x.id === p.perfil) : null;
+  // El nombre se reemplaza solo si estaba vacío o era el del perfil anterior: no pisa uno escrito a mano.
+  if (!p.nombre.trim() || (anterior && p.nombre === anterior.nombre)) p.nombre = f.nombre;
+  Object.assign(p, datosDePerfil(f), { perfil: f.id });
   cargarEditor();
   dibujarPersonas();
   guardar();
@@ -297,8 +375,13 @@ function cargarPerfil(id) {
 
 function prepararHogar() {
   const P = estado.P;
-  $("#p-perfil").innerHTML = `<option value="">Elegí un perfil…</option>` +
-    estado.perfiles.map((f) => `<option value="${esc(f.id)}">${esc(f.nombre)}: ${esc(f.descripcion)}</option>`).join("");
+  $("#perfiles-ejemplo").innerHTML = estado.perfiles.filter((f) => f.visible).map((f) =>
+    `<button type="button" class="perfil" data-perfil="${esc(f.id)}" aria-pressed="false">
+      <b>${esc(f.nombre)}<span class="perfil-cambios" hidden>con cambios</span></b><small>${esc(f.descripcion)}</small></button>`).join("");
+  $("#perfiles-ejemplo").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-perfil]");
+    if (b) cargarPerfil(b.dataset.perfil);
+  });
   $("#actividades").innerHTML = Object.entries(P.ACTIVIDAD).map(([clave, a], i) =>
     `<label><input type="radio" name="p-actividad" value="${clave}"><span style="--nivel:${i + 1}">${esc(a.nombre)}</span></label>`).join("");
   $("#objetivos").innerHTML = Object.entries(P.OBJETIVO).map(([clave, o]) =>
@@ -329,13 +412,10 @@ function prepararHogar() {
     cargarEditor();
     dibujarPersonas();
     guardar();
-    $("#p-perfil").focus();
+    $("[data-perfil]")?.focus();
   });
   $("#editor").addEventListener("input", alCambiarEditor);
-  $("#editor").addEventListener("change", (e) => {
-    if (e.target.id === "p-perfil") { cargarPerfil(e.target.value); return; }
-    alCambiarEditor(e);
-  });
+  $("#editor").addEventListener("change", alCambiarEditor);
 }
 
 // ============================================================
@@ -348,7 +428,7 @@ function mostrarLugar(texto, error = false) {
   el.classList.toggle("error", error);
 }
 
-function elegirLugar(lugar, mover = true) {
+function elegirLugar(lugar, mover = true, guardarlo = true) {
   estado.lugar = lugar;
   mostrarLugar(`Comprás cerca de: ${lugar.nombre}`);
   $("#lugares").innerHTML = "";
@@ -363,7 +443,7 @@ function elegirLugar(lugar, mover = true) {
     if (mover) estado.mapa.setView(punto, lugar.precision === "localidad" ? 13 : 15);
   }
   dibujarPersonas();
-  guardar();
+  if (guardarlo) guardar();
 }
 
 async function georef(recurso, params) {
@@ -477,7 +557,7 @@ function prepararUbicacion() {
   $("#caminatas").innerHTML = estado.P.CAMINATA_OPCIONES.map((m) =>
     `<label><input type="radio" name="caminata" value="${m}" ${m === estado.caminata ? "checked" : ""}><span>${m} min</span></label>`).join("");
   $("#caminatas").addEventListener("change", (e) => { estado.caminata = Number(e.target.value); estado.anterior = null; dibujarPersonas(); guardar(); });
-  if (estado.lugar) elegirLugar(estado.lugar);
+  if (estado.lugar) elegirLugar(estado.lugar, true, false);   // el lugar del enlace no se guarda hasta que se toque algo
 }
 
 // Teselas de OpenStreetMap (la URL actual, sin subdominios). Desde file:// pueden no cargar porque OSM exige el
@@ -1595,9 +1675,8 @@ function desdeEnlace() {
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
   const perfiles = ids.map((id) => estado.perfiles.find((f) => f.id === id)).filter(Boolean);
   if (perfiles.length) {
-    estado.hogar = perfiles.slice(0, estado.P.PERSONAS_MAXIMAS).map((f) => ({ ...PERSONA_NUEVA, nombre: f.nombre, sexo: f.sexo,
-      edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm, actividad: f.actividad, objetivo: f.objetivo, etapa: f.etapa,
-      trimestre: f.trimestre || 2, restricciones: [...f.restricciones] }));
+    estado.hogar = perfiles.slice(0, estado.P.PERSONAS_MAXIMAS).map((f) => ({ ...PERSONA_NUEVA, nombre: f.nombre,
+      ...datosDePerfil(f), perfil: f.id }));
     estado.actual = 0;
   }
   if (q.get("dias") && q.get("dias") in estado.P.DIAS_PERIODO) estado.dias = Number(q.get("dias"));
@@ -1656,7 +1735,7 @@ async function iniciar() {
     });
     cab.addEventListener("pointerleave", () => { imp.style.setProperty("--ry", "0deg"); imp.style.setProperty("--rx", "0deg"); });
   }
-  recuperar();
+  const guardado = CON_CASO ? null : leerGuardado();
   const pedida = Number(PARAMETROS.get("caminata"));
   if (estado.P.CAMINATA_OPCIONES.includes(pedida)) estado.caminata = pedida;
   $("#campo-caminata").hidden = !CON_RUTAS;
@@ -1667,6 +1746,7 @@ async function iniciar() {
   prepararPasos();
   cargarEditor();
   dibujarPersonas();
+  if (guardado) avisoRetomar(guardado);
   $("#formulario").addEventListener("submit", armar);
   // Los botones del resultado que no se rehacen con cada vista: imprimir, la compra en dos súper y el selector del ticket.
   $("#resultado").addEventListener("click", (e) => {
