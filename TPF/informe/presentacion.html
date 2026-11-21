@@ -230,7 +230,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cargando-demo b { font: 400 44px var(--serif); color: var(--tinta); }
 
 /* ---------- 7 · Límites ---------- */
-/* Tres bloques: hecho en las etapas 1 y 2 (y lo que queda del POC), etapas 3 a 6, fuera de alcance. */
+/* Tres bloques: hecho en las etapas 1 a 3, etapas 4 a 6 (y lo que queda del POC), fuera de alcance. */
 .columnas { flex: 1; display: grid; grid-template-columns: 1fr 1.2fr .72fr; gap: 56px; margin-top: 40px; align-items: start; }
 .columnas h3 { font: 500 16px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 16px; display: flex; align-items: center; gap: 12px; }
 .columnas h4 { font: 500 14px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 26px 0 4px; opacity: .6; }
@@ -454,27 +454,27 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <h2 class="titulo r" style="--d:1">Del POC <em>al MVP.</em></h2>
     <div class="columnas">
       <div class="r" style="--d:2">
-        <h3><span class="pastilla">Hecho</span>etapas 1 y 2</h3>
+        <h3><span class="pastilla">Hecho</span>etapas 1 a 3</h3>
         <ul class="lista">
           <li><span class="marca-li hecho" aria-hidden="true">1</span>Aumentar de peso<small>+500 kcal/día · proteína 1,2 g/kg</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">1</span>El agua, como restricción<small>de la canilla · comprada · 8 vasos</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">1</span>Cuando no llega a 37 metas<small>cuánto cubre cada una y qué probar</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">2</span>Comprar en dos sucursales<small>binarias de visita · se resuelve por pares</small></li>
+          <li><span class="marca-li hecho" aria-hidden="true">3</span>Precios de cada día<small>ETL con GitHub Actions · tests en cada push</small></li>
+        </ul>
+      </div>
+      <div class="r" style="--d:3">
+        <h3><span class="pastilla si">Sigue</span>etapas 4 a 6</h3>
+        <ul class="lista">
+          <li><span class="marca-li etapa">4</span>Restricciones nuevas<small>kosher · halal · sin cerdo · condiciones médicas</small></li>
+          <li><span class="marca-li etapa">5</span>Promociones con condiciones<small>2×1 · 2.ª unidad · porcentaje</small></li>
+          <li><span class="marca-li etapa">6</span>Contarlo en texto libre<small>LLM con Groq → metas para confirmar</small></li>
         </ul>
         <h4>Quedan del POC</h4>
         <ul class="lista queda">
           <li>Barato ≠ habitual<span>harina, hígado</span></li>
           <li>Rutas con cuota gratuita<span>ORS</span></li>
           <li>10 a 18 s por cálculo</li>
-        </ul>
-      </div>
-      <div class="r" style="--d:3">
-        <h3><span class="pastilla si">Sigue</span>etapas 3 a 6</h3>
-        <ul class="lista">
-          <li><span class="marca-li etapa">3</span>Precios de cada día<small>ETL con GitHub Actions · tests en cada push</small></li>
-          <li><span class="marca-li etapa">4</span>Restricciones nuevas<small>kosher · halal · sin cerdo · condiciones médicas</small></li>
-          <li><span class="marca-li etapa">5</span>Promociones con condiciones<small>2×1 · 2.ª unidad · porcentaje</small></li>
-          <li><span class="marca-li etapa">6</span>Contarlo en texto libre<small>LLM con Groq → metas para confirmar</small></li>
         </ul>
       </div>
       <div class="r" style="--d:4">

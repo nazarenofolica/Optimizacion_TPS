@@ -58,6 +58,15 @@ def _ruta(sitio: str) -> Path:
     return cfg.DIR_WEB / f"{sitio}.jsonl.gz"
 
 
+def faltantes() -> list[str]:
+    """
+    Catálogos que no están en la caché (un equipo nuevo, una caché borrada). Sin ellos el pipeline no puede armar
+    las categorías de góndola: se bajan con --actualizar-web (o solos con --diario).
+    """
+    rutas = [_ruta(s) for s in SITIOS] + [cfg.DIR_WEB / "jumbo_no_alimentos.jsonl.gz"]
+    return [r.name for r in rutas if not r.exists()]
+
+
 class _Cliente:
     def __init__(self) -> None:
         self.sesion = requests.Session()

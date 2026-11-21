@@ -23,6 +23,7 @@ pip install -r requirements.txt
 
 python -m sepa --descargar     # baja el ZIP del día (~320 MB) y arma todo
 python -m sepa                 # vuelve a procesar el ZIP que ya está en datos/entrada/
+python -m sepa --diario        # sin intervención (lo usa el ETL diario de GitHub Actions)
 ```
 
 | Opción | Qué hace |
@@ -31,9 +32,12 @@ python -m sepa                 # vuelve a procesar el ZIP que ya está en datos/
 | `--zip RUTA` | Usa ese ZIP |
 | `--actualizar-off` | Vuelve a bajar el dump de Open Food Facts (si no, se reutiliza 30 días) |
 | `--actualizar-web` | Vuelve a recorrer los catálogos online de Jumbo, Disco y Vea |
+| `--diario` | Como `--descargar`, y si los catálogos web no están en `datos/cache/web/` (un equipo nuevo) los recorre como `--actualizar-web` en lugar de cortarse; con las cachés, hace lo mismo que `--descargar` |
+| `--ultima-fecha` | Solo escribe la fecha (AAAA-MM-DD) del último ZIP publicado por SEPA, sin bajarlo |
 
 La primera corrida baja a `datos/cache/` Open Food Facts (~1,2 GB), USDA (~6 MB) y consulta las APIs
-geográficas; las siguientes reutilizan todo y tardan unos minutos. El resultado queda en `../datos/sepa/`, con
+geográficas; los catálogos web se recorren con `--actualizar-web` (o solos con `--diario`). Las siguientes reutilizan
+todo y tardan unos minutos. El ETL diario en GitHub Actions está en [../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md). El resultado queda en `../datos/sepa/`, con
 un `LEEME.md` que trae el **diccionario de datos** de las tres tablas y el resumen de la corrida.
 
 Tests: `python -m unittest discover -s tests -v`

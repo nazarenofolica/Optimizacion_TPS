@@ -6,6 +6,8 @@ SEPA 2.0: de un ZIP diario de SEPA a un modelo estrella listo para usar.
     python -m sepa --zip ruta.zip     # un ZIP puntual
     python -m sepa --actualizar-off   # vuelve a bajar el dump de Open Food Facts (~1,2 GB)
     python -m sepa --actualizar-web   # vuelve a recorrer los catálogos de Jumbo, Disco y Vea
+    python -m sepa --diario           # sin intervención (ETL diario): --descargar y, si faltan, los catálogos web
+    python -m sepa --ultima-fecha     # solo informa la fecha del último ZIP publicado, sin bajarlo
 
 Salidas en salida/: dim_producto, dim_tienda, fact_precio, calidad/ y LEEME.md.
 """
@@ -39,15 +41,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--descargar", action="store_true", help="Bajar antes el último ZIP minorista de la API.")
     p.add_argument("--actualizar-off", action="store_true", help="Volver a bajar el dump de Open Food Facts.")
     p.add_argument("--actualizar-web", action="store_true", help="Volver a recorrer los catálogos de Cencosud.")
+    p.add_argument("--diario", action="store_true",
+                   help="Corrida sin intervención (ETL diario): como --descargar y, si los catálogos web no están en la "
+                        "caché (un equipo nuevo), los recorre como --actualizar-web. Con las cachés, rehace lo mismo "
+                        "que --descargar.")
+    p.add_argument("--ultima-fecha", action="store_true",
+                   help="Solo escribir la fecha (AAAA-MM-DD) del último ZIP publicado por SEPA, sin bajarlo, y salir.")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
+
+
+def plan(args: argparse.Namespace) -> tuple[bool, bool]:
+    """(descargar el ZIP, recorrer los catálogos web) de esta corrida."""
+    descargar, web = args.descargar or args.diario, args.actualizar_web
+    if args.diario and not web:
+        faltan = catalogos_web.faltantes()
+        if faltan:
+            logger.info("Modo diario: faltan los catálogos web en la caché (%s); se recorren como con "
+                        "--actualizar-web (tarda bastante más que una corrida diaria)", ", ".join(faltan))
+            web = True
+    return descargar, web
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     cfg.configurar_logging(args.verbose)
+    if args.ultima_fecha:
+        print(fuente_sepa.ultima_fecha())
+        return 0
     inicio = time.time()
-    ruta = fuente_sepa.descargar_ultimo() if args.descargar else (args.zip or fuente_sepa.zip_del_dia())
+    descargar, actualizar_web = plan(args)
+    ruta = fuente_sepa.descargar_ultimo() if descargar else (args.zip or fuente_sepa.zip_del_dia())
 
     logger.info("== 1/5 Lectura de %s", ruta.name)
     datos = fuente_sepa.leer_zip(ruta)
@@ -62,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("== 3/5 Productos")
     eans = set(datos.productos.loc[~datos.productos["clave_producto"].str.startswith("cadena"), "clave_producto"])
     off = openfoodfacts.seleccion(eans, forzar=args.actualizar_off)
-    if args.actualizar_web:
+    if actualizar_web:
         for sitio in catalogos_web.SITIOS:
             catalogos_web.descargar(sitio, sorted(eans))
         catalogos_web.descargar_no_alimentos()

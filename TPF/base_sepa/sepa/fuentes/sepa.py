@@ -85,22 +85,33 @@ def _sesion() -> requests.Session:
     return sesion
 
 
+def _ultimo_recurso(sesion: requests.Session) -> tuple[str, str]:
+    """Fecha (AAAA-MM-DD) y URL del ZIP minorista más reciente que lista la API."""
+    r = sesion.get(URL_PAQUETE.format(cfg.DATASET_SEPA_MINORISTA), timeout=30)
+    r.raise_for_status()
+    recursos = []
+    for rec in r.json()["result"]["resources"]:
+        fecha = FECHA_RE.search(rec.get("description") or "")
+        if fecha and (rec.get("url") or "").lower().endswith(".zip"):
+            recursos.append((fecha.group(1), rec["url"]))
+    if not recursos:
+        raise RuntimeError("La API de SEPA no devolvió ningún ZIP con fecha.")
+    return max(recursos)
+
+
+def ultima_fecha() -> str:
+    """Fecha del ZIP minorista más reciente publicado, sin bajarlo (para saber si hay un día nuevo)."""
+    with _sesion() as sesion:
+        return _ultimo_recurso(sesion)[0]
+
+
 def descargar_ultimo(carpeta: Path = cfg.DIR_ENTRADA) -> Path:
     """
     Baja el ZIP minorista más reciente de la API (ventana rotativa de 7 días) y borra los anteriores de
     la carpeta: SEPA 2.0 trabaja siempre sobre un solo día.
     """
     with _sesion() as sesion:
-        r = sesion.get(URL_PAQUETE.format(cfg.DATASET_SEPA_MINORISTA), timeout=30)
-        r.raise_for_status()
-        recursos = []
-        for rec in r.json()["result"]["resources"]:
-            fecha = FECHA_RE.search(rec.get("description") or "")
-            if fecha and (rec.get("url") or "").lower().endswith(".zip"):
-                recursos.append((fecha.group(1), rec["url"]))
-        if not recursos:
-            raise RuntimeError("La API de SEPA no devolvió ningún ZIP con fecha.")
-        fecha, url = max(recursos)
+        fecha, url = _ultimo_recurso(sesion)
         carpeta.mkdir(parents=True, exist_ok=True)
         destino = carpeta / f"sepa_{fecha}.zip"
         if destino.exists():

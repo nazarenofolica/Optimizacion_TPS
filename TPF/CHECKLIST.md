@@ -1,6 +1,6 @@
 # Checklist: de POC a MVP de la canasta saludable
 
-Estado al 20/11/2026. Detalle del camino a producción en [docs/ROADMAP.md](docs/ROADMAP.md); investigación de
+Estado al 21/11/2026. Detalle del camino a producción en [docs/ROADMAP.md](docs/ROADMAP.md); investigación de
 herramientas en [docs/GITHUB_RESEARCH.md](docs/GITHUB_RESEARCH.md).
 
 ## Hecho
@@ -83,11 +83,21 @@ Lo que pidió el docente: si dos súper quedan cerca, comprar parte en cada uno.
 - [x] 127 tests de Python y paridad (3/3), también para dos súper (Microcentro, Córdoba a 15 y a 30 min).
 - [x] Presentación: caso "Dos súper" en la demo, la formulación en la diapositiva del motor, etapa 2 en "Hecho".
 
-## Etapa 3 · ETL diario y CI
+## Etapa 3 (21/11/2026) · ETL diario y CI
 
-- [ ] GitHub Actions cada mañana: bajar SEPA, rearmar la base, exportar y publicar la página.
-- [ ] Si la verificación falla, no se publica y queda la del día anterior; aviso por mail o issue.
-- [ ] Tests de Python y paridad en cada push; tests de la página con Playwright; motor JavaScript con Node.
+Hecha en el repo; la activa el dueño una sola vez ([docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)). No se probó todavía en
+GitHub.
+
+- [x] GitHub Actions cada día (07:30 y 18:00 de Argentina; SEPA sube el ZIP a la tarde): bajar SEPA, rearmar la base,
+      exportar y publicar la página en GitHub Pages, sin commitear los datos del día (`.github/workflows/tpf-diario.yml`).
+- [x] Modo diario `python -m sepa --diario` y `--ultima-fecha`; las fuentes que no cambian a diario viajan en la caché
+      de Actions. Si SEPA no publicó un día nuevo, termina bien y sin cambios.
+- [x] Si la verificación falla, no se publica y queda la del día anterior; mail de GitHub e issue (uno solo).
+- [x] Tests de Python en cada push y pull request que toque `TPF/` (`.github/workflows/tpf-tests.yml`); paridad a mano.
+- [x] 142 tests de Python (10 del modo diario).
+- [ ] Activarlo: push, merge a `main`, Settings → Pages → "GitHub Actions" y la primera corrida a mano.
+- [ ] Paridad en cada push; tests de la página con Playwright; motor JavaScript con Node.
+- [ ] Controles contra el día anterior (precios que saltan, sucursales que desaparecen).
 - [ ] Entorno reproducible con `uv`.
 
 ## Etapa 4 · Restricciones nuevas
@@ -110,7 +120,7 @@ Lo que pidió el docente: si dos súper quedan cerca, comprar parte en cada uno.
 - [ ] Rutas para uso público: autoalojar OpenRouteService u OSRM.
 - [ ] Costo con 15, 30, 45 y 60 min de una vez; objetivos secundarios con un tope de costo explícito.
 - [ ] Autocompletado de direcciones y lista de compras para compartir.
-- [ ] Deploy y monitoreo.
+- [ ] Monitoreo (Sentry) y backend (el deploy de la página es la etapa 3).
 
 ## Fuera de alcance
 

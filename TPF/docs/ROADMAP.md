@@ -1,6 +1,6 @@
 # Roadmap: de POC a MVP y a producción
 
-Estado al 20/11/2026. Las herramientas citadas están evaluadas, con enlaces y estrellas, en
+Estado al 21/11/2026. Las herramientas citadas están evaluadas, con enlaces y estrellas, en
 [GITHUB_RESEARCH.md](GITHUB_RESEARCH.md). Los pendientes de datos y de nutrición que ya se conocían siguen en
 [../base_sepa/PLAN_DE_TRABAJO.md](../base_sepa/PLAN_DE_TRABAJO.md); la lista para tildar, en
 [../CHECKLIST.md](../CHECKLIST.md).
@@ -84,6 +84,26 @@ botón "¿Conviene sumar un segundo súper?" en la página, `&dos=1` en el enlac
 - Tests: 127 en Python y 3 opcionales de paridad entre el navegador y Python, ahora también para dos súper
   (Microcentro, conviene por ahorro; Córdoba a 15 min, no conviene; Córdoba a 30 min, conviene por metas).
 
+### Etapa 3 del MVP (21/11/2026): ETL diario y CI
+
+Hecha en el repositorio; falta que el dueño la active (pushear, `main`, Pages con "GitHub Actions" y una primera
+corrida a mano: [DESPLIEGUE.md](DESPLIEGUE.md)). No se probó todavía en GitHub.
+
+- **ETL diario** (`.github/workflows/tpf-diario.yml`, en la raíz del repo): a las 07:30 y a las 18:00 de Argentina
+  (SEPA sube el ZIP de cada día a la tarde) pregunta la fecha del último ZIP (`python -m sepa --ultima-fecha`) y, si
+  el sitio no la tiene, rearma la base (`python -m sepa --diario`), exporta la página (`python -m canasta --exportar`,
+  sin clave) y la publica en **GitHub Pages** (`https://nazarenofolica.github.io/Optimizacion_TPS/`). Sin commitear
+  los datos del día: no hay historial y el repo no crece.
+- **Modo diario** (`--diario`): `--descargar` sin intervención; con las cachés hace lo mismo y, si faltan los catálogos
+  web (un runner nuevo), los recorre en lugar de cortarse. Open Food Facts, los catálogos web, Georef/USIG y USDA
+  viajan entre corridas en la caché de Actions, con una huella del contenido en la clave.
+- **Controles:** si falla la verificación (o una fuente), no se publica y queda la página del último día bueno; las
+  tablas que no pasaron quedan como artefacto, GitHub manda un mail y se abre un issue (uno solo, que se cierra cuando
+  vuelve a andar). Si SEPA no publicó un día nuevo, la corrida termina bien, sin cambios.
+- **CI** (`.github/workflows/tpf-tests.yml`): la suite de Python en cada push y pull request que toque `TPF/`; la
+  paridad con Chrome headless, a mano.
+- Tests: 142 en Python (10 nuevos del modo diario) y 3 opcionales de paridad.
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -122,24 +142,19 @@ el costo, se propone el segundo súper si cubre mejor las metas o si ahorra al m
 ahorro junto a los minutos de más para que la persona decida. Con más de dos visitas los pares dejan de alcanzar:
 haría falta el MILP con binarias (o enumerar tríos acotados) y, para el orden de las visitas, un problema de ruteo.
 
-## El camino al MVP: etapas 3 a 6
+## El camino al MVP: etapas 3 a 6 (la 3, hecha)
 
 Cada etapa se planifica y se cierra por separado, con sus tests y la paridad entre los dos motores.
 
-### Etapa 3 · ETL diario y CI
+### Etapa 3 · ETL diario y CI: hecha (21/11/2026, falta activarla)
 
-- GitHub Actions con cron a la mañana (SEPA exige que los comercios publiquen antes de las 6:00): `python -m sepa
-  --descargar` y `python -m canasta --exportar`; publicar la página en GitHub Pages o Cloudflare Pages.
-- Controles: si `sepa/verificacion.py` falla, no se publica y queda la versión del día anterior (ya se detiene sin
-  tocar la base); avisar por mail o issue.
-- Cada corrida reemplaza el día anterior (ver "Fuera de alcance").
-- Detección de cambios: comparar contra el día anterior (precios que saltan más de x3, sucursales que desaparecen,
-  comercios con archivo viejo: ya se excluyen).
-- Faltantes: un producto sin precio hoy no se arrastra de ayer; una sucursal sin datos del día no se ofrece.
+Ver "Etapa 3 del MVP" arriba y [DESPLIEGUE.md](DESPLIEGUE.md). Lo que queda de lo que se había planeado:
+
+- Detección de cambios contra el día anterior (precios que saltan más de x3, sucursales que desaparecen): el pipeline
+  no la tiene todavía; los comercios con archivo viejo ya se excluyen.
 - Equivalencias entre cadenas: ya existe por EAN y "gemelos"; documentar y testear el emparejamiento.
-- Entorno reproducible con `uv` (hoy hay dos `requirements.txt`).
-- **Tests en cada push:** la suite de Python y la paridad en CI; tests de la página con Playwright (hoy: Chrome
-  headless con capturas y paridad); tests del motor JavaScript sin navegador (Node).
+- Entorno reproducible con `uv` (hoy hay dos `requirements.txt` con rangos de versiones).
+- Paridad en cada push (hoy, a mano), tests de la página con Playwright y del motor JavaScript sin navegador (Node).
 
 ### Etapa 4 · Restricciones nuevas y condiciones médicas
 
@@ -216,8 +231,8 @@ el formulario actual cubre lo que el motor sabe hacer.
 
 | Pieza | Propuesta | Costo orientativo |
 |---|---|---|
-| Página | Estática en Cloudflare Pages o GitHub Pages | Gratis |
-| ETL diario | GitHub Actions (o Dagster/Prefect si crecen las fuentes) | Gratis en repo público; si no, minutos de Actions |
+| Página | Estática en GitHub Pages (hecho, falta activarlo) o Cloudflare Pages | Gratis en repo público |
+| ETL diario | GitHub Actions (hecho: `tpf-diario.yml`; Dagster/Prefect si crecen las fuentes) | Gratis en repo público; si no, minutos de Actions |
 | Backend + rutas | FastAPI + ORS/OSRM autoalojado en un VPS (Coolify para desplegar) | USD 10 a 40 por mes |
 | Datos | Parquet del último día; Postgres (Supabase) recién cuando haya cuentas | Gratis al inicio |
 | Monitoreo | Sentry (backend, job y página) + alerta si el job no publicó | Plan gratis al inicio |

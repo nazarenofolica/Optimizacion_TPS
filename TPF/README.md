@@ -19,7 +19,8 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | Fuentes | ✅ [`docs/fuentes.md`](docs/fuentes.md) |
 | **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
 | **MVP, etapa 1** (objetivo "Aumentar de peso", el agua como restricción en tres modos, un caso que no llega a las 37 metas) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
-| **MVP, etapa 2** (compra en dos supermercados: binarias de visita resueltas por pares, conviene si cubre mejor las metas o ahorra ≥ 3 % y ≥ $1.000) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 3 a 6 que siguen |
+| **MVP, etapa 2** (compra en dos supermercados: binarias de visita resueltas por pares, conviene si cubre mejor las metas o ahorra ≥ 3 % y ≥ $1.000) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 4 a 6 que siguen |
+| **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en el repo, falta activarla: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
 | Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
 | Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
 | Consigna, resultados e informe | ⏳ Pendiente |
@@ -112,7 +113,12 @@ Para **regenerarla** con el archivo de SEPA del día (baja ~320 MB y, la primera
 cd base_sepa
 pip install -r requirements.txt
 python -m sepa --descargar      # rehace datos/sepa/
+python -m sepa --diario         # lo mismo sin intervención (la primera vez también recorre los catálogos web)
 ```
+
+Una vez activado el ETL diario ([`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)), GitHub Actions hace esto todos los días
+y publica la página con los precios del día en https://nazarenofolica.github.io/Optimizacion_TPS/, sin commitear la
+base del día (la versionada en `datos/sepa/` queda como la del 23/10/2026).
 
 ## Fuentes principales
 

@@ -1,0 +1,95 @@
+# TPF: tests de Python en cada push y pull request que toque TPF/ (TP1 a TP3 no los disparan).
+# La paridad Python / navegador (tests/test_pagina.py, Chrome headless, ~5 min) es opcional: se corre a mano desde
+# la pestaña Actions ("Run workflow" con "paridad" tildado). Ver TPF/docs/DESPLIEGUE.md.
+
+name: "TPF · tests"
+
+on:
+  push:
+    paths: ["TPF/**", ".github/workflows/tpf-*.yml"]
+  pull_request:
+    paths: ["TPF/**", ".github/workflows/tpf-*.yml"]
+  workflow_dispatch:
+    inputs:
+      paridad:
+        description: "Correr también la paridad Python / navegador (Chrome headless, ~5 min más)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Un push nuevo a la misma rama cancela la corrida anterior que quedó en curso.
+concurrency:
+  group: tpf-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # La misma versión que usa el equipo en su máquina (ver TPF/docs/DESPLIEGUE.md antes de cambiarla).
+  PYTHON_VERSION: "3.10"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
+
+jobs:
+  tests:
+    name: Tests de Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: TPF/base_sepa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: TPF/base_sepa/requirements.txt
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+
+      # Los tests que usan la base leen los parquet versionados de TPF/datos/sepa/ (vienen en el checkout). No usan
+      # red ni la clave de rutas: sin .env, los tiempos caminando se estiman. La paridad queda omitida (skipped).
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+
+  paridad:
+    name: Paridad Python / navegador
+    if: github.event_name == 'workflow_dispatch' && inputs.paridad
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: TPF/base_sepa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: TPF/base_sepa/requirements.txt
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+
+      # Ubuntu 24.04 restringe los espacios de nombres de usuario que usa el sandbox de Chrome.
+      - name: Habilitar el sandbox de Chrome
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      # El runner trae Google Chrome; la página baja HiGHS de jsDelivr. Si la página no llega a calcular, el test se
+      # omite (skipped) en lugar de fallar: acá eso cuenta como falla, para no dar por buena una paridad que no corrió.
+      - name: Paridad
+        env:
+          CANASTA_TEST_PAGINA: "1"
+        run: |
+          google-chrome --version
+          python -m unittest tests.test_pagina -v 2>&1 | tee "$RUNNER_TEMP/paridad.log"
+          if grep -q "skipped" "$RUNNER_TEMP/paridad.log"; then
+            echo "::error::La paridad se omitió (la página no llegó a calcular en Chrome): revisar el log."
+            exit 1
+          fi

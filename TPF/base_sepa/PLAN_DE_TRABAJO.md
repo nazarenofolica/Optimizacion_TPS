@@ -1,6 +1,6 @@
 # Plan de trabajo
 
-Estado al 2026-11-20 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
+Estado al 2026-11-21 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
 [README](README.md); acá van los avances en resumen, los problemas conocidos y los próximos pasos, en orden de
 prioridad dentro de cada bloque.
 
@@ -50,8 +50,16 @@ la unión de las ofertas, sin los productos de B que A vende igual o más barato
 y dio compras más caras). Conviene si cubre mejor las metas o, con las mismas, si ahorra ≥ 3 % y ≥ $1.000; se informa
 el ahorro y los minutos de más (tramo A → B estimado) y la persona decide. La página muestra la decisión, la
 comparación, el recorrido, el ticket dividido por sucursal y el mapa. El oficinista en el Microcentro ahorra ~6 % con
-~5 min más. Tests: 127 en Python más 3 de paridad con el navegador, también para dos súper. Las etapas 3 a 6 (ETL
-diario y CI, restricciones nuevas, promociones con condiciones, Groq) están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+~5 min más. Tests: 127 en Python más 3 de paridad con el navegador, también para dos súper. Las etapas 4 a 6
+(restricciones nuevas, promociones con condiciones, Groq) están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+
+**Etapa 3 del MVP (2026-11-21)**, ETL diario y CI, hecha en el repo y pendiente de activar
+([../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md)): GitHub Actions pregunta cada día la fecha del último ZIP de SEPA
+(`python -m sepa --ultima-fecha`) y, si es nueva, rearma la base (`python -m sepa --diario`: `--descargar` sin
+intervención, que si faltan los catálogos web los recorre), exporta la página sin clave y la publica en GitHub Pages,
+sin commitear los datos del día. Open Food Facts, los catálogos web, Georef/USIG y USDA viajan en la caché de Actions.
+Si falla la verificación no se publica (queda el día anterior) y se abre un issue. Los tests de Python corren en cada
+push. Tests: 142 en Python.
 
 ## Para revisar
 
@@ -95,14 +103,14 @@ diario y CI, restricciones nuevas, promociones con condiciones, Groq) están en 
 
 ## Próximos pasos
 
-1. **Actualización diaria automática** (etapa 3 del roadmap): `python -m sepa --descargar` y `python -m canasta
-   --exportar` en una tarea programada, y publicar la página (por ejemplo en GitHub Pages, ya que es un archivo
-   estático).
+1. **Activar la actualización diaria** (etapa 3, ya armada): pushear, llevar a `main`, Settings → Pages → "GitHub
+   Actions" y la primera corrida a mano ([../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md)). Después, controles contra el
+   día anterior.
 2. **Velocidad**: una persona tarda ~10 s y un hogar de tres para dos semanas ~18 s. Ideas: resolver primero solo la
    sucursal más prometedora, cachear la oferta por cadena, acotar el modelo entero a los productos que usa la
    relajación.
 3. **Ticket para llevar**: imprimir o descargar en PDF, y compartir el enlace con los datos cargados.
 4. **Comparar contra la Canasta Básica Alimentaria del INDEC** (costo por adulto equivalente) como referencia en la
    página.
-5. **Tests del motor JavaScript sin navegador** (Node) y una integración continua que corra los tests en cada push
-   (etapa 3 del roadmap).
+5. **Tests del motor JavaScript sin navegador** (Node) y la paridad en cada push (los tests de Python ya corren en
+   cada push: `.github/workflows/tpf-tests.yml`).
