@@ -729,6 +729,15 @@ input:focus-visible, select:focus-visible { outline: none; }
 .am-dato { font: 500 0.84rem var(--ticket); text-align: right; }
 .am-probar-titulo { font-weight: 600; margin-top: 2px; }
 .am-probar li { display: grid; gap: 6px; justify-items: start; color: var(--tinta-suave); }
+/* Una sucursal con precios de un día anterior (su cadena no publicó el día; hasta 15 días): discreto, sin alarma. */
+.aviso-fecha {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 0.84rem; color: var(--tinta-suave); max-width: 62ch;
+}
+.aviso-fecha i {
+  flex: none; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+  border: 1px solid currentColor; font: 600 0.68rem var(--ticket); font-style: normal;
+}
+.ts-fecha { color: var(--naranja); }
 .ts-metas { display: inline-block; margin-right: 4px; font: 600 0.82rem var(--ticket); color: var(--naranja); white-space: nowrap; }
 @media (max-width: 520px) {
   /* Angosto: el nombre arriba; la barra y cuánto cubre, debajo. */

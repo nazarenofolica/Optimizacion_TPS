@@ -76,6 +76,12 @@ def _num(x, d=0):
     return f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _hace(t: dict) -> str:
+    """" (precios de hace N días)" si la sucursal tiene precios de un día anterior al más reciente de la base."""
+    n = t.get("dias_precios") or 0
+    return f" (precios de hace {n} día{'s' if n != 1 else ''})" if n > 0 else ""
+
+
 def _imprimir_dos_super(ds: dict) -> None:
     num = _num
     print(f"\n{'=' * 64}\n¿Conviene comprar en dos supermercados? ({ds['estado'].replace('_', ' ')})\n{'-' * 64}")
@@ -105,7 +111,8 @@ def _imprimir_dos_super(ds: dict) -> None:
         return                                  # el ticket dividido, solo si se propone
     for bloque in ds["ticket"]["sucursales"]:
         t = bloque["tienda"]
-        print(f"\n{t['bandera']} — {t['sucursal']} ({t['direccion']})")
+        print(f"\n{t['bandera']} — {t['sucursal']} ({t['direccion']}) · precios SEPA del {t['fecha_precios']}"
+              f"{_hace(t)}")
         for it in bloque["items"]:
             print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
             _imprimir_promo(it)
@@ -149,10 +156,10 @@ def _imprimir(r: dict) -> None:
         tiempo = ""
         if s.get("minutos") is not None:
             tiempo = f"{'≈' if s['fuente_tiempo'] == 'estimado' else ''}{num(s['minutos'])} min  "
-        print(f" {marca} {s['bandera']:<28} {s['distancia_km']:>5.2f} km  {tiempo}{costo}{falta}")
+        print(f" {marca} {s['bandera']:<28} {s['distancia_km']:>5.2f} km  {tiempo}{costo}{falta}{_hace(s)}")
     t = r["ticket"]
     print(f"\n{'=' * 64}\n{t['tienda']['bandera']} — {t['tienda']['sucursal']}\n{t['tienda']['direccion']}"
-          f"\nPrecios del {t['fecha_precios']} · compra para {r['periodo']}\n{'-' * 64}")
+          f"\nPrecios SEPA del {t['fecha_precios']}{_hace(t['tienda'])} · compra para {r['periodo']}\n{'-' * 64}")
     for it in t["items"]:
         print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
         _imprimir_promo(it)

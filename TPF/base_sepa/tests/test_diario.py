@@ -145,5 +145,32 @@ class TestCatalogosFaltantes(unittest.TestCase):
             self.assertEqual(catalogos_web.faltantes(), [])
 
 
+class TestOpenFoodFacts(unittest.TestCase):
+    def test_el_volcado_se_pide_con_un_user_agent_propio(self):
+        # Open Food Facts responde 403 al User-Agent de requests (pasó el 21/11/2026, en la primera corrida sin caché).
+        from sepa.fuentes import openfoodfacts
+
+        class _Flujo:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, chunk_size):
+                yield b"dump"
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(cfg, "RUTA_OFF_DUMP", Path(d) / "products.csv.gz"), \
+                mock.patch.object(openfoodfacts.requests, "get", return_value=_Flujo()) as get:
+            ruta = openfoodfacts.asegurar_dump()
+            self.assertEqual(ruta.read_bytes(), b"dump")
+        agente = get.call_args.kwargs["headers"]["User-Agent"]
+        self.assertFalse(agente.lower().startswith("python-requests"))
+
+
 if __name__ == "__main__":
     unittest.main()

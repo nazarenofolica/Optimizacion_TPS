@@ -80,7 +80,8 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   entran al modelo solo en la etapa del costo (precio efectivo, tope, "llevando n" con una binaria, grupos enteros
   para el 2×1 y la 2.ª unidad; ver el docstring de `canasta/modelo.py`), y el ticket muestra el descuento de cada
   renglón y el ahorro. "Aplicar promociones" en el paso 3, `?promos=0|1` en el enlace, `--sin-promos` en la consola.
-  Con una base sin la tabla (la del 23/10/2026), no hay promociones y todo da lo mismo que antes.
+  La base del 21/11/2026 trae 996.184 aplicables (DIA, La Anónima y parte de la Cooperativa Obrera; las de Carrefour
+  y Coto no dicen qué promoción son). Con una base sin la tabla, no hay promociones y todo da lo mismo que antes.
 - **Sin cerdo, halal y kosher** (etapa 4, `PESCADOS_*` y los criterios en `canasta/config.py`): con las columnas de
   dieta y religión; "desconocido" no es apto. Sin certificaciones en la base, halal y kosher no ofrecen carnes ni
   aves (solo las rotuladas, y no hay) y aplican lo que se puede verificar por ingredientes (kosher: sin mariscos,
@@ -197,8 +198,16 @@ cada producto es la mediana de las medianas de cada cadena; dentro de x2 / ÷2 u
 estación de servicio cobra una gaseosa 1,7 veces lo que un supermercado; una cadena de descuento, 40 % menos),
 más de 3 veces arriba o abajo se descarta siempre, y en el medio queda si es coherente con la dispersión
 normal del producto. Con solo dos cadenas que no coinciden no hay mayoría: gana la que tiene un precio posible
-para su subcategoría (una cadena publica el precio de una caja de six-packs como si fuera uno). Los comercios
-cuyo archivo no es del día (uno repite un archivo de 2025) se excluyen enteros.
+para su subcategoría (una cadena publica el precio de una caja de six-packs como si fuera uno).
+
+**Fecha de los precios, por sucursal.** Cada cadena sube al ZIP del día su archivo con la fecha de su última
+actualización, y varias suben el del día anterior. Si el archivo tiene a lo sumo `DIAS_TOLERANCIA_PRECIO` (15) días
+respecto del ZIP, sus precios se usan con su fecha: `fact_precio.fecha` y `dim_tienda.fecha_precios` son las de cada
+sucursal, y la canasta lo avisa ("precios de hace N días"); no tener los precios del día es un problema de largo plazo,
+en dos semanas no cambia la compra. Si es más viejo (una cadena repite un archivo de 2025), el comercio se excluye
+entero. `calidad/lectura_comercios.csv` dice de cada archivo su fecha, cuántos días tiene y si quedó `ok` (del día),
+`anterior` (se usa con su fecha) o `desactualizado` (afuera); la verificación controla que ninguna sucursal pase la
+tolerancia y cuenta las que usan precios de días anteriores.
 
 Lo que vende una sola cadena no tiene con quién compararse: se compara con sus gemelos de otras cadenas
 (descripción casi igual, contenido parecido, precio con consenso de al menos dos cadenas, ponderado por

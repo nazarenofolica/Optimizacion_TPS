@@ -254,6 +254,12 @@ def _ordenar(items: list[dict]) -> list[dict]:
     return sorted(items, key=lambda it: (orden.get(it["grupo"], 99), it["subcategoria"], it["nombre"]))
 
 
+def _fecha_tienda(tienda: pd.Series) -> dict:
+    """El día de los precios de la sucursal (AAAA-MM-DD) y cuántos días tiene respecto del más reciente de la base: una
+    cadena que no publicó el día entra con su último archivo si tiene a lo sumo DIAS_TOLERANCIA_PRECIO días (sepa)."""
+    return {"fecha_precios": tienda["fecha_precios"], "dias_precios": int(tienda["dias_precios"])}
+
+
 def _datos_tienda(tienda: pd.Series) -> dict:
     """La sucursal como la muestra el ticket (con los minutos caminando desde el lugar, si se buscó por tiempo)."""
     return {"id": tienda.name, "bandera": tienda["bandera"], "comercio": tienda["comercio"],
@@ -262,7 +268,7 @@ def _datos_tienda(tienda: pd.Series) -> dict:
             "barrio": _limpio(tienda["barrio"]), "provincia": _limpio(tienda["provincia"]),
             "lat": _limpio(tienda["lat"]), "lon": _limpio(tienda["lon"]),
             "distancia_km": round(float(tienda["distancia_km"]), 2), **_caminata(tienda),
-            "hoy": _horario_hoy(tienda), "tipo": tienda["tipo_sucursal"]}
+            "hoy": _horario_hoy(tienda), "tipo": tienda["tipo_sucursal"], **_fecha_tienda(tienda)}
 
 
 def _ahorro(items: list[dict]) -> dict:
@@ -273,7 +279,8 @@ def _ahorro(items: list[dict]) -> dict:
             "promociones_aplicadas": sum(1 for it in items if it["promo"] and it["promo"]["aplicada"])}
 
 
-def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str, aplicar: bool = False) -> dict:
+def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, aplicar: bool = False) -> dict:
+    """El ticket de la sucursal; fecha_precios es la de sus precios (puede ser anterior a la de la base)."""
     o = sol.oferta
     consumo = sol.consumo
     items = _ordenar([_renglon(sol, j, dias, aplicar) for j in np.flatnonzero(sol.compra > 0)])
@@ -281,7 +288,7 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str, apli
     energia = float(np.dot(o["energia_kcal"].to_numpy(float) / 100, consumo))
     return {
         "tienda": _datos_tienda(tienda),
-        "fecha_precios": fecha, "dias": dias, "items": items, "total": total,
+        "fecha_precios": tienda["fecha_precios"], "dias": dias, "items": items, "total": total,
         "costo_diario": round(total / dias, 2),
         "costo_1000_kcal": round(total / dias / energia * 1000, 2) if energia else None,
         "promociones_disponibles": sum(1 for it in items if it["promocion"] or it["promo"]),
@@ -411,7 +418,8 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
         comparacion.append({"id": i, "bandera": t["bandera"], "sucursal": t["sucursal_nombre"],
                             "direccion": t["direccion"], "localidad": _limpio(t["localidad"]),
                             "distancia_km": round(float(t["distancia_km"]), 2), **_caminata(t),
-                            "lat": _limpio(t["lat"]), "lon": _limpio(t["lon"]), "estado": s.estado,
+                            "lat": _limpio(t["lat"]), "lon": _limpio(t["lon"]), **_fecha_tienda(t),
+                            "estado": s.estado,
                             "costo": round(s.costo, 2) if ok else None,
                             "puntaje": round(_puntaje(s, sin_aptos), 3) if ok else None,
                             "faltantes": _faltantes(s, sin_aptos, nombres) if ok else [],
@@ -432,7 +440,7 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
     n_vars = len(sol.oferta) * (1 + len(personas)) + metas_modelo
     base.update({
         "sucursales": comparacion,
-        "ticket": _ticket(sol, tiendas.loc[elegida["id"]], dias, d.fecha, aplicar),
+        "ticket": _ticket(sol, tiendas.loc[elegida["id"]], dias, aplicar),
         "modelo": {"estado": sol.estado, "productos_considerados": len(sol.oferta), "variables": n_vars,
                    "metas": metas_modelo, "segundos_sucursal": round(sol.segundos, 2),
                    "segundos_total": round(time.time() - inicio, 2), "gap": cfg.GAP_RELATIVO},
@@ -530,10 +538,10 @@ def _circuito(ta: pd.Series, tb: pd.Series) -> dict:
                        {"desde": "b", "hasta": "lugar", "minutos": casa_b, "fuente": fuente_b}]}
 
 
-def _ticket_dividido(sol: modelo.Solucion, tiendas: list[pd.Series], dias: int, fecha: str,
-                     aplicar: bool = False) -> dict:
+def _ticket_dividido(sol: modelo.Solucion, tiendas: list[pd.Series], dias: int, aplicar: bool = False) -> dict:
     """El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal (y su ahorro por
-    promociones: cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda)."""
+    promociones: cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda). Cada bloque trae la
+    fecha de los precios de su sucursal; fecha_precios, la más vieja de las dos."""
     de_tienda = sol.oferta["id_tienda"].to_numpy()
     bloques = []
     for t in tiendas:
@@ -543,7 +551,8 @@ def _ticket_dividido(sol: modelo.Solucion, tiendas: list[pd.Series], dias: int, 
                         "subtotal": round(sum(it["subtotal"] for it in items), 2), **_ahorro(items)})
     total = round(sum(b["subtotal"] for b in bloques), 2)
     total_lista = round(sum(b["total_lista"] for b in bloques), 2)
-    return {"fecha_precios": fecha, "dias": dias, "sucursales": bloques, "total": total,
+    return {"fecha_precios": min(t["fecha_precios"] for t in tiendas), "dias": dias, "sucursales": bloques,
+            "total": total,
             "costo_diario": round(total / dias, 2), "total_lista": total_lista,
             "ahorro_promociones": round(total_lista - total, 2),
             "promociones_aplicadas": sum(b["promociones_aplicadas"] for b in bloques)}
@@ -668,7 +677,8 @@ def dos_super(personas: list[Persona], r: dict, tiempos: dict[str, dict] | None 
         ok = s.estado != "sin_solucion"
         probadas.append({"id": i, "bandera": tb["bandera"], "sucursal": tb["sucursal_nombre"],
                          "direccion": tb["direccion"], "lat": _limpio(tb["lat"]), "lon": _limpio(tb["lon"]),
-                         "minutos_desde_a": round(float(tb["minutos_desde_a"]), 1), "estado": s.estado,
+                         "minutos_desde_a": round(float(tb["minutos_desde_a"]), 1), **_fecha_tienda(tb),
+                         "estado": s.estado,
                          "costo": round(s.costo, 2) if ok else None,
                          "puntaje": round(_puntaje(s, sin_aptos), 3) if ok else None,
                          "compra_en_b": _compra_en(s, i), "segundos": round(s.segundos, 2)})
@@ -698,7 +708,7 @@ def dos_super(personas: list[Persona], r: dict, tiempos: dict[str, dict] | None 
     sol, tb = soluciones[mejor["id"]], vecinas.loc[mejor["id"]]
     ahorro = round(costo_a - mejor["costo"], 2)
     pct = round(ahorro / costo_a * 100, 1)
-    ticket = _ticket_dividido(sol, [ta, tb], dias, r["fecha_precios"], aplicar)
+    ticket = _ticket_dividido(sol, [ta, tb], dias, aplicar)
     productos_b = list(dict.fromkeys(it["subcategoria"] for it in ticket["sucursales"][1]["items"]))
     personas_c = []
     for dieta, req, sa, nombre in zip(sol.dietas, reqs, sin_aptos, nombres):

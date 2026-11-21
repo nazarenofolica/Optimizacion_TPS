@@ -136,8 +136,7 @@ GitHub.
 - [x] 193 tests de Python (32 nuevos) y un caso más de paridad con promociones inyectadas (2×1, 2.ª al 70 %, llevando
       3 y una bancaria; una sucursal y dos súper).
 - [x] Presentación: etapa 5 en "Hecho".
-- [ ] Rearmar la base con el pipeline nuevo: **las promociones se aplican desde la próxima actualización** (la base de
-      hoy, del 23/10/2026, no guarda las leyendas).
+- [x] Rearmar la base con el pipeline nuevo: hecho con la base del 21/11/2026 (996.184 promociones aplicables).
 - [ ] Las desconocidas (Carrefour, Coto, Cooperativa Obrera): cruzar con los catálogos web; promociones por día de la
       semana.
 
@@ -158,6 +157,22 @@ GitHub.
 - [ ] **Probarlo con una clave real** (esquema estricto, calidad de la traducción, tiempos, cuota).
 - [ ] Backend propio (FastAPI) en producción que envuelva `llm.py` y guarde las claves (Groq y rutas): con eso el texto
       libre llega a la página publicada.
+
+## Base del 21/11/2026 y tolerancia de 15 días
+
+- [x] `DIAS_TOLERANCIA_PRECIO = 15` en `sepa/config.py`: una cadena que no publicó el día entra con su último archivo
+      si tiene a lo sumo 15 días; si es más viejo, no entra. Estado `anterior` y días en `lectura_comercios.csv`.
+- [x] Fecha por sucursal: `fact_precio.fecha` y `dim_tienda.fecha_precios`; controles nuevos en `verificacion.py`
+      (ninguna pasa la tolerancia ni es posterior al ZIP, cada precio con la fecha de su sucursal, cuántas usan precios
+      de días anteriores). En la base nueva, 51 sucursales del 20/11 (Mariano Max, La Agrícola Regional, DEHEZA,
+      Estación Lima).
+- [x] Canasta (dos motores, con paridad): "Precios SEPA del ..." de cada sucursal en el ticket (y en el de dos súper),
+      la marca en la tabla de sucursales y el aviso "precios de hace N días" si la elegida es de un día anterior.
+- [x] Base del 21/11/2026 con `python -m sepa --diario`: 27.949 productos, 2.651 sucursales, 8.309.213 precios,
+      1.161.802 promociones (996.184 aplicables), 71 controles. Arreglados en el pipeline: el User-Agent para Open Food
+      Facts, las tablas web con los valores de la porción como cada 100 g y la fibra heredada que pasaba los 105 g.
+- [x] Tests, paridad, demo y presentación recalibrados con los números nuevos.
+- [ ] Rótulos web que cambiaron por otro factor (la mitad, el doble) y no se reconocen como "por porción": revisar.
 
 ## Otros pendientes
 

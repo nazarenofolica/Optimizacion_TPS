@@ -54,13 +54,14 @@ Groq, el paso 1 ofrece "Contalo con tus palabras" (solo en la página local). M�
 
 ## La base en números
 
-Precios minoristas del **viernes 23 de octubre de 2026** (SEPA, Secretaría de Comercio Interior):
+Precios minoristas del **sábado 21 de noviembre de 2026** (SEPA, Secretaría de Comercio Interior):
 
 | Tabla | Una fila por | Filas |
 |---|---|---:|
-| `dim_producto` | producto comestible, con 33 nutrientes cada 100 g, composición, alérgenos, NOVA y sellos (sin precio) | 28.036 |
-| `dim_tienda` | sucursal (15 cadenas, 24 jurisdicciones), con coordenada validada y división política | 2.666 |
-| `fact_precio` | producto × tienda, con precio publicado y normalizado por kg, litro, unidad y cada 100 g | 8.241.172 |
+| `dim_producto` | producto comestible, con 33 nutrientes cada 100 g, composición, alérgenos, NOVA y sellos (sin precio) | 27.949 |
+| `dim_tienda` | sucursal (15 cadenas, 24 jurisdicciones), con coordenada validada, división política y fecha de sus precios | 2.651 |
+| `fact_precio` | producto × tienda, con precio publicado y normalizado por kg, litro, unidad y cada 100 g | 8.309.213 |
+| `promocion` | promoción de un precio (hasta 2), clasificada: si la canasta la aplica y por qué no | 1.161.802 (996.184 aplicables) |
 
 Los productos se agrupan en **218 alimentos genéricos** ("leche entera", "lentejas secas", "nalga"),
 que van a ser los alimentos del modelo.
@@ -82,7 +83,7 @@ TPF/
 ├── base_sepa/                el pipeline que arma la base (proyecto SEPA 2.0)
 │   ├── sepa/                 código: lectura de SEPA, productos, nutrientes, tiendas, precios, verificación
 │   ├── referencia/           tablas curadas a mano (alimentos genéricos, rótulos de fotos, categorías)
-│   └── tests/                57 tests
+│   └── tests/                254 tests (pipeline y canasta)
 │
 ├── docs/
 │   ├── introduccion.md       el problema de la dieta: historia, formulación y nuestro planteo
@@ -122,7 +123,7 @@ python -m sepa --diario         # lo mismo sin intervención (la primera vez tam
 
 Una vez activado el ETL diario ([`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)), GitHub Actions hace esto todos los días
 y publica la página con los precios del día en https://nazarenofolica.github.io/Optimizacion_TPS/, sin commitear la
-base del día (la versionada en `datos/sepa/` queda como la del 23/10/2026).
+base del día (la versionada en `datos/sepa/` queda como la del 21/11/2026).
 
 ## Fuentes principales
 

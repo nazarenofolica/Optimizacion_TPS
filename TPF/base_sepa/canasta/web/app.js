@@ -1008,6 +1008,13 @@ const ahorroHTML = (t) => (t.ahorro_promociones > 0
   ? `<p class="t-linea"><span>Subtotal a precio de lista</span><span>${pesos(t.total_lista)}</span></p>
     <p class="t-linea t-ahorro"><span>Ahorro por promociones</span><span>−${pesos(t.ahorro_promociones)}</span></p>` : "");
 
+// La fecha de los precios de una sucursal (aaaa-mm-dd → dd/mm/aaaa) y, si es de un día anterior al más reciente de
+// la base (su cadena no publicó el día: entra con su último archivo, hasta 15 días), "precios de hace N días".
+const fechaTexto = (f) => (f || "").split("-").reverse().join("/");
+const haceTexto = (s) => (s && s.dias_precios > 0
+  ? `precios de hace ${s.dias_precios} día${s.dias_precios === 1 ? "" : "s"}` : "");
+const preciosDe = (s) => `Precios SEPA del ${fechaTexto(s.fecha_precios)}${haceTexto(s) ? ` (hace ${s.dias_precios} día${s.dias_precios === 1 ? "" : "s"})` : ""}`;
+
 // La nota del pie: qué precios lleva el total.
 function notaPrecios(d, t) {
   if (t.ahorro_promociones > 0) return "Con las promociones que no piden<br>banco ni tarjeta.";
@@ -1040,7 +1047,6 @@ const paraQuien = (d) => d.personas.map((p) => `${esc(p.datos.nombre)} (${p.dato
 
 function ticketHTML(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
-  const fecha = t.fecha_precios.split("-").reverse().join("/");
   const items = renglonesHTML(d, t.items);
   const para = paraQuien(d);
   const energia = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
@@ -1056,7 +1062,7 @@ function ticketHTML(d) {
     <p>Canasta saludable para ${esc(d.periodo)}</p>
     <p>Para: ${para}</p>
     ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
-    <p>Precios SEPA del ${fecha}</p>
+    <p>${esc(preciosDe(s))}</p>
     <hr>
     <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
     ${items}
@@ -1085,7 +1091,8 @@ const nombreTienda = (s) => `${s.bandera} ${s.sucursal}`;
 // línea de corte, y al pie el total de las dos y la comparación con comprar todo en la primera.
 function ticketDivididoHTML(d, ds) {
   const t = ds.ticket, varias = d.personas.length > 1;
-  const fecha = t.fecha_precios.split("-").reverse().join("/");
+  // Cada súper con la fecha de sus precios; arriba, una sola si las dos son del mismo día.
+  const unaFecha = t.sucursales.every((x) => x.tienda.fecha_precios === t.sucursales[0].tienda.fecha_precios);
   const articulos = t.sucursales.reduce((n, x) => n + x.items.length, 0);
   const tramos = t.sucursales.map((x, k) => {
     const s = x.tienda;
@@ -1098,6 +1105,7 @@ function ticketDivididoHTML(d, ds) {
     <p class="t-centro">Suc. ${esc(s.sucursal)}<br>${esc(s.direccion)}${s.localidad ? `<br>${esc(s.localidad)}` : ""}</p>
     ${llegar ? `<p class="t-centro t-destacado">A ${esc(llegar)}</p>` : ""}
     <p class="t-centro">Horario de hoy (${esc(s.hoy.dia)}): ${esc(s.hoy.horario)}</p>
+    <p class="t-centro">${esc(preciosDe(s))}</p>
     <hr>
     <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
     ${renglonesHTML(d, x.items)}
@@ -1112,7 +1120,7 @@ function ticketDivididoHTML(d, ds) {
     <p>Canasta saludable para ${esc(d.periodo)}</p>
     <p>Para: ${paraQuien(d)}</p>
     ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
-    <p>Precios SEPA del ${fecha}</p>
+    ${unaFecha ? `<p>${esc(preciosDe(t.sucursales[0].tienda))}</p>` : "<p>Precios SEPA: los de cada súper</p>"}
     <hr>
     ${tramos}
     <hr class="t-doble">
@@ -1411,9 +1419,9 @@ function paradasHTML(ds) {
   const productos = (n) => (n === 1 ? "1 producto" : `${n} productos`);
   const cuales = ds.productos_b.slice(0, 5).join("; ") + (ds.productos_b.length > 5 ? ` y ${ds.productos_b.length - 5} más` : "");
   return `<ol class="dos-paradas">
-    <li>${numeroSuper(1)}<span><b>${esc(nombreTienda(ds.a))}</b> <small>${esc(ds.a.direccion)}</small>
+    <li>${numeroSuper(1)}<span><b>${esc(nombreTienda(ds.a))}</b> <small>${esc(ds.a.direccion)}${haceTexto(ds.a) ? ` · ${esc(haceTexto(ds.a))}` : ""}</small>
       <span class="dp-que">El resto de la compra: ${productos(sa.items.length)}, <span class="dp-plata">${pesos(sa.subtotal, 0)}</span></span></span></li>
-    <li>${numeroSuper(2)}<span><b>${esc(nombreTienda(ds.b))}</b> <small>${esc(ds.b.direccion)}</small>
+    <li>${numeroSuper(2)}<span><b>${esc(nombreTienda(ds.b))}</b> <small>${esc(ds.b.direccion)}${haceTexto(ds.b) ? ` · ${esc(haceTexto(ds.b))}` : ""}</small>
       <span class="dp-que">${esc(cuales)}: ${productos(sb.items.length)}, <span class="dp-plata">${pesos(sb.subtotal, 0)}</span></span></span></li>
   </ol>`;
 }
@@ -1738,6 +1746,20 @@ function mostrarSinResultado(d) {
   enlazarAmpliar();
 }
 
+// Aviso discreto si la sucursal elegida tiene precios de un día anterior al más reciente de la base.
+function avisoFechaHTML(s, d) {
+  if (!haceTexto(s)) return "";
+  return `<p class="aviso-fecha"><i aria-hidden="true">i</i><span>${esc(nombreTienda(s))} tiene ${esc(haceTexto(s))}
+    (SEPA del ${esc(fechaTexto(s.fecha_precios))}): su cadena no publicó los del ${esc(fechaTexto(d.fecha_precios))}.</span></p>`;
+}
+
+// La fecha de los precios en la tabla de sucursales: la de todas o, si alguna es de un día anterior, cuál.
+function fechasTablaTexto(d) {
+  const viejas = d.sucursales.filter((x) => x.dias_precios > 0).length;
+  return viejas ? `Precios SEPA del ${esc(fechaTexto(d.fecha_precios))}, salvo ${viejas === 1 ? "la que dice" : "las que dicen"} otra fecha (su cadena no publicó ese día y se usan sus últimos precios, de hasta 15 días).`
+    : `Precios SEPA del ${esc(fechaTexto(d.fecha_precios))}.`;
+}
+
 function mostrar(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
   const elegida = d.sucursales.find((x) => x.elegida);
@@ -1771,6 +1793,7 @@ function mostrar(d) {
       <p class="resumen-total"><b id="resumen-total" data-valor="${cifras.total}">${pesos(cifras.total, 0)}</b></p>
       <p class="resumen-donde" id="resumen-donde">${cifras.donde}</p>
       <ul class="datos-compra" id="datos-compra">${cifras.datos}</ul>
+      ${avisoFechaHTML(s, d)}
       <p class="sr-only">${cubre}</p>
       ${avisoMetasHTML(d)}
       ${agua}
@@ -1794,14 +1817,15 @@ function mostrar(d) {
   <section class="bloque" id="donde-comprar"><h2>Dónde comprar</h2>
     <p class="ayuda">${porTiempo
       ? `Supermercados a menos de ${d.caminata.minutos} min caminando${d.caminata.fuente === "ruta" ? " por la calle (rutas peatonales de OpenRouteService)" : " (tiempo estimado por distancia)"}: la más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios.`
-      : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}</p>
+      : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}
+      ${fechasTablaTexto(d)}</p>
     <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
     <p class="ayuda" id="mapa-leyenda"></p>
     <p class="ayuda" id="mapa-leyenda-dos"></p>
     <div class="tabla-envoltorio"><table class="tabla-sucursales">
       <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
       <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
-        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}</div></td>
+        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}${haceTexto(x) ? ` · <span class="ts-fecha">${esc(`precios del ${fechaTexto(x.fecha_precios)}, ${haceTexto(x).replace("precios de ", "")}`)}</span>` : ""}</div></td>
         <td class="num" data-etiqueta="${porTiempo ? "Caminando" : "Distancia"}">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
         <td class="num" data-etiqueta="Costo">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
         <td class="num" data-etiqueta="Diferencia">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : "—"}</td>

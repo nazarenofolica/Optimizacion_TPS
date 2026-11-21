@@ -1272,13 +1272,20 @@
       || comparar(a.subcategoria, b.subcategoria) || comparar(a.nombre, b.nombre));
   }
 
+  // El día de los precios de la sucursal t y cuántos días tiene respecto del más reciente de la base
+  // (resultado._fecha_tienda): una cadena que no publicó el día entra con su último archivo, hasta 15 días.
+  function fechaTienda(t) {
+    const T = D.tiendas;
+    return { fecha_precios: T.fecha_precios ? T.fecha_precios[t] : D.fecha, dias_precios: T.dias_precios ? T.dias_precios[t] : 0 };
+  }
+
   // La sucursal t como la muestra el ticket (con los minutos caminando desde el lugar, si se buscó por tiempo).
   function datosTienda(t, distancia, tiempo = {}) {
     const T = D.tiendas;
     return { id: T.id[t], bandera: T.bandera[t], comercio: T.comercio[t], cuit: T.cuit[t], sucursal: T.sucursal_nombre[t],
       direccion: T.direccion[t], localidad: T.localidad[t], barrio: T.barrio[t], provincia: T.provincia[t],
       lat: T.lat[t], lon: T.lon[t], distancia_km: redondear(distancia, 2), ...caminata(tiempo), hoy: horarioHoy(t),
-      tipo: T.tipo_sucursal[t] };
+      tipo: T.tipo_sucursal[t], ...fechaTienda(t) };
   }
 
   // Total a precio de lista, ahorro por promociones y cuántas se aplicaron (resultado._ahorro).
@@ -1299,7 +1306,7 @@
     const energia = sol.oferta.reduce((s, f, pos) => s + pr.energia_kcal[f.p] / 100 * consumo[pos], 0);
     return {
       tienda: datosTienda(t, distancia, tiempo),
-      fecha_precios: D.fecha, dias, items, total, costo_diario: redondear(total / dias, 2),
+      fecha_precios: fechaTienda(t).fecha_precios, dias, items, total, costo_diario: redondear(total / dias, 2),
       costo_1000_kcal: energia ? redondear(total / dias / energia * 1000, 2) : null,
       promociones_disponibles: items.filter((it) => it.promocion || it.promo).length,
       ...ahorro(items),
@@ -1451,7 +1458,7 @@
       const ok = s.estado !== "sin_solucion";
       return { id: T.id[x.i], bandera: T.bandera[x.i], sucursal: T.sucursal_nombre[x.i], direccion: T.direccion[x.i],
         localidad: T.localidad[x.i], distancia_km: redondear(x.d, 2), ...caminata(x), lat: T.lat[x.i], lon: T.lon[x.i],
-        estado: s.estado,
+        ...fechaTienda(x.i), estado: s.estado,
         costo: ok ? redondear(s.costo, 2) : null, puntaje: ok ? redondear(puntaje(s, sinAptos), 3) : null,
         faltantes: ok ? faltantes(s, sinAptos, nombres) : [], mensaje: ok ? "" : s.mensaje,
         productos_considerados: s.oferta.length, segundos: redondear(s.segundos, 2) };
@@ -1553,8 +1560,10 @@
   }
 
   // El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal (y su ahorro por promociones:
-  // cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda).
-  function ticketDividido(sol, sucursales, dias, fecha, aplicar = false) {
+  // cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda). Cada bloque trae la fecha de los
+  // precios de su sucursal; fecha_precios, la más vieja de las dos.
+  function ticketDividido(sol, sucursales, dias, aplicar = false) {
+    const fecha = sucursales.map((x) => fechaTienda(x.i).fecha_precios).reduce((m, f) => (f < m ? f : m));
     const consumo = consumoHogar(sol);
     const bloques = sucursales.map((x) => {
       const items = [];
@@ -1650,7 +1659,8 @@
       const s = soluciones[k];
       const ok = s.estado !== "sin_solucion";
       return { id: T.id[x.i], bandera: T.bandera[x.i], sucursal: T.sucursal_nombre[x.i], direccion: T.direccion[x.i],
-        lat: T.lat[x.i], lon: T.lon[x.i], minutos_desde_a: redondear(x.minutosDesdeA, 1), estado: s.estado,
+        lat: T.lat[x.i], lon: T.lon[x.i], minutos_desde_a: redondear(x.minutosDesdeA, 1), ...fechaTienda(x.i),
+        estado: s.estado,
         costo: ok ? redondear(s.costo, 2) : null, puntaje: ok ? redondear(puntaje(s, sinAptos), 3) : null,
         compra_en_b: compraEn(s, x.i), segundos: redondear(s.segundos, 2) };
     });
@@ -1681,7 +1691,7 @@
     const sol = soluciones[k], b = vecinas[k];
     const ahorro = redondear(costoA - mejor.costo, 2);
     const pct = redondear(ahorro / costoA * 100, 1);
-    const tk = ticketDividido(sol, [a, b], dias, r.fecha_precios, aplicar);
+    const tk = ticketDividido(sol, [a, b], dias, aplicar);
     const productosB = [...new Set(tk.sucursales[1].items.map((it) => it.subcategoria))];
     const personasC = sol.dietas.map((dieta, i) => {
       const [cob, reg] = cobertura(dieta, reqs[i], sinAptos[i]);

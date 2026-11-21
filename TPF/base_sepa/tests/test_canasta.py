@@ -467,7 +467,8 @@ class TestAguaConDatos(unittest.TestCase):
         return next(c for c in r["personas"][0]["cobertura"] if c["clave"] == "agua")
 
     def test_canilla_cuesta_lo_mismo_que_sin_agua(self):
-        # La canasta de antes: sin agua en la oferta ni meta de agua. Mismas sucursales, mismo costo exacto.
+        # La canasta de antes: sin agua en la oferta ni meta de agua. Mismas sucursales, mismo costo exacto (con las
+        # mismas promociones: las de la base, si trae).
         d = oferta.cargar()
         req = rq.calcular(self.persona)
         req.metas = [m for m in req.metas if m.clave != "agua"]
@@ -476,7 +477,7 @@ class TestAguaConDatos(unittest.TestCase):
         r = self.r["canilla"]
         self.assertTrue(r["sucursales"])
         for s in r["sucursales"]:
-            o, por_persona = oferta.oferta_tienda(d, s["id"], [apto])
+            o, por_persona = oferta.oferta_tienda(d, s["id"], [apto], r["opciones"]["promos"])
             self.assertFalse(o["alimento_id"].isin(cfg.ALIMENTOS_AGUA).any())
             antes = modelo.resolver([(req, por_persona[0])], o, 7)
             self.assertEqual(round(antes.costo, 2), s["costo"], s["bandera"])
@@ -570,9 +571,12 @@ class TestNingunaSucursalLograTodo(unittest.TestCase):
         self.assertLessEqual(len(m["faltan"]), 3)                              # pocas y entendibles
         calcio = next(f for f in m["faltan"] if f["clave"] == "calcio_mg")
         self.assertTrue(50 < calcio["porcentaje"] < 100)
+        # Lácteos: con la base del 23/10/2026 ninguna sucursal vendía uno apto (0 %, "no lo vende"); con la del
+        # 21/11/2026 la elegida vende alguno y cubre una parte. Falta igual, y lo que se informa es coherente.
         lacteos = next(f for f in m["faltan"] if f["clave"] == "regla_lacteos")
         self.assertEqual(lacteos["nombre"], "Leche, yogur y queso")
-        self.assertTrue(lacteos["no_lo_vende"])
+        self.assertTrue(0 <= lacteos["porcentaje"] < 100)
+        self.assertEqual(lacteos["no_lo_vende"], lacteos["porcentaje"] == 0)
 
 
 def _sucursal(precios: dict[str, float]) -> tuple[pd.DataFrame, list[np.ndarray]]:
@@ -705,7 +709,8 @@ class TestDosSuper(unittest.TestCase):
 @unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
 class TestDosSuperConDatos(unittest.TestCase):
     """Con los datos reales y tiempos estimados (sin red): el oficinista en el Microcentro, donde hay varias cadenas a
-    pocas cuadras, y el caso que no llega a las 37 metas en el centro de Córdoba."""
+    pocas cuadras; el mismo en el centro de Córdoba, donde las vecinas casi no ahorran; y el caso que no llega a las 37
+    metas en el centro de Córdoba, donde una vecina cubre mejor lo que falta."""
 
     @classmethod
     def setUpClass(cls):
@@ -713,7 +718,9 @@ class TestDosSuperConDatos(unittest.TestCase):
         from canasta import resultado, rutas
         cls.casos = {}
         for nombre, perfil, lat, lon, listos in (("caba", "oficinista", -34.60386, -58.38419, False),
-                                                  ("cordoba", "restricciones_extremas", -31.41670, -64.18330, True)):
+                                                  ("cordoba", "oficinista", -31.41670, -64.18330, False),
+                                                  ("cordoba_extremo", "restricciones_extremas", -31.41670, -64.18330,
+                                                   True)):
             persona = rq.persona_desde(next(p for p in rq.perfiles() if p["id"] == perfil))
             tiempos, aviso = rutas.tiempos_caminando(lat, lon, 15, clave="")
             r = resultado.armar([persona], lat, lon, 7, listos=listos, tiempos=tiempos, caminata_minutos=15,
@@ -759,12 +766,24 @@ class TestDosSuperConDatos(unittest.TestCase):
         self.assertEqual(ds["metas_despues"]["cumple"], ds["metas_despues"]["total"])
         self.assertIsNone(ds["personas"])                                    # las metas no cambian
 
-    def test_cordoba_con_dos_super_no_llega_a_mas_metas(self):
-        # Las vecinas son de la misma cadena: ninguna vende bebida vegetal apta ni más calcio.
+    def test_cordoba_no_conviene_por_poco_ahorro(self):
+        # Base del 21/11/2026: las vecinas (Express de la misma cadena) cubren lo mismo y ahorran menos del mínimo.
         _, _, ds = self.casos["cordoba"]
         self.assertEqual(ds["estado"], "no_conviene")
+        self.assertTrue(ds["vecinas"])
+        self.assertLess(ds["ahorro"], ds["ahorro_minimo"])                   # la mejor vecina, con lo que ahorraría
+        self.assertEqual(ds["metas_despues"]["cumple"], ds["metas_antes"]["cumple"])
+        self.assertTrue(ds["mensaje"].startswith("No conviene dividir la compra"))
+
+    def test_cordoba_caso_extremo_conviene_porque_cubre_mejor(self):
+        # El que no llega a las 37: una vecina vende frutas y verduras aptas que la elegida no tiene y cubre mejor lo
+        # que falta (menor déficit), aunque siga en 35 de 37. Se propone por las metas, no por la plata.
+        _, _, ds = self.casos["cordoba_extremo"]
         self.assertEqual(ds["metas_antes"]["cumple"], 35)
-        self.assertTrue(all(round(v["puntaje"], 2) >= round(ds["puntaje_a"], 2) for v in ds["vecinas"]))
+        self.assertEqual((ds["estado"], ds["motivo"]), ("conviene", "metas"))
+        self.assertLess(round(ds["puntaje_combinado"], 2), round(ds["puntaje_a"], 2))
+        self.assertGreaterEqual(ds["metas_despues"]["cumple"], ds["metas_antes"]["cumple"])
+        self.assertIsNotNone(ds["personas"])
 
 
 class TestListosParaComer(unittest.TestCase):

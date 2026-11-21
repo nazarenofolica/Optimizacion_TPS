@@ -31,8 +31,10 @@ Problemas del origen que se resuelven acá:
   - registros partidos en varias líneas (un comercio corta la latitud, la
     longitud y los horarios con saltos de línea);
   - la línea final "Última actualización: ..." de cada archivo, que además dice
-    de cuándo son los precios: un comercio que repite un archivo viejo se
-    excluye (config.DIAS_MAXIMOS_DESACTUALIZADO);
+    de cuándo son los precios: es la fecha de los precios de todas las
+    sucursales de ese comercio (puede ser anterior a la del ZIP: varios suben
+    el archivo del día anterior). Hasta config.DIAS_TOLERANCIA_PRECIO días se
+    usa con su fecha; un comercio que repite un archivo más viejo se excluye;
   - ZIPs de comercio vacíos o ilegibles;
   - el mismo producto dos veces en la misma sucursal (queda la mediana).
 """
@@ -184,7 +186,8 @@ class DatosSEPA:
     sucursales: pd.DataFrame      # sucursales.csv tal cual (texto), de los comercios leídos
     precios: pd.DataFrame         # producto, tienda, precio, precio_promocion (códigos enteros)
     productos: pd.DataFrame       # producto (código entero) -> clave_producto
-    tiendas: pd.DataFrame         # tienda (código entero) -> id_tienda, id_comercio, id_bandera, id_sucursal
+    tiendas: pd.DataFrame         # tienda (código entero) -> id_tienda, id_comercio, id_bandera, id_sucursal,
+                                  # fecha_precios (la del archivo de su comercio: puede ser anterior a la del ZIP)
     presentaciones: pd.DataFrame  # producto, comercio, descripción, marca, cantidades y unidades, veces
     archivos: pd.DataFrame        # estado de lectura de cada comercio
     promociones: pd.DataFrame = field(default_factory=pd.DataFrame)   # producto, tienda, orden, leyenda, precio
@@ -385,6 +388,7 @@ def leer_zip(ruta: Path) -> DatosSEPA:
                       precios=pd.DataFrame(), productos=pd.DataFrame(), tiendas=pd.DataFrame(),
                       presentaciones=pd.DataFrame(), archivos=pd.DataFrame())
     precios, presentaciones, sucursales, comercios, archivos, promociones = [], [], [], [], [], []
+    fecha_tienda: dict[int, date] = {}      # tienda (código) -> fecha de sus precios
 
     with zipfile.ZipFile(ruta) as z:
         internos = sorted(n for n in z.namelist() if n.lower().endswith(".zip"))
@@ -393,7 +397,7 @@ def leer_zip(ruta: Path) -> DatosSEPA:
         for nombre in internos:
             corto = nombre.rsplit("/", 1)[-1]
             estado = {"archivo": corto, "id_comercio": None, "estado": "", "actualizacion": None,
-                      "precios": 0, "sucursales": 0}
+                      "dias_antes_del_zip": None, "precios": 0, "sucursales": 0}
             try:
                 zi = zipfile.ZipFile(io.BytesIO(z.read(nombre)))
                 miembros = {n.lower().rsplit("/", 1)[-1]: n for n in zi.namelist()}
@@ -409,24 +413,33 @@ def leer_zip(ruta: Path) -> DatosSEPA:
             com = com[pd.to_numeric(com.get("id_comercio"), errors="coerce").notna()]
             id_comercio = int(com["id_comercio"].iloc[0]) if len(com) else None
             act = act or act_com
-            estado |= {"id_comercio": id_comercio, "actualizacion": act, "precios": len(obs),
-                       "sucursales": len(suc)}
+            # Sin "Última actualización" legible, los precios se toman como del día del ZIP.
+            fecha_precios = act or dia
+            antes = (dia - fecha_precios).days
+            estado |= {"id_comercio": id_comercio, "actualizacion": act, "dias_antes_del_zip": antes,
+                       "precios": len(obs), "sucursales": len(suc)}
             if obs.empty:
                 logger.warning("  %-46s sin precios, se omite", corto)
                 archivos.append(estado | {"estado": "sin_precios"})
                 continue
-            if act is not None and (dia - act).days > cfg.DIAS_MAXIMOS_DESACTUALIZADO:
-                logger.warning("  %-46s precios del %s (desactualizado), se excluye", corto, act)
+            if antes > cfg.DIAS_TOLERANCIA_PRECIO:
+                logger.warning("  %-46s precios del %s (más de %d días: desactualizado), se excluye", corto, act,
+                               cfg.DIAS_TOLERANCIA_PRECIO)
                 archivos.append(estado | {"estado": "desactualizado"})
                 continue
-            archivos.append(estado | {"estado": "ok"})
+            # Dentro de la tolerancia, los precios de un día anterior se usan con su fecha ("anterior").
+            archivos.append(estado | {"estado": "ok" if antes <= 0 else "anterior"})
+            for k in np.unique(obs["tienda"].to_numpy()):
+                k = int(k)
+                fecha_tienda[k] = max(fecha_tienda.get(k, fecha_precios), fecha_precios)
             precios.append(obs)
             presentaciones.append(pres.assign(comercio=np.int16(id_comercio)))
             if len(promos):
                 promociones.append(promos)
             sucursales.append(suc)
             comercios.append(com)
-            logger.info("  %-46s %5d sucursales %9d precios", corto, len(suc), len(obs))
+            logger.info("  %-46s %5d sucursales %9d precios%s", corto, len(suc), len(obs),
+                        f" (del {fecha_precios}, {antes} día{'s' if antes != 1 else ''} antes del ZIP)" if antes > 0 else "")
 
     if not precios:
         raise RuntimeError(f"No se pudo leer ningún comercio de {ruta.name}")
@@ -434,7 +447,7 @@ def leer_zip(ruta: Path) -> DatosSEPA:
     datos.presentaciones = pd.concat(presentaciones, ignore_index=True)
     datos.sucursales = pd.concat(sucursales, ignore_index=True)
     datos.comercios = pd.concat(comercios, ignore_index=True)
-    datos.archivos = pd.DataFrame(archivos)
+    datos.archivos = pd.DataFrame(archivos).astype({"id_comercio": "Int64", "dias_antes_del_zip": "Int64"})
     if promociones:
         datos.promociones = pd.concat(promociones, ignore_index=True)
         datos.promociones["leyenda"] = datos.promociones["leyenda"].astype(str).astype("category")
@@ -450,5 +463,7 @@ def leer_zip(ruta: Path) -> DatosSEPA:
     tiendas = tiendas[tiendas["tienda"].isin(usados_t)].reset_index(drop=True)
     partes = tiendas["id_tienda"].str.split("-", expand=True)
     datos.tiendas = tiendas.assign(id_comercio=partes[0].astype(int), id_bandera=partes[1].astype(int),
-                                   id_sucursal=partes[2])
+                                   id_sucursal=partes[2],
+                                   fecha_precios=pd.to_datetime(tiendas["tienda"].map(fecha_tienda)).fillna(
+                                       pd.Timestamp(dia)))
     return datos

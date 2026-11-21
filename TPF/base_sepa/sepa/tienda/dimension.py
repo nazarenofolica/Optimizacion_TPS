@@ -119,7 +119,7 @@ def armar(datos: DatosSEPA) -> tuple[pd.DataFrame, dict]:
         s[c] = s[c].astype(str).str.strip().str.lstrip("0").replace("", "0")
     s["id_tienda"] = s["id_comercio"] + "-" + s["id_bandera"] + "-" + s["id_sucursal"]
     s = s.drop_duplicates("id_tienda")
-    con_precios = datos.tiendas[["id_tienda"]]
+    con_precios = datos.tiendas[["id_tienda"] + (["fecha_precios"] if "fecha_precios" in datos.tiendas else [])]
     stats = {"sucursales_publicadas": len(s), "sucursales_con_precios": len(con_precios),
              "publicadas_sin_precios": int((~s["id_tienda"].isin(con_precios["id_tienda"])).sum())}
     t = con_precios.merge(s, on="id_tienda", how="left", indicator=True)
@@ -138,6 +138,9 @@ def armar(datos: DatosSEPA) -> tuple[pd.DataFrame, dict]:
 
     out = pd.DataFrame({"id_tienda": t["id_tienda"], "id_comercio": t["id_comercio"], "id_bandera": t["id_bandera"],
                         "id_sucursal": t["id_sucursal"]})
+    # Día de los precios de la sucursal: el del archivo de su comercio (config.DIAS_TOLERANCIA_PRECIO).
+    out["fecha_precios"] = (pd.to_datetime(t["fecha_precios"]) if "fecha_precios" in t
+                            else pd.Series(pd.Timestamp(datos.fecha), index=t.index)).astype("datetime64[ns]")
     out["comercio"] = t["comercio"].str.strip()
     out["cuit"] = t["cuit"].astype(str).str.replace(r"\D", "", regex=True).replace("", np.nan)
     out["bandera"] = t["bandera"].str.strip()
@@ -272,5 +275,5 @@ def armar(datos: DatosSEPA) -> tuple[pd.DataFrame, dict]:
                 "barrio", "comuna", "municipio", "municipio_id", "departamento", "departamento_id", "provincia",
                 "provincia_id", "provincia_iso", "lat", "lon", "ubicacion_fuente", "ubicacion_precision",
                 "distancia_direccion_m", "correccion_coordenada", "lat_sepa", "lon_sepa", "es_web"] + \
-               [f"horario_{d}" for d in DIAS]
+               [f"horario_{d}" for d in DIAS] + ["fecha_precios"]
     return out[columnas].sort_values(["provincia", "comercio", "id_tienda"], ignore_index=True), stats

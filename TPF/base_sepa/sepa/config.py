@@ -67,9 +67,14 @@ RUTA_PROMOCION = DIR_SALIDA / "promocion"        # promociones con sus condicion
 # Dataset minorista de datos.produccion.gob.ar ("Precios Claros - Base SEPA"): ventana de 7 ZIPs diarios.
 DATASET_SEPA_MINORISTA = "6f47ec76-d1ce-4e34-a7e1-621fe9b1d0b5"
 
-# Un comercio cuyos precios tienen más de estos días respecto de la fecha del ZIP no publica precios
-# de ese día (hay uno que repite un archivo de 2025): se excluye entero.
-DIAS_MAXIMOS_DESACTUALIZADO = 7
+# Tolerancia de los precios de cada cadena (días). Cada comercio sube su archivo al ZIP del día con la fecha de su
+# última actualización ("Última actualización: ..."); varios lo suben el día anterior (el ZIP del 20/11/2026 trae cuatro
+# cadenas con precios del 19/11) y alguno repite un archivo viejo (uno es de junio de 2025). Si el archivo tiene a lo
+# sumo estos días respecto de la fecha del ZIP, sus precios se usan con su fecha (fact_precio.fecha y
+# dim_tienda.fecha_precios son las de cada sucursal, y la canasta avisa "precios de hace N días"): no tener los
+# precios del día es un problema de largo plazo, en menos de dos semanas no cambia la compra. Si es más viejo, el
+# comercio se excluye entero (estado "desactualizado" en calidad/lectura_comercios.csv).
+DIAS_TOLERANCIA_PRECIO = 15
 
 # Comercios que no son supermercados (sí son puntos de venta de alimentos): se identifican en dim_tienda.
 FORMATO_COMERCIO = {

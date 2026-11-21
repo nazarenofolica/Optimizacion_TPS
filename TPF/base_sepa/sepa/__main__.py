@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("== 5/5 Verificación y salida")
     p, t = salida.tablas_finales(productos, tiendas)
     try:
-        verif = verificacion.verificar(p, t, fact, promocion)
+        verif = verificacion.verificar(p, t, fact, promocion, datos.fecha)
     except verificacion.Fallo:
         # salida/ queda como estaba; las tablas que no pasaron quedan para revisarlas.
         revisar = cfg.DIR_CACHE / "corrida_fallida"

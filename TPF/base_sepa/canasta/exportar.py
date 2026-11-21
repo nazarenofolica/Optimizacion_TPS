@@ -161,6 +161,9 @@ def paquete() -> tuple[dict, bytes]:
     for c in COLUMNAS_TIENDA:
         tiendas[c] = [_texto(v) for v in t[c]]
     tiendas["horarios"] = [[_texto(v) for v in fila] for fila in t[[f"horario_{x}" for x in DIAS]].to_numpy()]
+    # El día de los precios de cada sucursal y cuántos días tiene respecto del más reciente (oferta._tiendas).
+    tiendas["fecha_precios"] = t["fecha_precios"].astype(str).tolist()
+    tiendas["dias_precios"] = t["dias_precios"].astype(int).tolist()
 
     meta = {
         "fecha_precios": d.fecha, "generado": time.strftime("%Y-%m-%d %H:%M"),

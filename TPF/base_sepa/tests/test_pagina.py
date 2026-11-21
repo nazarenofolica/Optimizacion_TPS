@@ -2,9 +2,9 @@
 
 Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de ../datos/sepa/; tarda varios
 minutos. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave), la compra
-en dos supermercados (MotorCanasta.dosSuper contra resultado.dos_super) y las promociones (etapa 5: como la base todavía
-no las trae, se le agregan unas de prueba a la sucursal elegida, oferta.promociones_de_prueba, y se exporta otra
-página con ellas). Por eso es opcional:
+en dos supermercados (MotorCanasta.dosSuper contra resultado.dos_super) y las promociones (etapa 5: además de las
+que trae la base, se le agregan unas de prueba a la sucursal elegida, oferta.promociones_de_prueba, y se exporta otra
+página con ellas). Compara también la fecha de los precios de cada sucursal (tolerancia de 15 días). Por eso es opcional:
 CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
 """
 
@@ -39,12 +39,15 @@ CASOS = [
     (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
     (["caso_extremo"], (-34.60386, -58.38419), 7, False, "canilla"),                  # CABA, ninguna cubre todo
     (["kosher", "halal", "anemia"], (-34.60386, -58.38419), 7, False, "canilla"),     # CABA, etapa 4: religión y
-]                                                                                     # condiciones médicas
+                                                                                      # condiciones médicas
+    (["oficinista"], (-31.457372, -64.200399), 7, False, "canilla"),                  # Córdoba, en la puerta de un
+]                                                                                     # Mariano Max: precios del día
+                                                                                      # anterior (tolerancia de 15 días)
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 CASOS_DOS_SUPER = [
     # perfiles, lugar, minutos de caminata, listos; lo que da Python
     (["oficinista"], (-34.60386, -58.38419), 15, False),                 # Microcentro: conviene, por ahorro
-    (["restricciones_extremas"], (-31.41670, -64.18330), 15, True),      # Córdoba: no conviene
+    (["oficinista"], (-31.41670, -64.18330), 15, False),                 # Córdoba: no conviene (ahorra poco)
     (["restricciones_extremas"], (-31.41670, -64.18330), 30, True),      # Córdoba a 30 min: conviene, por metas
 ]
 # Página mínima para la compra en dos supermercados (la interfaz todavía no la usa): los datos, el motor y rutas.js de
@@ -180,8 +183,12 @@ class TestParidadPagina(unittest.TestCase):
                 self.assertLessEqual(abs(a["costo_a"] - b["costo_a"]) / a["costo_a"], TOLERANCIA_COSTO)
                 self.assertEqual(a["metas_antes"]["cumple"], b["metas_antes"]["cumple"])
                 self.assertEqual(a["metas_antes"]["total"], b["metas_antes"]["total"])
-                # Vecinas: las mismas, en el mismo orden y a los mismos minutos de A.
+                # Vecinas: las mismas, en el mismo orden, a los mismos minutos de A y con la misma fecha de precios.
                 self.assertEqual([v["id"] for v in a["vecinas"]], [v["id"] for v in b["vecinas"]])
+                self.assertEqual([(v["fecha_precios"], v["dias_precios"]) for v in a["vecinas"]],
+                                 [(v["fecha_precios"], v["dias_precios"]) for v in b["vecinas"]])
+                self.assertEqual((a["a"]["fecha_precios"], a["a"]["dias_precios"]),
+                                 (b["a"]["fecha_precios"], b["a"]["dias_precios"]))
                 for va, vb in zip(a["vecinas"], b["vecinas"]):
                     self.assertAlmostEqual(va["minutos_desde_a"], vb["minutos_desde_a"], delta=0.11)
                     self.assertEqual(va["costo"] is None, vb["costo"] is None, va["id"])
@@ -206,6 +213,8 @@ class TestParidadPagina(unittest.TestCase):
                     self.assertAlmostEqual(t["total"], ds["costo_combinado"], delta=0.05)
                     for x in t["sucursales"]:
                         self.assertTrue(all(it["id_tienda"] == x["tienda"]["id"] for it in x["items"]))
+                    # Cada súper con la fecha de sus precios; la del ticket, la más vieja de las dos.
+                    self.assertEqual(t["fecha_precios"], min(x["tienda"]["fecha_precios"] for x in t["sucursales"]))
                     self.assertEqual(ds["personas"] is None, ds["motivo"] != "metas")
                 if a["b"]["id"] != b["b"]["id"]:
                     # Empate dentro de la brecha: en cada motor, el par que eligió el otro cuesta casi lo mismo.
@@ -316,8 +325,12 @@ class TestParidadPagina(unittest.TestCase):
                     self.assertEqual(a["restricciones"]["criterios"], b["restricciones"]["criterios"])
                     self.assertEqual(a["restricciones"]["efecto"], b["restricciones"]["efecto"])
                     self.assertEqual(a["restricciones"]["productos_aptos"], b["restricciones"]["productos_aptos"])
-                # Mismas sucursales, con costos dentro de la brecha y el mismo cumplimiento.
+                # Mismas sucursales, con costos dentro de la brecha y el mismo cumplimiento, y la misma fecha de precios
+                # de cada una (las de días anteriores, con los mismos días).
                 self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+                self.assertEqual(py["fecha_precios"], js["fecha_precios"])
+                self.assertEqual([(s["fecha_precios"], s["dias_precios"]) for s in py["sucursales"]],
+                                 [(s["fecha_precios"], s["dias_precios"]) for s in js["sucursales"]])
                 for a, b in zip(py["sucursales"], js["sucursales"]):
                     self.assertEqual(a["costo"] is None, b["costo"] is None, a["bandera"])
                     if a["costo"] is not None:
@@ -327,6 +340,8 @@ class TestParidadPagina(unittest.TestCase):
                 elegida_js = next(s for s in js["sucursales"] if s.get("elegida"))
                 self.assertLessEqual(abs(elegida_py["costo"] - elegida_js["costo"]) / elegida_py["costo"], TOLERANCIA_COSTO)
                 if elegida_py["id"] == elegida_js["id"]:
+                    self.assertEqual(py["ticket"]["fecha_precios"], js["ticket"]["fecha_precios"])
+                    self.assertEqual(py["ticket"]["tienda"]["dias_precios"], js["ticket"]["tienda"]["dias_precios"])
                     for a, b in zip(py["personas"], js["personas"]):
                         estados = lambda p: [(c["clave"], c["estado"]) for c in p["cobertura"] + p["reglas"]]  # noqa: E731
                         self.assertEqual(estados(a), estados(b))

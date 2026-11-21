@@ -164,8 +164,8 @@ Sin recargar la base entera (en esta máquina no están las cachés del pipeline
 ### Etapa 5 del MVP (21/11/2026): promociones con condiciones
 
 Las promociones que no piden banco, tarjeta, billetera ni el programa de la cadena se aplican a la compra, con sus
-condiciones (2×1, la 2.ª al 70 %, llevando 3). **Se aplican desde la próxima actualización de la base**: la de hoy
-(23/10/2026) no guarda las leyendas, así que con ella nada cambia (los costos de los perfiles dan lo mismo que antes).
+condiciones (2×1, la 2.ª al 70 %, llevando 3). Se aplican desde la base del 21/11/2026 (ver "Base del 21/11/2026"
+abajo); la del 23/10/2026 no guardaba las leyendas.
 
 - **Fuente: SEPA mismo.** El ZIP diario trae, por producto y sucursal, `productos_precio_unitario_promo1` /
   `productos_leyenda_promo1` y `..._promo2`: el precio por unidad con la promoción (en un 2×1, la mitad del de lista)
@@ -301,6 +301,50 @@ simuladas: falta probarlo con una clave real** (ver abajo).
   los tiempos de respuesta y la cuota gratuita. Si el modelo rechaza el esquema (400), cambiar `GROQ_MODELO` o sacarlo
   de `GROQ_MODELOS_ESTRICTOS` (pasa a `json_object` con el esquema en el prompt; la validación es la misma).
 
+### Base del 21/11/2026 y tolerancia de 15 días (21/11/2026)
+
+La base versionada pasó del 23/10/2026 al **sábado 21/11/2026**, con el pipeline en modo diario (`python -m sepa
+--diario`): 27.949 productos, 2.651 sucursales, 8.309.213 precios y, por primera vez, la tabla `promocion` (1.161.802
+promociones, 996.184 aplicables). 71 controles (64 críticos), ninguno falla.
+
+- **Tolerancia de 15 días** (`sepa/config.DIAS_TOLERANCIA_PRECIO`). Cada cadena sube al ZIP del día su archivo con la
+  fecha de su última actualización; si tiene a lo sumo 15 días, sus precios se usan con su fecha; si es más viejo, el
+  comercio no entra (como antes con 7 días). La fecha pasó a ser **por sucursal**: `fact_precio.fecha` y
+  `dim_tienda.fecha_precios` son la del archivo de su comercio (antes, la del ZIP para todas). `lectura_comercios.csv`
+  dice de cada archivo los días que tiene y si quedó `ok`, `anterior` o `desactualizado`; la verificación controla que
+  ninguna sucursal pase la tolerancia ni sea posterior al ZIP y que cada precio tenga la fecha de su sucursal, y cuenta
+  las que usan precios de días anteriores. En la base nueva: **51 sucursales con precios del 20/11** (Mariano Max, 11,
+  y La Agrícola Regional, 4, supermercados; DEHEZA, 35, y Estación Lima, 1, estaciones de servicio); la cadena 47
+  sigue afuera (su archivo es de junio de 2025).
+- **Canasta** (los dos motores, con paridad): cada sucursal lleva `fecha_precios` y `dias_precios` (días respecto de
+  la más reciente). El ticket dice "Precios SEPA del dd/mm/aaaa" de su sucursal (en los dos súper, la de cada una), la
+  tabla de sucursales marca las de un día anterior y, si la elegida lo es, un aviso discreto: "tiene precios de hace
+  N días (SEPA del ...): su cadena no publicó los del ...". En la consola, "(precios de hace N días)".
+- **Dos problemas de las fuentes nuevas, arreglados en el pipeline con su test.** (1) Open Food Facts responde 403 al
+  User-Agent de `requests`: ahora se identifica. (2) Los catálogos de Jumbo, Disco y Vea publican en ~27 % de las
+  tablas los valores de la porción como si fueran cada 100 g (un aceite con 108 kcal "cada 100 ml"); el "rótulo más
+  representativo" de varios genéricos pasaba a ser uno por porción y 1.159 productos más quedaban excluidos, entre
+  ellos los aceites más baratos. `nutrientes.porcion_como_100g` los reconoce contra una referencia sin los rótulos web
+  y los lleva a 100 g (1.765 tablas). Además, la fibra heredada del genérico se recorta para que la suma de
+  macronutrientes no pase 105 g (unas galletitas con rótulo de Open Food Facts sin fibra rompían un control crítico).
+- **Canastas** (una semana, 15 min, tiempos estimados como en la página publicada). Oficinista en el Microcentro:
+  Coto Mitre **$24.031** ($3.433 por día), 37 de 37 metas, a 8,5 min; caminar 30 o 45 min no ahorra nada; con un
+  segundo súper (Express B. Mitre 1751) $21.742: ahorra $2.289 (9,5 %) con ~9 min más. Agua comprada: $33.010, 38
+  metas. Aumentar de peso: $24.848. Mamá y nena: $38.037. Celíaca y vegano en Córdoba a 30 min: La Anónima $63.824.
+  El caso que no llega (`caso_extremo`, Microcentro): Market Corrientes $36.706, 34 de 35 (faltan lácteos).
+- **Promociones aplicadas, por primera vez con la base real.** Coto y Carrefour publican leyendas que no dicen qué
+  promoción son ("desconocidas"), así que en el Microcentro el ticket no cambia; DIA, que sí las publica, baja de
+  $30.617 a $28.897 (−5,6 %) pero sigue más cara. La celíaca y el vegano en Córdoba ahorran **$4.862** en La Anónima
+  (15 % en arvejas y aceite, 20 % en harina de maíz, "llevando 2" en el jugo de soja); sin promociones la compra
+  óptima costaría $66.431 (−3,9 % con ellas).
+- **Recalibrado:** `restricciones_extremas` en Córdoba a 15 min sigue en 35 de 37, pero ahora la elegida vende algún
+  lácteo apto (67 %) y una vecina cubre mejor lo que falta: dos súper "conviene, por metas". El caso de "no conviene"
+  pasó a ser el oficinista en Córdoba (las vecinas ahorran 0,6 %). Paridad: un caso más, en la puerta de un Mariano
+  Max (precios del día anterior).
+- Tests: 254 en Python (18 nuevos: lectura con archivos de días anteriores y más viejos, controles de fecha, la fecha
+  en la canasta, el User-Agent de Open Food Facts, las tablas por porción y la fibra heredada) y 4 de paridad, que
+  ahora comparan también la fecha de cada sucursal.
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -348,7 +392,8 @@ Cada etapa se planifica y se cierra por separado, con sus tests y la paridad ent
 Ver "Etapa 3 del MVP" arriba y [DESPLIEGUE.md](DESPLIEGUE.md). Lo que queda de lo que se había planeado:
 
 - Detección de cambios contra el día anterior (precios que saltan más de x3, sucursales que desaparecen): el pipeline
-  no la tiene todavía; los comercios con archivo viejo ya se excluyen.
+  no la tiene todavía. Los comercios que no publicaron el día entran con su último archivo de hasta 15 días, con su
+  fecha (ver "Base del 21/11/2026 y tolerancia de 15 días" arriba); los más viejos se excluyen.
 - Equivalencias entre cadenas: ya existe por EAN y "gemelos"; documentar y testear el emparejamiento.
 - Entorno reproducible con `uv` (hoy hay dos `requirements.txt` con rangos de versiones).
 - Paridad en cada push (hoy, a mano), tests de la página con Playwright y del motor JavaScript sin navegador (Node).
@@ -368,8 +413,7 @@ halal se ofrecen con la cobertura medida (0 rotulados en la canasta), por eso si
 Ver "Etapa 5 del MVP" arriba. La fuente resultó ser SEPA mismo (las leyendas de las promociones 1 y 2), no los
 catálogos web. Lo que queda:
 
-- **Que la base las traiga**: la próxima corrida del pipeline (con el ZIP ya bajado en `base_sepa/datos/entrada/`)
-  arma la tabla `promocion`; desde ahí la página y la consola las aplican solas.
+- ~~Que la base las traiga~~: hecho con la base del 21/11/2026 (996.184 aplicables).
 - Las desconocidas (15 % de las filas: Carrefour, Coto, la mayoría de la Cooperativa Obrera): sus catálogos web dicen
   qué promoción es cada una; cruzarlos por EAN y sucursal.
 - Los días de la semana ("los miércoles") hoy no se aplican; con el día de la compra, sí se podrían.

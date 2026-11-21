@@ -135,9 +135,12 @@ COLUMNAS_TIENDA = {
 for d in ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]:
     COLUMNAS_TIENDA[f"horario_{d}"] = (f"Horario del {d}: 'HH:MM-HH:MM' (turnos separados por coma); vacío = cerrado; "
                                       "nulo = no informado")
+COLUMNAS_TIENDA["fecha_precios"] = ("Día de los precios de la sucursal: el de la última actualización del archivo de su "
+                                    "comercio, que puede ser anterior al del ZIP (hasta DIAS_TOLERANCIA_PRECIO días; "
+                                    "si no, el comercio no entra)")
 
 COLUMNAS_FACT = {
-    "fecha": "Día de los precios (fecha del ZIP de SEPA)",
+    "fecha": "Día del precio: el de su sucursal (dim_tienda.fecha_precios), que puede ser anterior al del ZIP",
     "id_producto": "Producto (dim_producto)", "id_tienda": "Tienda (dim_tienda)",
     "precio": "Precio de lista publicado (ARS) por la presentación",
     "precio_promocion": "Precio unitario de la promoción de alcance general vigente, si hay (puede exigir "
@@ -223,9 +226,25 @@ def _promociones_md(pr: pd.DataFrame) -> list[str]:
             _tabla_md(pr["tipo"].value_counts(), "Tipo", "Filas")]
 
 
+def _fechas_md(t: pd.DataFrame, fecha) -> list[str]:
+    """Cuántas sucursales tienen precios del día del ZIP y cuáles de un día anterior (dentro de la tolerancia)."""
+    if "fecha_precios" not in t or not len(t):
+        return []
+    dias = (pd.Timestamp(fecha) - pd.to_datetime(t["fecha_precios"])).dt.days
+    viejas = t[dias > 0]
+    linea = (f"- Fecha de los precios, por sucursal: {int((dias <= 0).sum()):,} del {fecha} y {len(viejas):,} de días "
+             f"anteriores (se usan si tienen a lo sumo {cfg.DIAS_TOLERANCIA_PRECIO} días; las más viejas no "
+             f"entran)").replace(",", ".")
+    if not len(viejas):
+        return [linea]
+    grupos = viejas.assign(f=pd.to_datetime(viejas["fecha_precios"]).dt.date).groupby(["bandera", "f"]).size()
+    detalle = "; ".join(f"{b}, del {d} ({n})" for (b, d), n in grupos.items())
+    return [linea + f": {detalle}"]
+
+
 def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame, stats: dict,
           promocion: pd.DataFrame | None = None) -> str:
-    fecha = pd.Timestamp(f["fecha"].iloc[0]).date() if len(f) else ""
+    fecha = pd.Timestamp(f["fecha"].max()).date() if len(f) else ""
     ubic = t["ubicacion_precision"].value_counts()
     partes = [
         "# SEPA 2.0 — salida",
@@ -264,6 +283,7 @@ def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame
         f"ubicación {ubic.get('sin_ubicacion', 0)}".replace(",", "."),
         f"- Precios: {len(f):,} (con promoción vigente: {f['precio_promocion'].notna().sum():,}); descartados por "
         f"anormales: {sum(stats['precio']['precios_descartados'].values()):,}".replace(",", "."),
+        *_fechas_md(t, fecha),
         *([f"- Promociones: {len(promocion):,} vigentes, {int(promocion['aplicable'].sum()):,} aplicables a la "
            f"canasta".replace(",", ".")] if promocion is not None else []),
         "",

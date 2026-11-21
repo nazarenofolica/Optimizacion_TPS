@@ -287,6 +287,15 @@ def procesar() -> pd.DataFrame:
                             "contiene_azucar": _lista(p, "Contiene Azúcar"), "tiene_tabla": t is not None}
                     if t is not None:
                         fila["unidad_base"] = t.get("basic_unit_name")
+                        # La porción, en la misma unidad que la tabla (g o ml): sirve para reconocer las tablas que
+                        # publican los valores de la porción como si fueran cada 100 g (nutrientes.porcion_como_100g).
+                        porcion, u_porcion = t.get("portion_value"), str(t.get("portion_unit_name") or "").lower()
+                        try:
+                            porcion = float(porcion)
+                        except (TypeError, ValueError):
+                            porcion = None
+                        fila["porcion"] = (porcion if porcion and u_porcion
+                                           and u_porcion == str(fila["unidad_base"] or "").lower() else None)
                         unidades_ok = True
                         for campo, col in CAMPOS.items():
                             v = t.get(campo)

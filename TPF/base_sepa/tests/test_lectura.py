@@ -1,4 +1,5 @@
-"""Lectura del ZIP de SEPA: códigos de barras, registros partidos, promociones, comercios desactualizados."""
+"""Lectura del ZIP de SEPA: códigos de barras, registros partidos, promociones, comercios con precios de días
+anteriores (dentro de la tolerancia, con su fecha) y desactualizados (afuera)."""
 
 from __future__ import annotations
 
@@ -12,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from sepa import config as cfg
+from sepa import salida, verificacion
 from sepa.fuentes import sepa as fs
 
 ENCABEZADO = ("id_comercio|id_bandera|id_sucursal|id_producto|productos_ean|productos_descripcion|"
@@ -51,6 +54,11 @@ def _zip(carpeta: Path) -> Path:
         z.writestr("2026-10-23/sepa_comercio-47.zip", _comercio(47, ["47|1|1|7790580660000|1|ARROZ|1|kg|X|1|1|1|KG||||"],
                                                                   "2025-06-11T21:00:01-03:00"))   # archivo viejo
         z.writestr("2026-10-23/sepa_comercio-36.zip", b"")                                      # ZIP vacío
+        # Dentro de la tolerancia (8 días: antes, con 7, se excluía): se usa con su fecha. Y uno de 16 días, afuera.
+        z.writestr("2026-10-23/sepa_comercio-8.zip", _comercio(8, ["8|1|1|7790580660000|1|ARROZ|1|kg|X|1200|1200|1|KG||||"],
+                                                                 "2026-10-15T16:30:38-03:00"))
+        z.writestr("2026-10-23/sepa_comercio-20.zip", _comercio(20, ["20|1|1|7790000000010|1|YOGUR|1|kg|X|9|9|1|KG||||"],
+                                                                  "2026-10-07T18:55:51-03:00"))
     return ruta
 
 
@@ -86,6 +94,12 @@ class TestLectura(unittest.TestCase):
         self.assertEqual(d.fecha, date(2026, 10, 23))
         estados = dict(zip(d.archivos["archivo"], d.archivos["estado"]))
         self.assertEqual(estados["sepa_comercio-47.zip"], "desactualizado")
+        self.assertEqual(estados["sepa_comercio-2.zip"], "ok")
+        self.assertEqual(estados["sepa_comercio-8.zip"], "anterior")
+        self.assertEqual(estados["sepa_comercio-20.zip"], "desactualizado")          # 16 días: más que la tolerancia
+        dias = dict(zip(d.archivos["archivo"], d.archivos["dias_antes_del_zip"]))
+        self.assertEqual((dias["sepa_comercio-2.zip"], dias["sepa_comercio-8.zip"], dias["sepa_comercio-20.zip"]),
+                         (0, 8, 16))
         self.assertEqual(estados["sepa_comercio-36.zip"], "ilegible")
         self.assertEqual(d.filas_sin_precio, 1)
 
@@ -93,8 +107,15 @@ class TestLectura(unittest.TestCase):
         d = self.datos
         claves = set(d.productos["clave_producto"])
         self.assertEqual(claves, {"7790580660000", "cadena2-2490110000000", "7790000000010"})   # el 47 no deja rastros
-        self.assertEqual(len(d.precios), 4)                                    # el repetido cuenta una vez
-        self.assertEqual(set(d.tiendas["id_tienda"]), {"2-1-1", "2-1-2"})
+        self.assertEqual(len(d.precios), 5)                    # el repetido cuenta una vez; el 8 suma uno, el 20 no
+        self.assertEqual(set(d.tiendas["id_tienda"]), {"2-1-1", "2-1-2", "8-1-1"})
+
+    def test_fecha_de_los_precios_por_sucursal(self):
+        # Cada sucursal lleva la fecha del archivo de su comercio, no la del ZIP.
+        f = self.datos.tiendas.set_index("id_tienda")["fecha_precios"]
+        self.assertEqual(f["2-1-1"], pd.Timestamp("2026-10-23"))
+        self.assertEqual(f["2-1-2"], pd.Timestamp("2026-10-23"))
+        self.assertEqual(f["8-1-1"], pd.Timestamp("2026-10-15"))
 
     def test_promocion_solo_si_esta_vigente(self):
         d = self.datos
@@ -116,6 +137,46 @@ class TestLectura(unittest.TestCase):
         self.assertTrue(yogur["leyenda"].iloc[1].startswith("35% de descuento. 2DO AL 70%"))
         self.assertEqual(len(pr[pr["clave"] == "7790580660000"]), 2)          # la vigente y la vencida
         self.assertEqual(set(d.tiendas.set_index("tienda").loc[pr["tienda"].unique(), "id_tienda"]), {"2-1-1", "2-1-2"})
+
+
+class TestToleranciaDeFechas(unittest.TestCase):
+    """Controles de la verificación y el resumen del LEEME con la fecha de cada sucursal."""
+
+    @staticmethod
+    def _tablas(fechas: dict[str, str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+        t = pd.DataFrame({"id_tienda": list(fechas), "bandera": ["A"] * (len(fechas) - 1) + ["B"],
+                          "fecha_precios": pd.to_datetime(list(fechas.values()))})
+        f = pd.DataFrame({"id_tienda": pd.Categorical([k for k in fechas for _ in range(3)]),
+                          "fecha": pd.to_datetime([v for v in fechas.values() for _ in range(3)])})
+        return t, f
+
+    def _controles(self, t, f, fecha_zip=date(2026, 11, 20)) -> dict[str, int]:
+        r: list = []
+        verificacion._fechas(r, t, f, fecha_zip)
+        return {x["control"].split(":")[0] + ":" + x["control"].split(":")[1][:20]: x["filas_que_fallan"] for x in r}
+
+    def test_la_tolerancia_es_de_15_dias(self):
+        self.assertEqual(cfg.DIAS_TOLERANCIA_PRECIO, 15)
+
+    def test_dentro_de_la_tolerancia_pasa_y_se_cuenta(self):
+        t, f = self._tablas({"1-1-1": "2026-11-20", "1-1-2": "2026-11-20", "2-1-1": "2026-11-05"})   # 15 días
+        c = self._controles(t, f)
+        self.assertEqual(list(c.values()), [0, 0, 1])          # ninguna vieja, fechas coherentes, 1 de días anteriores
+
+    def test_mas_vieja_o_del_futuro_falla(self):
+        t, f = self._tablas({"1-1-1": "2026-11-21", "2-1-1": "2026-11-04"})           # posterior al ZIP y 16 días
+        self.assertEqual(list(self._controles(t, f).values())[0], 2)
+
+    def test_fact_con_otra_fecha_que_su_tienda_falla(self):
+        t, f = self._tablas({"1-1-1": "2026-11-20", "2-1-1": "2026-11-19"})
+        f.loc[0, "fecha"] = pd.Timestamp("2026-11-19")                            # un precio de 1-1-1 con otra fecha
+        self.assertEqual(list(self._controles(t, f).values())[1], 1)
+
+    def test_resumen_del_leeme(self):
+        t, _ = self._tablas({"1-1-1": "2026-11-20", "1-1-2": "2026-11-20", "2-1-1": "2026-11-19"})
+        linea = salida._fechas_md(t, date(2026, 11, 20))[0]
+        self.assertIn("2 del 2026-11-20 y 1 de días anteriores", linea)
+        self.assertIn("B, del 2026-11-19 (1)", linea)
 
 
 if __name__ == "__main__":

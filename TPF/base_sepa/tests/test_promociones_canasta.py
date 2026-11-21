@@ -210,8 +210,9 @@ class TestDosSuperConPromociones(unittest.TestCase):
 
 
 class TestPromocionesConDatos(unittest.TestCase):
-    """Con la base de la etapa 4 (sin tabla promocion) nada cambia; con promociones de prueba en la sucursal elegida
-    del oficinista en el Microcentro, se aplican y bajan el costo sin tocar las metas."""
+    """Con la base del día (con la tabla promocion), el oficinista en el Microcentro: las promociones aplicables bajan
+    el costo sin tocar las metas y, desactivadas, todo es a precio de lista; con una base sin la tabla nada cambia; y
+    con promociones de prueba en la sucursal elegida, se aplican (y las que piden un banco, no)."""
 
     @classmethod
     def setUpClass(cls):
@@ -222,6 +223,31 @@ class TestPromocionesConDatos(unittest.TestCase):
         cls.persona = rq.persona_desde(next(p for p in rq.perfiles() if p["id"] == "oficinista"))
         cls.lugar = (-34.60386, -58.38419)
         cls.base = resultado.armar([cls.persona], *cls.lugar, 7)
+        cls.sin = resultado.armar([cls.persona], *cls.lugar, 7, promos=False)
+
+    def test_la_base_trae_promociones_aplicables(self):
+        if not cfg.RUTA_PROMOCION.exists():
+            self.skipTest("la base no trae la tabla promocion")
+        self.assertGreater(oferta.cargar().promos_aplicables, 1000)
+        self.assertTrue(self.base["opciones"]["promos"])                   # predeterminadas si la base trae
+        self.assertFalse(self.sin["opciones"]["promos"])
+
+    def test_con_promociones_no_empeoran_las_metas_ni_el_costo(self):
+        if not cfg.RUTA_PROMOCION.exists():
+            self.skipTest("la base no trae la tabla promocion")
+        sin = {s["id"]: s for s in self.sin["sucursales"]}
+        self.assertEqual([s["id"] for s in self.base["sucursales"]], list(sin))
+        for s in self.base["sucursales"]:
+            if s["costo"] is None:
+                continue
+            self.assertLessEqual(s["costo"], sin[s["id"]]["costo"] * (1 + cfg.GAP_RELATIVO) + 0.01, s["bandera"])
+            self.assertLessEqual(round(s["puntaje"], 2), round(sin[s["id"]]["puntaje"], 2), s["bandera"])
+        for t in (self.base["ticket"], self.sin["ticket"]):                 # las cuentas del ticket
+            self.assertAlmostEqual(t["total"], sum(it["subtotal"] for it in t["items"]), places=2)
+            self.assertAlmostEqual(t["total_lista"] - t["total"], t["ahorro_promociones"], places=2)
+        t = self.sin["ticket"]                                              # desactivadas: precio de lista
+        self.assertEqual((t["ahorro_promociones"], t["promociones_aplicadas"]), (0, 0))
+        self.assertTrue(all(it["descuento"] == 0 and not (it["promo"] or {}).get("aplicada") for it in t["items"]))
 
     def test_sin_tabla_promocion_no_hay_promociones(self):
         if cfg.RUTA_PROMOCION.exists():
@@ -241,6 +267,7 @@ class TestPromocionesConDatos(unittest.TestCase):
     def test_promociones_de_prueba(self):
         t = self.base["ticket"]
         elegida = next(s for s in self.base["sucursales"] if s.get("elegida"))
+        antes = oferta.cargar().promos_aplicables
         caros = sorted((it for it in t["items"] if not it["granel"]), key=lambda it: -it["subtotal"])
         dos_por_uno, banco = caros[0], caros[1]
         promos = pd.DataFrame([
@@ -250,16 +277,16 @@ class TestPromocionesConDatos(unittest.TestCase):
              "precio_unitario": banco["precio_unitario"] * 0.5, "resumen": "50 % de descuento", "aplicable": False,
              "motivo": "requiere un banco"}])
         with oferta.promociones_de_prueba(promos) as d:
-            self.assertEqual(d.promos_aplicables, 1)
+            self.assertGreaterEqual(d.promos_aplicables, 1)
             r = self.r.armar([self.persona], *self.lugar, 7)
             sin = self.r.armar([self.persona], *self.lugar, 7, promos=False)
-        self.assertEqual(oferta.cargar().promos_aplicables, 0)               # al salir, los datos de siempre
+        self.assertEqual(oferta.cargar().promos_aplicables, antes)           # al salir, los datos de siempre
         self.assertTrue(r["opciones"]["promos"])
         nueva = next(s for s in r["sucursales"] if s["id"] == elegida["id"])
         self.assertLessEqual(nueva["costo"], elegida["costo"] * (1 + cfg.GAP_RELATIVO))
         self.assertLessEqual(round(nueva["puntaje"], 2), round(elegida["puntaje"], 2))    # las metas, igual o mejor
         self.assertEqual([(s["id"], s["costo"]) for s in sin["sucursales"]],
-                         [(s["id"], s["costo"]) for s in self.base["sucursales"]])           # desactivadas: lo de siempre
+                         [(s["id"], s["costo"]) for s in self.sin["sucursales"]])            # desactivadas: lo de siempre
         if r["ticket"]["tienda"]["id"] != elegida["id"]:
             return
         tk = r["ticket"]

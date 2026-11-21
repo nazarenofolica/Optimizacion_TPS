@@ -6,9 +6,11 @@ prioridad dentro de cada bloque.
 
 ## Avances
 
-**Modelo estrella** (`python -m sepa`): dim_producto (28.030 alimentos, 33 nutrientes, composición y aptitudes),
-dim_tienda (2.666 sucursales con ubicación validada) y fact_precio (8,2 millones de precios normalizados) de un día
-de SEPA, con 52 controles que se verifican en cada corrida. En esta etapa se corrigieron reglas de
+**Modelo estrella** (`python -m sepa`): dim_producto (27.949 alimentos, 33 nutrientes, composición y aptitudes),
+dim_tienda (2.651 sucursales con ubicación validada y la fecha de sus precios), fact_precio (8,3 millones de precios
+normalizados) y promocion (1.161.802 promociones, 996.184 aplicables) de un día de SEPA (el 21/11/2026), con 71
+controles que se verifican en cada corrida. Las cadenas que no publicaron el día entran con su último archivo si
+tiene a lo sumo 15 días (`DIAS_TOLERANCIA_PRECIO`), con su fecha por sucursal. En esta etapa se corrigieron reglas de
 `referencia/alimentos.csv` por abreviaturas que se colaban en alimentos básicos ("GALL" de galletitas en leche, "CHO"
 de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 
@@ -84,9 +86,9 @@ aplicables, 15,3 % desconocidas (Carrefour, Coto y la mayoría de la Cooperativa
 con horario, ninguna con banco o tarjeta. En el modelo, solo en la etapa del costo (las metas no cambian): precio
 efectivo, tope como cota, una binaria para "llevando n" y grupos enteros para el 2×1 y la 2.ª unidad, en los dos
 motores; el ticket muestra precio de lista, descuento y ahorro, y por qué no se aplicó cada una. Opción "Aplicar
-promociones" (paso 3, `?promos=`, `--sin-promos`). **Las promociones se aplican desde la próxima actualización de la
-base**: la de hoy (23/10/2026) no guarda las leyendas y con ella todo da lo mismo que antes. Con promociones de prueba,
-el oficinista en el Microcentro baja de $23.406 a $22.742 con la 2.ª al 70 % en el puré de tomate. Tests: 193 en
+promociones" (paso 3, `?promos=`, `--sin-promos`). Desde la base del 21/11/2026 se aplican: el oficinista en el
+Microcentro compra en Coto (sus promociones no dicen qué son: ninguna se aplica) y no cambia, pero DIA baja de $30.617 a
+$28.897; la celíaca y el vegano en Córdoba a 30 min ahorran $4.862 en La Anónima (cuatro promociones). Tests: 193 en
 Python y un caso más de paridad.
 
 **Etapa 6 del MVP (2026-11-21)**, contarlo en texto libre con un LLM de Groq. `canasta/llm.py` traduce lo que la

@@ -53,6 +53,7 @@ COLUMNAS_TIENDA = [
     "horario_lunes", "horario_martes", "horario_miercoles", "horario_jueves", "horario_viernes", "horario_sabado",
     "horario_domingo",
 ]
+COLUMNAS_FECHA = ["fecha_precios"]      # desde la tolerancia de 15 días: la fecha de los precios de cada sucursal
 NOMBRE_ALERGENO = {"leche": "leche", "huevo": "huevo", "mani": "maní", "frutos_secos": "frutos secos",
                    "soja": "soja", "pescado": "pescado", "mariscos": "mariscos", "sesamo": "sésamo", "gluten": "gluten"}
 # Kosher: mariscos y el surimi (mezcla de pescados, a veces con extracto de cangrejo) no se pueden verificar.
@@ -72,7 +73,7 @@ class Datos:
     tiendas: pd.DataFrame          # índice id_tienda
     precios: pd.DataFrame          # id_producto (código en productos), precio, precio_promocion; ordenado por tienda
     rangos: dict[str, tuple[int, int]]   # id_tienda -> [desde, hasta) en precios
-    fecha: str
+    fecha: str                     # la de la base: la más reciente (tiendas.fecha_precios dice la de cada sucursal)
     total_productos: int
     # Promociones, una por precio (las filas de precios que tienen): promo_filas (posiciones en precios, ordenadas),
     # promo_spec (fila de promociones: forma, unidades, tope, aplicable, motivo y resumen, que se repiten) y
@@ -173,6 +174,29 @@ def _promociones(p: pd.DataFrame, f: pd.DataFrame, tienda: np.ndarray, nombres: 
             np.round(t["precio"].to_numpy(float), 2))
 
 
+def _tiendas() -> tuple[pd.DataFrame, str]:
+    """dim_tienda (índice id_tienda) con la fecha de los precios de cada sucursal (fecha_precios, AAAA-MM-DD) y cuántos
+    días tiene respecto de la más reciente de la base (dias_precios: 0 si es del día). Devuelve también esa fecha más
+    reciente, la de la base. La base trae precios de días anteriores de las cadenas que no publicaron el día (hasta
+    sepa/config.DIAS_TOLERANCIA_PRECIO); una base anterior, sin fecha_precios, tiene una sola fecha para todas."""
+    presentes = set(pq.read_schema(cfg.RUTA_DIM_TIENDA).names)
+    t = pd.read_parquet(cfg.RUTA_DIM_TIENDA, columns=COLUMNAS_TIENDA + [c for c in COLUMNAS_FECHA if c in presentes]
+                        ).set_index("id_tienda")
+    if "fecha_precios" in t and t["fecha_precios"].notna().any():
+        fp = pd.to_datetime(t["fecha_precios"]).dt.normalize()
+        base = fp.max()
+    else:
+        f = pq.read_table(cfg.RUTA_FACT_PRECIO, columns=["fecha"]).column(0)
+        base = pd.Timestamp(f[0].as_py()).normalize() if len(f) else pd.NaT
+        fp = pd.Series(base, index=t.index)
+    if pd.isna(base):
+        return t.assign(fecha_precios="", dias_precios=0), ""
+    fp = fp.fillna(base)
+    t["fecha_precios"] = fp.dt.strftime("%Y-%m-%d")
+    t["dias_precios"] = (base - fp).dt.days.astype(int)
+    return t, str(base.date())
+
+
 def cargar() -> Datos:
     """Lee dim_producto, dim_tienda y fact_precio (una vez por proceso; ~700 MB, con un pico de ~1 GB al cargar)."""
     global _DATOS
@@ -189,9 +213,7 @@ def cargar() -> Datos:
         p = _religion(p)
         p = p[~p["nombre"].str.upper().str.contains(cfg.NOMBRES_EXCLUIDOS, regex=True)]
         p = _derivados(p).drop(columns=["descripcion_sepa", "ingredientes"]).set_index("id_producto")
-        t = pd.read_parquet(cfg.RUTA_DIM_TIENDA, columns=COLUMNAS_TIENDA).set_index("id_tienda")
-        fecha = pq.read_table(cfg.RUTA_FACT_PRECIO, columns=["fecha"]).column(0)
-        fecha = str(fecha[0].as_py().date()) if len(fecha) else ""
+        t, fecha = _tiendas()
         # Se trabaja con los códigos de las categorías del parquet: pasar 8 millones de claves a texto cuesta ~1,5 GB.
         f = pd.read_parquet(cfg.RUTA_FACT_PRECIO, columns=["id_producto", "id_tienda", "precio", "precio_promocion"])
         cat_prod, cat_tienda = f["id_producto"].astype("category"), f["id_tienda"].astype("category")
