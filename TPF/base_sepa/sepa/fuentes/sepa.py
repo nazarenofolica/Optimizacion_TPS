@@ -14,6 +14,9 @@ filas en una máquina de 8 GB):
 
   precios         producto, tienda, precio de lista y precio de promoción
                   vigente (una fila por producto y sucursal);
+  promociones     las dos promociones de cada producto y sucursal (promo 1 y
+                  promo 2), con su leyenda y su precio unitario tal como
+                  vienen: las clasifica después precio/promociones.py;
   presentaciones  cómo describe cada cadena cada producto (descripción, marca,
                   cantidad y unidad, unidad de referencia) y en cuántas
                   sucursales, para elegir después la versión más confiable.
@@ -28,8 +31,10 @@ Problemas del origen que se resuelven acá:
   - registros partidos en varias líneas (un comercio corta la latitud, la
     longitud y los horarios con saltos de línea);
   - la línea final "Última actualización: ..." de cada archivo, que además dice
-    de cuándo son los precios: un comercio que repite un archivo viejo se
-    excluye (config.DIAS_MAXIMOS_DESACTUALIZADO);
+    de cuándo son los precios: es la fecha de los precios de todas las
+    sucursales de ese comercio (puede ser anterior a la del ZIP: varios suben
+    el archivo del día anterior). Hasta config.DIAS_TOLERANCIA_PRECIO días se
+    usa con su fecha; un comercio que repite un archivo más viejo se excluye;
   - ZIPs de comercio vacíos o ilegibles;
   - el mismo producto dos veces en la misma sucursal (queda la mediana).
 """
@@ -66,6 +71,7 @@ COLUMNAS_PRODUCTOS = [
     "productos_cantidad_presentacion", "productos_unidad_medida_presentacion", "productos_marca",
     "productos_precio_lista", "productos_precio_referencia", "productos_cantidad_referencia",
     "productos_unidad_medida_referencia", "productos_precio_unitario_promo1", "productos_leyenda_promo1",
+    "productos_precio_unitario_promo2", "productos_leyenda_promo2",
 ]
 FILAS_POR_BLOQUE = 250_000
 
@@ -85,22 +91,33 @@ def _sesion() -> requests.Session:
     return sesion
 
 
+def _ultimo_recurso(sesion: requests.Session) -> tuple[str, str]:
+    """Fecha (AAAA-MM-DD) y URL del ZIP minorista más reciente que lista la API."""
+    r = sesion.get(URL_PAQUETE.format(cfg.DATASET_SEPA_MINORISTA), timeout=30)
+    r.raise_for_status()
+    recursos = []
+    for rec in r.json()["result"]["resources"]:
+        fecha = FECHA_RE.search(rec.get("description") or "")
+        if fecha and (rec.get("url") or "").lower().endswith(".zip"):
+            recursos.append((fecha.group(1), rec["url"]))
+    if not recursos:
+        raise RuntimeError("La API de SEPA no devolvió ningún ZIP con fecha.")
+    return max(recursos)
+
+
+def ultima_fecha() -> str:
+    """Fecha del ZIP minorista más reciente publicado, sin bajarlo (para saber si hay un día nuevo)."""
+    with _sesion() as sesion:
+        return _ultimo_recurso(sesion)[0]
+
+
 def descargar_ultimo(carpeta: Path = cfg.DIR_ENTRADA) -> Path:
     """
     Baja el ZIP minorista más reciente de la API (ventana rotativa de 7 días) y borra los anteriores de
     la carpeta: SEPA 2.0 trabaja siempre sobre un solo día.
     """
     with _sesion() as sesion:
-        r = sesion.get(URL_PAQUETE.format(cfg.DATASET_SEPA_MINORISTA), timeout=30)
-        r.raise_for_status()
-        recursos = []
-        for rec in r.json()["result"]["resources"]:
-            fecha = FECHA_RE.search(rec.get("description") or "")
-            if fecha and (rec.get("url") or "").lower().endswith(".zip"):
-                recursos.append((fecha.group(1), rec["url"]))
-        if not recursos:
-            raise RuntimeError("La API de SEPA no devolvió ningún ZIP con fecha.")
-        fecha, url = max(recursos)
+        fecha, url = _ultimo_recurso(sesion)
         carpeta.mkdir(parents=True, exist_ok=True)
         destino = carpeta / f"sepa_{fecha}.zip"
         if destino.exists():
@@ -169,9 +186,11 @@ class DatosSEPA:
     sucursales: pd.DataFrame      # sucursales.csv tal cual (texto), de los comercios leídos
     precios: pd.DataFrame         # producto, tienda, precio, precio_promocion (códigos enteros)
     productos: pd.DataFrame       # producto (código entero) -> clave_producto
-    tiendas: pd.DataFrame         # tienda (código entero) -> id_tienda, id_comercio, id_bandera, id_sucursal
+    tiendas: pd.DataFrame         # tienda (código entero) -> id_tienda, id_comercio, id_bandera, id_sucursal,
+                                  # fecha_precios (la del archivo de su comercio: puede ser anterior a la del ZIP)
     presentaciones: pd.DataFrame  # producto, comercio, descripción, marca, cantidades y unidades, veces
     archivos: pd.DataFrame        # estado de lectura de cada comercio
+    promociones: pd.DataFrame = field(default_factory=pd.DataFrame)   # producto, tienda, orden, leyenda, precio
     filas_leidas: int = 0
     filas_sin_precio: int = 0
     repetidos: int = 0
@@ -262,9 +281,28 @@ def _vigente(leyenda: pd.Series, dia: date) -> np.ndarray:
     return resultado
 
 
+def _promociones(bloque: pd.DataFrame, producto: np.ndarray, tienda: np.ndarray) -> pd.DataFrame:
+    """Las promociones 1 y 2 del bloque tal como vienen (las que tienen leyenda o precio): producto, tienda, orden,
+    leyenda y precio unitario con la promoción."""
+    partes = []
+    for orden in (1, 2):
+        leyenda = bloque.get(f"productos_leyenda_promo{orden}")
+        precio = bloque.get(f"productos_precio_unitario_promo{orden}")
+        if leyenda is None and precio is None:
+            continue
+        leyenda = _texto(leyenda) if leyenda is not None else pd.Series("", index=bloque.index)
+        precio = _numero(precio) if precio is not None else pd.Series(np.nan, index=bloque.index)
+        hay = (leyenda.ne("") | precio.notna()).to_numpy()
+        if hay.any():
+            partes.append(pd.DataFrame({"producto": producto[hay], "tienda": tienda[hay], "orden": np.int8(orden),
+                                        "leyenda": leyenda.to_numpy()[hay],
+                                        "precio_promocion": precio.to_numpy(dtype=np.float64)[hay]}))
+    return pd.concat(partes, ignore_index=True) if partes else pd.DataFrame()
+
+
 def _leer_productos(archivo, registro: _Registro, dia: date, datos: DatosSEPA
-                    ) -> tuple[pd.DataFrame, pd.DataFrame, date | None]:
-    precios, presentaciones, actualizacion = [], [], None
+                    ) -> tuple[pd.DataFrame, pd.DataFrame, date | None, pd.DataFrame]:
+    precios, presentaciones, promociones, actualizacion = [], [], [], None
     lector = pd.read_csv(
         archivo, sep="|", dtype=str, usecols=lambda c: c.strip() in COLUMNAS_PRODUCTOS,
         chunksize=FILAS_POR_BLOQUE, encoding="utf-8-sig", encoding_errors="replace", on_bad_lines="skip",
@@ -297,9 +335,11 @@ def _leer_productos(archivo, registro: _Registro, dia: date, datos: DatosSEPA
             ok &= vigente
             datos.promociones_invalidas += int((con_promo & ~ok).sum())
             promo = promo.where(ok)
+        tienda = registro.tienda(bloque)
+        promociones.append(_promociones(bloque, producto, tienda))
         precios.append(pd.DataFrame({
             "producto": producto,
-            "tienda": registro.tienda(bloque),
+            "tienda": tienda,
             "precio": precio.to_numpy(dtype=np.float64),
             "precio_promocion": promo.to_numpy(dtype=np.float64),
         }))
@@ -319,7 +359,7 @@ def _leer_productos(archivo, registro: _Registro, dia: date, datos: DatosSEPA
                               .agg(veces="size", ratio_referencia="median").reset_index())
 
     if not precios:
-        return pd.DataFrame(), pd.DataFrame(), actualizacion
+        return pd.DataFrame(), pd.DataFrame(), actualizacion, pd.DataFrame()
     obs = pd.concat(precios, ignore_index=True)
     n = len(obs)
     # El mismo producto dos veces en la misma sucursal: un solo precio (la mediana) y la menor promoción.
@@ -330,7 +370,13 @@ def _leer_productos(archivo, registro: _Registro, dia: date, datos: DatosSEPA
     claves = [c for c in pres.columns if c not in ("veces", "ratio_referencia")]
     pres = pres.groupby(claves, sort=False, dropna=False).agg(
         veces=("veces", "sum"), ratio_referencia=("ratio_referencia", "median")).reset_index()
-    return obs, pres, actualizacion
+    # Promociones: una por producto, sucursal y orden (la primera, si el producto vino repetido); la leyenda como
+    # categoría (se repite en miles de filas).
+    promos = pd.concat(promociones, ignore_index=True) if any(len(x) for x in promociones) else pd.DataFrame()
+    if len(promos):
+        promos = promos.drop_duplicates(["producto", "tienda", "orden"]).reset_index(drop=True)
+        promos["leyenda"] = promos["leyenda"].astype("category")
+    return obs, pres, actualizacion, promos
 
 
 def leer_zip(ruta: Path) -> DatosSEPA:
@@ -341,7 +387,8 @@ def leer_zip(ruta: Path) -> DatosSEPA:
     datos = DatosSEPA(fecha=dia, archivo=ruta.name, comercios=pd.DataFrame(), sucursales=pd.DataFrame(),
                       precios=pd.DataFrame(), productos=pd.DataFrame(), tiendas=pd.DataFrame(),
                       presentaciones=pd.DataFrame(), archivos=pd.DataFrame())
-    precios, presentaciones, sucursales, comercios, archivos = [], [], [], [], []
+    precios, presentaciones, sucursales, comercios, archivos, promociones = [], [], [], [], [], []
+    fecha_tienda: dict[int, date] = {}      # tienda (código) -> fecha de sus precios
 
     with zipfile.ZipFile(ruta) as z:
         internos = sorted(n for n in z.namelist() if n.lower().endswith(".zip"))
@@ -350,14 +397,14 @@ def leer_zip(ruta: Path) -> DatosSEPA:
         for nombre in internos:
             corto = nombre.rsplit("/", 1)[-1]
             estado = {"archivo": corto, "id_comercio": None, "estado": "", "actualizacion": None,
-                      "precios": 0, "sucursales": 0}
+                      "dias_antes_del_zip": None, "precios": 0, "sucursales": 0}
             try:
                 zi = zipfile.ZipFile(io.BytesIO(z.read(nombre)))
                 miembros = {n.lower().rsplit("/", 1)[-1]: n for n in zi.namelist()}
                 com, act_com = leer_tabla_chica(zi.read(miembros["comercio.csv"]))
                 suc, _ = leer_tabla_chica(zi.read(miembros["sucursales.csv"]))
                 with zi.open(miembros["productos.csv"]) as f:
-                    obs, pres, act = _leer_productos(f, registro, dia, datos)
+                    obs, pres, act, promos = _leer_productos(f, registro, dia, datos)
             except (zipfile.BadZipFile, KeyError, pd.errors.ParserError, ValueError) as e:
                 logger.warning("  %-46s omitido (ZIP vacío o ilegible: %s)", corto, e)
                 datos.omitidos.append(corto)
@@ -366,22 +413,33 @@ def leer_zip(ruta: Path) -> DatosSEPA:
             com = com[pd.to_numeric(com.get("id_comercio"), errors="coerce").notna()]
             id_comercio = int(com["id_comercio"].iloc[0]) if len(com) else None
             act = act or act_com
-            estado |= {"id_comercio": id_comercio, "actualizacion": act, "precios": len(obs),
-                       "sucursales": len(suc)}
+            # Sin "Última actualización" legible, los precios se toman como del día del ZIP.
+            fecha_precios = act or dia
+            antes = (dia - fecha_precios).days
+            estado |= {"id_comercio": id_comercio, "actualizacion": act, "dias_antes_del_zip": antes,
+                       "precios": len(obs), "sucursales": len(suc)}
             if obs.empty:
                 logger.warning("  %-46s sin precios, se omite", corto)
                 archivos.append(estado | {"estado": "sin_precios"})
                 continue
-            if act is not None and (dia - act).days > cfg.DIAS_MAXIMOS_DESACTUALIZADO:
-                logger.warning("  %-46s precios del %s (desactualizado), se excluye", corto, act)
+            if antes > cfg.DIAS_TOLERANCIA_PRECIO:
+                logger.warning("  %-46s precios del %s (más de %d días: desactualizado), se excluye", corto, act,
+                               cfg.DIAS_TOLERANCIA_PRECIO)
                 archivos.append(estado | {"estado": "desactualizado"})
                 continue
-            archivos.append(estado | {"estado": "ok"})
+            # Dentro de la tolerancia, los precios de un día anterior se usan con su fecha ("anterior").
+            archivos.append(estado | {"estado": "ok" if antes <= 0 else "anterior"})
+            for k in np.unique(obs["tienda"].to_numpy()):
+                k = int(k)
+                fecha_tienda[k] = max(fecha_tienda.get(k, fecha_precios), fecha_precios)
             precios.append(obs)
             presentaciones.append(pres.assign(comercio=np.int16(id_comercio)))
+            if len(promos):
+                promociones.append(promos)
             sucursales.append(suc)
             comercios.append(com)
-            logger.info("  %-46s %5d sucursales %9d precios", corto, len(suc), len(obs))
+            logger.info("  %-46s %5d sucursales %9d precios%s", corto, len(suc), len(obs),
+                        f" (del {fecha_precios}, {antes} día{'s' if antes != 1 else ''} antes del ZIP)" if antes > 0 else "")
 
     if not precios:
         raise RuntimeError(f"No se pudo leer ningún comercio de {ruta.name}")
@@ -389,7 +447,12 @@ def leer_zip(ruta: Path) -> DatosSEPA:
     datos.presentaciones = pd.concat(presentaciones, ignore_index=True)
     datos.sucursales = pd.concat(sucursales, ignore_index=True)
     datos.comercios = pd.concat(comercios, ignore_index=True)
-    datos.archivos = pd.DataFrame(archivos)
+    datos.archivos = pd.DataFrame(archivos).astype({"id_comercio": "Int64", "dias_antes_del_zip": "Int64"})
+    if promociones:
+        datos.promociones = pd.concat(promociones, ignore_index=True)
+        datos.promociones["leyenda"] = datos.promociones["leyenda"].astype(str).astype("category")
+    else:
+        datos.promociones = pd.DataFrame(columns=["producto", "tienda", "orden", "leyenda", "precio_promocion"])
     # Solo los productos y tiendas con algún precio (un comercio excluido ya registró los suyos).
     usados_p, usados_t = set(datos.precios["producto"].unique()), set(datos.precios["tienda"].unique())
     datos.productos = pd.DataFrame({"producto": list(registro.productos.values()),
@@ -400,5 +463,7 @@ def leer_zip(ruta: Path) -> DatosSEPA:
     tiendas = tiendas[tiendas["tienda"].isin(usados_t)].reset_index(drop=True)
     partes = tiendas["id_tienda"].str.split("-", expand=True)
     datos.tiendas = tiendas.assign(id_comercio=partes[0].astype(int), id_bandera=partes[1].astype(int),
-                                   id_sucursal=partes[2])
+                                   id_sucursal=partes[2],
+                                   fecha_precios=pd.to_datetime(tiendas["tienda"].map(fecha_tienda)).fillna(
+                                       pd.Timestamp(dia)))
     return datos

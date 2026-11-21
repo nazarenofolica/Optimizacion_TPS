@@ -1,14 +1,16 @@
 # Plan de trabajo
 
-Estado al 2026-11-04 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
+Estado al 2026-11-21 y lo que queda por revisar o construir. Lo que ya está hecho se describe en el
 [README](README.md); acá van los avances en resumen, los problemas conocidos y los próximos pasos, en orden de
 prioridad dentro de cada bloque.
 
 ## Avances
 
-**Modelo estrella** (`python -m sepa`): dim_producto (28.030 alimentos, 33 nutrientes, composición y aptitudes),
-dim_tienda (2.666 sucursales con ubicación validada) y fact_precio (8,2 millones de precios normalizados) de un día
-de SEPA, con 52 controles que se verifican en cada corrida. En esta etapa se corrigieron reglas de
+**Modelo estrella** (`python -m sepa`): dim_producto (27.949 alimentos, 33 nutrientes, composición y aptitudes),
+dim_tienda (2.651 sucursales con ubicación validada y la fecha de sus precios), fact_precio (8,3 millones de precios
+normalizados) y promocion (1.161.802 promociones, 996.184 aplicables) de un día de SEPA (el 21/11/2026), con 71
+controles que se verifican en cada corrida. Las cadenas que no publicaron el día entran con su último archivo si
+tiene a lo sumo 15 días (`DIAS_TOLERANCIA_PRECIO`), con su fecha por sucursal. En esta etapa se corrigieron reglas de
 `referencia/alimentos.csv` por abreviaturas que se colaban en alimentos básicos ("GALL" de galletitas en leche, "CHO"
 de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 
@@ -16,7 +18,8 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 
 - Requerimientos por persona: energía (FAO/OMS/UNU 2004), proteína, macronutrientes, 19 vitaminas y minerales por
   etapa de la vida (NASEM), reglas de las Guías Alimentarias, embarazo, lactancia, objetivo de peso, peso ajustado
-  con obesidad. 14 perfiles de ejemplo.
+  con obesidad. 20 perfiles de ejemplo; la página ofrece cinco (columna `visible` de `referencia/perfiles.csv`) y los
+  demás se cargan por enlace o desde la consola.
 - Restricciones estrictas: celiaquía (incluido nada seco a granel), vegetariano, vegano, sin lactosa, ocho alergias
   con trazas, sin ultraprocesados, hipertensión, diabetes; y la opción de solo alimentos listos para comer.
 - Hogar: hasta 8 personas, cada una con su dieta y sus restricciones, con la compra en común.
@@ -31,8 +34,73 @@ de chocolate en maní, "EDULC" de edulcorante en frutos secos).
 (`canasta/rutas.py` y `web/rutas.js`), ampliación del límite con comparación de ahorro, recorrido en el mapa, arreglos
 de mapas (teselas, servidor local, superposición en el celular), ticket rediseñado (minutos caminando, columnas,
 promociones "no aplicadas", resumen nutricional, impresión), página versionada sin clave. Tests: 101 en Python más
-dos de paridad con el navegador (también por tiempo caminando). Lo que sigue está en
-[../docs/ROADMAP.md](../docs/ROADMAP.md).
+dos de paridad con el navegador (también por tiempo caminando).
+
+**Etapa 1 del MVP (2026-11-20)**, con lo que se pidió después de la presentación: objetivo "Aumentar de peso"
+(+500 kcal/día sobre el gasto, proteína 1,2 g/kg, aviso si el IMC es de sobrepeso; perfil `bajo_peso`, 2.310
+kcal/día), distinto de "Ganar masa muscular"; el agua como restricción con tres modos (`AGUA_MODOS`: `canilla`, la
+predeterminada e informativa, que no cambia los resultados de antes; `compra`, agua total de NASEM 2004 contando la de
+los alimentos; `bebidas`, los 8 vasos de las Guías), y un caso precargado que no llega a las 37 metas
+(`restricciones_extremas`: celíaca con cinco alergias, solo listos, Córdoba, 15 min; la mejor sucursal cubre 35) que
+la página explica meta por meta. Tests: 114 en Python más dos de paridad con el navegador, ahora con 8 casos.
+
+**Etapa 2 del MVP (2026-11-20)**, compra en dos supermercados, pedida por el docente: a pedido (botón "¿Conviene
+sumar un segundo súper?", `&dos=1`, `--dos-super`), a la sucursal elegida A se le prueba sumar una vecina B a ≤ 10 min
+caminando (hasta 4, primero de otras cadenas). La formulación lleva binarias de visita (`y_A = 1`, `Σ y_s ≤ 2`,
+`x_p ≤ x_max_p · y_s(p)`); como es equivalente, se resuelve enumerando los pares (A, B) con el modelo de siempre sobre
+la unión de las ofertas, sin los productos de B que A vende igual o más barato (el MILP con binarias no fue más rápido
+y dio compras más caras). Conviene si cubre mejor las metas o, con las mismas, si ahorra ≥ 3 % y ≥ $1.000; se informa
+el ahorro y los minutos de más (tramo A → B estimado) y la persona decide. La página muestra la decisión, la
+comparación, el recorrido, el ticket dividido por sucursal y el mapa. El oficinista en el Microcentro ahorra ~6 % con
+~5 min más. Tests: 127 en Python más 3 de paridad con el navegador, también para dos súper. Las etapas 4 a 6
+(restricciones nuevas, promociones con condiciones, Groq) están en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+
+**Etapa 3 del MVP (2026-11-21)**, ETL diario y CI, hecha en el repo y pendiente de activar
+([../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md)): GitHub Actions pregunta cada día la fecha del último ZIP de SEPA
+(`python -m sepa --ultima-fecha`) y, si es nueva, rearma la base (`python -m sepa --diario`: `--descargar` sin
+intervención, que si faltan los catálogos web los recorre), exporta la página sin clave y la publica en GitHub Pages,
+sin commitear los datos del día. Open Food Facts, los catálogos web, Georef/USIG y USDA viajan en la caché de Actions.
+Si falla la verificación no se publica (queda el día anterior) y se abre un issue. Los tests de Python corren en cada
+push. Tests: 142 en Python.
+
+**Etapa 4 del MVP (2026-11-21)**, restricciones nuevas y condiciones médicas, sin recargar la base entera (no están
+las cachés del pipeline en esta máquina): `sepa/producto/religion.py` deriva de columnas que `dim_producto` ya tiene
+(nombre, descripción, ingredientes, alimento genérico, NOVA, vegetariano) si cada producto tiene cerdo, carne,
+gelatina, alcohol, vino o carmín y si está rotulado kosher o halal; es un paso del pipeline y la canasta lo aplica al
+cargar si el parquet no trae las columnas. Con eso, **sin cerdo**, **halal** y **kosher** al final de `RESTRICCIONES`:
+sin certificaciones en la base (2 productos kosher o parve en 28.030, ninguno de la canasta; ninguno halal), halal y
+kosher no ofrecen carnes ni aves y aplican lo verificable (kosher: sin mariscos, pescados sin escamas, gelatina,
+carmín ni derivados de la uva); la mezcla carne-leche por comida no se modela. **Condiciones médicas** en
+`referencia/condiciones.csv` (anemia por falta de hierro, osteoporosis, colesterol alto, déficit de B12 y de vitamina
+D, enfermedad renal crónica): cambian metas con su fuente (NASEM, FAO/OMS, NCEP ATP III, BHOF, KDOQI) en los dos
+motores, sin pasar ningún máximo tolerable, y las que requieren supervisión lo avisan en el formulario y en el
+resultado. Canastas reales del oficinista a 15 min: Microcentro $23.406 sin cerdo, $24.491 halal o kosher, $27.770 con
+anemia; Córdoba $37.494 sin cerdo, halal o kosher. Tests: 161 en Python. Detalle en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+
+**Etapa 5 del MVP (2026-11-21)**, promociones con condiciones. La fuente es SEPA mismo: el pipeline ahora guarda las
+dos promociones de cada precio con su leyenda (`productos_leyenda_promo1/2`, antes solo leía el precio de la 1) y
+`sepa/precio/promociones.py` clasifica cada leyenda (porcentaje, 2×1 o 3×2, la 2.ª al q %, precio fijo, llevando n o
+desconocida; condiciones de pago, horario y días, vigencia, tope) en una tabla nueva, `promocion`, con sus controles en
+`verificacion.py`. Calibrado con el ZIP del 20/11/2026 (bajado a `datos/entrada/`): 83,5 % de las filas con promoción
+aplicables, 15,3 % desconocidas (Carrefour, Coto y la mayoría de la Cooperativa Obrera solo dicen la vigencia), 1,2 %
+con horario, ninguna con banco o tarjeta. En el modelo, solo en la etapa del costo (las metas no cambian): precio
+efectivo, tope como cota, una binaria para "llevando n" y grupos enteros para el 2×1 y la 2.ª unidad, en los dos
+motores; el ticket muestra precio de lista, descuento y ahorro, y por qué no se aplicó cada una. Opción "Aplicar
+promociones" (paso 3, `?promos=`, `--sin-promos`). Desde la base del 21/11/2026 se aplican: el oficinista en el
+Microcentro compra en Coto (sus promociones no dicen qué son: ninguna se aplica) y no cambia, pero DIA baja de $30.617 a
+$28.897; la celíaca y el vegano en Córdoba a 30 min ahorran $4.862 en La Anónima (cuatro promociones). Tests: 193 en
+Python y un caso más de paridad.
+
+**Etapa 6 del MVP (2026-11-21)**, contarlo en texto libre con un LLM de Groq. `canasta/llm.py` traduce lo que la
+persona escribe (o una prescripción) al pedido que ya consume el motor: un esquema JSON derivado de `config.py`, un
+prompt en español que solo pide traducir (no elegir productos, no inventar datos, no diagnosticar, ignorar
+instrucciones dentro del texto) y `validar`, que trata la salida como un dato no confiable: lo desconocido o fuera de
+rango (con las reglas de `Persona.validar`) va a preguntas o avisos, nunca al pedido. El servidor local de `python -m
+canasta` (`canasta/servidor.py`, biblioteca estándar) suma `/api/estado` y `/api/interpretar`, solo para esta máquina y
+sin guardar el texto; la página muestra "Contalo con tus palabras" en el paso 1, con el aviso de privacidad y una
+casilla, y deja el formulario prellenado para confirmar. La clave (`GROQ_API_KEY`) va en `.env` y ninguna página la
+lleva. Todo se probó con respuestas simuladas (`--llm-simulado` para la página): falta probarlo con una clave real.
+Tests: 236 en Python.
 
 ## Para revisar
 
@@ -61,8 +129,12 @@ dos de paridad con el navegador (también por tiempo caminando). Lo que sigue es
 3. **Equivalencias en gramos de las Guías** (medio plato de verduras ≈ 150 g, fruta mediana ≈ 150 g, aceite ≈ 20 g):
    son propias; validarlas con la bibliografía de las GAPA.
 4. **No modelado todavía:** seguridad alimentaria en el embarazo (hígado, quesos sin pasteurizar), calidad de la
-   proteína, sal y condimentos que se agregan al cocinar, agua, menores de 4 años.
-5. **Promociones**: se muestran pero no se aplican al total (muchas exigen condiciones).
+   proteína, sal y condimentos que se agregan al cocinar, menores de 4 años. (El agua ya se modela: de la canilla,
+   comprada contando la de los alimentos, o 2 litros de bebida; ver `AGUA_MODOS`.)
+5. **Promociones** (etapa 5): se aplican las que no piden banco ni tarjeta, desde la próxima actualización de la
+   base. Revisar con la base nueva: que "Precio Promocional Exclusivo DIA" no pida la app de la cadena (se tomó como
+   general), las desconocidas de Carrefour, Coto y la Cooperativa Obrera (cruzar con los catálogos web) y las de días
+   de la semana (hoy no se aplican). Las bancarias quedan fuera de alcance.
 
 ### Página
 
@@ -74,12 +146,14 @@ dos de paridad con el navegador (también por tiempo caminando). Lo que sigue es
 
 ## Próximos pasos
 
-1. **Actualización diaria automática**: `python -m sepa --descargar` y `python -m canasta --exportar` en una tarea
-   programada, y publicar la página (por ejemplo en GitHub Pages, ya que es un archivo estático).
+1. **Activar la actualización diaria** (etapa 3, ya armada): pushear, llevar a `main`, Settings → Pages → "GitHub
+   Actions" y la primera corrida a mano ([../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md)). Después, controles contra el
+   día anterior.
 2. **Velocidad**: una persona tarda ~10 s y un hogar de tres para dos semanas ~18 s. Ideas: resolver primero solo la
    sucursal más prometedora, cachear la oferta por cadena, acotar el modelo entero a los productos que usa la
    relajación.
 3. **Ticket para llevar**: imprimir o descargar en PDF, y compartir el enlace con los datos cargados.
 4. **Comparar contra la Canasta Básica Alimentaria del INDEC** (costo por adulto equivalente) como referencia en la
    página.
-5. **Tests del motor JavaScript sin navegador** (Node) y una integración continua que corra los tests en cada push.
+5. **Tests del motor JavaScript sin navegador** (Node) y la paridad en cada push (los tests de Python ya corren en
+   cada push: `.github/workflows/tpf-tests.yml`).

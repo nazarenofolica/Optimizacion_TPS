@@ -58,6 +58,7 @@ RUTA_PRECIOS_DEL_DIA = DIR_DATOS / "precios_del_dia.parquet"
 RUTA_DIM_PRODUCTO = DIR_SALIDA / "dim_producto"
 RUTA_DIM_TIENDA = DIR_SALIDA / "dim_tienda"
 RUTA_FACT_PRECIO = DIR_SALIDA / "fact_precio"
+RUTA_PROMOCION = DIR_SALIDA / "promocion"        # promociones con sus condiciones (precio/promociones.py)
 
 # ============================================================
 # SEPA
@@ -66,9 +67,14 @@ RUTA_FACT_PRECIO = DIR_SALIDA / "fact_precio"
 # Dataset minorista de datos.produccion.gob.ar ("Precios Claros - Base SEPA"): ventana de 7 ZIPs diarios.
 DATASET_SEPA_MINORISTA = "6f47ec76-d1ce-4e34-a7e1-621fe9b1d0b5"
 
-# Un comercio cuyos precios tienen más de estos días respecto de la fecha del ZIP no publica precios
-# de ese día (hay uno que repite un archivo de 2025): se excluye entero.
-DIAS_MAXIMOS_DESACTUALIZADO = 7
+# Tolerancia de los precios de cada cadena (días). Cada comercio sube su archivo al ZIP del día con la fecha de su
+# última actualización ("Última actualización: ..."); varios lo suben el día anterior (el ZIP del 20/11/2026 trae cuatro
+# cadenas con precios del 19/11) y alguno repite un archivo viejo (uno es de junio de 2025). Si el archivo tiene a lo
+# sumo estos días respecto de la fecha del ZIP, sus precios se usan con su fecha (fact_precio.fecha y
+# dim_tienda.fecha_precios son las de cada sucursal, y la canasta avisa "precios de hace N días"): no tener los
+# precios del día es un problema de largo plazo, en menos de dos semanas no cambia la compra. Si es más viejo, el
+# comercio se excluye entero (estado "desactualizado" en calidad/lectura_comercios.csv).
+DIAS_TOLERANCIA_PRECIO = 15
 
 # Comercios que no son supermercados (sí son puntos de venta de alimentos): se identifican en dim_tienda.
 FORMATO_COMERCIO = {
@@ -108,6 +114,10 @@ PRECIO_MAXIMO = 50_000_000.0     # ARS
 # Una promoción (promo 1: alcance general, sin tarjetas ni segmentos) vale si está vigente, es menor al
 # precio de lista y no menor a esta fracción de él (hay descuentos reales del 80 %; menos es un error).
 PROMO_FRACCION_MINIMA = 0.1
+# Promociones estructuradas (precio/promociones.py): si el precio unitario que publica SEPA y el que sale de la
+# leyenda (25 % de descuento sobre el de lista, 3×2, 2.ª al 70 %) difieren en más de esto, no se aplica: no se sabe
+# cuál es el verdadero. DIA redondea al peso (un 25 % queda entre 74,5 % y 75,5 % del de lista).
+PROMO_TOLERANCIA_LEYENDA = 0.03
 
 # Precio normalizado de un producto (mediana entre sucursales) frente a la distribución de su subcategoría (todos
 # sus precios: pesa lo que se vende en más tiendas). Por debajo de la quinta parte del percentil 10 o por encima

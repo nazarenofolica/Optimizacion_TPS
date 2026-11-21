@@ -61,6 +61,9 @@ NUTRIENTES = {
 }
 FILAS_POR_BLOQUE = 100_000
 PREFIJOS_ARGENTINA = ("779", "778")
+# Open Food Facts pide que cada cliente se identifique y responde 403 al User-Agent genérico de requests
+# ("python-requests/x"): con uno propio redirige al volcado (S3) y baja.
+CABECERAS = {"User-Agent": "TPF-canasta-saludable/1.0 (proyecto universitario; volcado publico de Open Food Facts)"}
 
 
 def asegurar_dump(forzar: bool = False) -> Path:
@@ -73,7 +76,7 @@ def asegurar_dump(forzar: bool = False) -> Path:
     ruta.parent.mkdir(parents=True, exist_ok=True)
     tmp = ruta.with_suffix(".gz.part")
     logger.info("Bajando el dump de Open Food Facts (~1,2 GB)...")
-    with requests.get(cfg.URL_OFF_DUMP, stream=True, timeout=60) as r:
+    with requests.get(cfg.URL_OFF_DUMP, stream=True, timeout=60, headers=CABECERAS) as r:
         r.raise_for_status()
         with open(tmp, "wb") as f:
             for bloque in r.iter_content(chunk_size=4 * 1024 * 1024):

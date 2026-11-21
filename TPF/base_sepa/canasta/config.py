@@ -16,9 +16,11 @@ DIR_SALIDA = cfg_sepa.DIR_SALIDA
 RUTA_REQUERIMIENTOS = DIR_REFERENCIA / "requerimientos_nutricionales.csv"
 RUTA_GUIAS = DIR_REFERENCIA / "guias_alimentarias.csv"
 RUTA_PERFILES = DIR_REFERENCIA / "perfiles.csv"
+RUTA_CONDICIONES = DIR_REFERENCIA / "condiciones.csv"
 RUTA_DIM_PRODUCTO = cfg_sepa.RUTA_DIM_PRODUCTO.with_suffix(".parquet")
 RUTA_DIM_TIENDA = cfg_sepa.RUTA_DIM_TIENDA.with_suffix(".parquet")
 RUTA_FACT_PRECIO = cfg_sepa.RUTA_FACT_PRECIO.with_suffix(".parquet")
+RUTA_PROMOCION = cfg_sepa.RUTA_PROMOCION.with_suffix(".parquet")        # desde la etapa 5; si no está, no hay promos
 URL_GEOREF = cfg_sepa.URL_GEOREF
 LAT_ARGENTINA, LON_ARGENTINA = cfg_sepa.LAT_ARGENTINA, cfg_sepa.LON_ARGENTINA
 
@@ -56,14 +58,29 @@ ACTIVIDAD = {
                     "descripcion": "Deporte de competencia, doble turno de entrenamiento"},
 }
 
+# Aumentar de peso (por ejemplo, con bajo peso): se suma un superávit fijo al gasto, no un porcentaje. La práctica
+# habitual en nutrición clínica para recuperar peso en adultos es comer 300 a 500 kcal/día más de lo que se gasta,
+# para subir de a poco, unos 0,25 a 0,5 kg por semana (~7.700 kcal por kg ganado); el NHS (Reino Unido), en su
+# consejo para adultos con bajo peso, también recomienda subir gradualmente y con comida nutritiva, no con
+# ultraprocesados. Se usa el extremo alto del rango: ~0,45 kg por semana.
+SUPERAVIT_AUMENTAR_KCAL = 500
+
 # Objetivo de peso (solo adultos fuera del embarazo y la lactancia). Bajar: déficit moderado, sin bajar del gasto en
-# reposo × 1,2. Subir: superávit chico para ganar músculo, con la proteína del deportista.
+# reposo × 1,2. Subir: superávit chico para ganar músculo, con la proteína del deportista. Aumentar: superávit sumado
+# (superavit_kcal, en lugar de factor) para recuperar peso, con proteína moderada; si la persona tiene sobrepeso
+# (IMC >= 25), se aplica igual pero se avisa que no se recomienda.
 OBJETIVO = {
     "mantener": {"nombre": "Mantener el peso", "factor": 1.00},
     "bajar": {"nombre": "Bajar de peso", "factor": 0.85},
     "subir": {"nombre": "Ganar masa muscular", "factor": 1.10},
+    "aumentar": {"nombre": "Aumentar de peso", "superavit_kcal": SUPERAVIT_AUMENTAR_KCAL},
 }
 PISO_ENERGIA_REPOSO = 1.2
+
+# Etapas de la vida con requerimientos propios (embarazo con su trimestre: las claves de ENERGIA_EMBARAZO). Solo
+# mujeres de ETAPA_EDADES años (las tablas de NASEM tienen embarazo y lactancia de 14 a 50).
+ETAPAS = {"general": "Sin embarazo ni lactancia", "embarazo": "Embarazo", "lactancia": "Lactancia"}
+ETAPA_EDADES = (14, 50)
 
 # Energía adicional del embarazo por trimestre y de la lactancia (FAO/OMS/UNU 2004), kcal/día.
 ENERGIA_EMBARAZO = {1: 85, 2: 285, 3: 475}
@@ -72,17 +89,21 @@ ENERGIA_LACTANCIA = 505
 # Con obesidad (IMC >= 30) el peso real sobreestima la energía y la proteína: se usa el peso ajustado
 # (peso con IMC 25 más el 25 % del exceso), práctica habitual en nutrición clínica.
 IMC_OBESIDAD = 30.0
+IMC_SOBREPESO = 25.0     # desde acá no se recomienda aumentar de peso (OMS)
 IMC_REFERENCIA = 25.0
 FRACCION_EXCESO_PESO = 0.25
 
 # Proteína, g por kg de peso por día. Base: RDA de NASEM (0,95 de 4 a 13 años, 0,85 de 14 a 18, 0,8 adultos); 1,0
 # desde los 65 (PROT-AGE / ESPEN); embarazo 1,1 (2.º y 3.er trimestre) y lactancia 1,3 (NASEM). Con entrenamiento,
 # ACSM e ISSN recomiendan 1,2 a 2,0: se usa 1,0 / 1,4 / 1,6 según la actividad, 1,6 para ganar músculo y 1,2 al bajar
-# de peso (preserva la masa magra).
+# de peso (preserva la masa magra). Para aumentar de peso, las guías de nutrición clínica (ESPEN) usan 1,2 a 1,5 g/kg
+# al recuperar a un adulto desnutrido: se toma 1,2, el extremo bajo, porque lo que se busca es energía (que lo ganado
+# no sea solo grasa) y no músculo como en "subir"; más proteína encarece la canasta sin cambiar el objetivo.
 PROTEINA_BASE = [(4, 13, 0.95), (14, 18, 0.85), (19, 64, 0.80), (65, 200, 1.00)]
 PROTEINA_ACTIVIDAD = {"moderada": 1.0, "intensa": 1.4, "muy_intensa": 1.6}
 PROTEINA_SUBIR = 1.6
 PROTEINA_BAJAR = 1.2
+PROTEINA_AUMENTAR = 1.2
 PROTEINA_EMBARAZO = 1.1
 PROTEINA_LACTANCIA = 1.3
 
@@ -126,7 +147,45 @@ RESTRICCIONES = {
     "sin_ultraprocesados": "Sin ultraprocesados (NOVA 4)",
     "hipertension": "Hipertensión",
     "diabetes": "Diabetes",
+    # Etapa 4 (al final: el orden define los bits de aptitud de la página, un uint32 por producto: hasta 32).
+    "sin_cerdo": "Sin cerdo",
+    "halal": "Halal",
+    "kosher": "Kosher",
+    "anemia_ferropenica": "Anemia por falta de hierro",
+    "osteoporosis": "Osteoporosis o riesgo de fracturas",
+    "colesterol_alto": "Colesterol alto",
+    "deficit_b12": "Déficit de vitamina B12",
+    "deficit_vitamina_d": "Déficit de vitamina D",
+    "enfermedad_renal": "Enfermedad renal crónica",
 }
+# Condiciones médicas: no filtran productos (su bit de aptitud vale 1 en todos), cambian metas según la tabla
+# referencia/condiciones.csv, con su fuente, igual que la hipertensión y la diabetes cambian el sodio y los azúcares
+# (esas dos siguen acá, en SODIO_HIPERTENSION_MG y AZUCARES_LIBRES_PCT_DIABETES, porque además filtran productos).
+# Van como restricciones y no como un campo aparte para que lleguen solas a todo lo que ya las usa: la persona, los
+# perfiles, el enlace ?perfiles=, la página y el pedido estructurado de la etapa 6.
+CONDICIONES = ["anemia_ferropenica", "osteoporosis", "colesterol_alto", "deficit_b12", "deficit_vitamina_d",
+               "enfermedad_renal"]
+# kcal por gramo, para los topes de las condiciones que son un porcentaje de la energía (colesterol alto: saturadas).
+KCAL_POR_G = {"grasas_saturadas_g": 9, "grasas_totales_g": 9, "grasas_trans_g": 9, "proteinas_g": 4,
+              "carbohidratos_g": 4, "azucares_libres_g": 4}
+
+# Dieta y religión (columnas de sepa/producto/religion.py, si / no / desconocido; "desconocido" no es apto).
+#   Sin cerdo: sin carne, grasa ni derivados de cerdo, tampoco en los ingredientes, ni gelatina de origen no
+#     declarado (puede ser porcina).
+#   Halal (Corán 2:173 y 5:3 y 5:90; criterio de las certificadoras, p. ej. el Centro Islámico de la República
+#     Argentina): sin cerdo ni derivados, sin alcohol; carnes rojas y aves solo si el producto está rotulado halal; la
+#     gelatina solo si se declara de origen no porcino (algunas escuelas exigen además faena halal: no se puede
+#     verificar). Los pescados y mariscos son halal para la mayoría de las escuelas (la hanafí excluye los mariscos:
+#     se suma "Alergia a mariscos").
+#   Kosher (Levítico 11 y Deuteronomio 14; criterios de las agencias certificadoras como la OU): sin cerdo, sin
+#     mariscos, solo pescados con aletas y escamas, carnes y aves solo rotuladas kosher (la faena, el desangrado y la
+#     certificación no figuran en el rótulo), sin gelatina, carmín (insecto) ni derivados de la uva sin certificar.
+#     Los lácteos, el pan y los procesados se aceptan si lo verificable (la lista de ingredientes) no lo impide: la
+#     base no tiene certificaciones kosher.
+PESCADOS_CON_ESCAMAS = {"atun_lata", "caballa_lata", "sardinas_lata", "merluza", "milanesa_pescado", "salmon",
+                        "trucha"}
+# Pescados sin escamas (o con escamas que no se desprenden) que pueden aparecer en esos alimentos genéricos.
+PESCADOS_SIN_ESCAMAS = r"CAZON|BAGRE|ANGUILA|\bRAYA\b|PEZ ESPADA|TIBURON|SURUBI|ESTURION|\bPANGA|PANGASIUS"
 # Con celiaquía, lo único que se compra a granel es lo fresco: arroz, legumbres, harinas y frutos secos sueltos se
 # contaminan con trigo en el local (ANMAT, recomendaciones para personas celíacas).
 GRANEL_APTO_CELIACOS = {"Verduras y frutas", "Carnes y huevos"}
@@ -137,8 +196,9 @@ ALERGIAS = {"sin_leche": "leche", "sin_huevo": "huevo", "sin_mani": "mani", "sin
 # QUÉ ENTRA EN LA CANASTA
 # ============================================================
 
-# Grupos alimentarios que se compran para comer. Quedan afuera el agua y las infusiones (sin nutrientes que
-# cuenten: el agua es la de la canilla), los condimentos (van a gusto, aportan poco) y las comidas preparadas.
+# Grupos alimentarios que se compran para comer. Quedan afuera el grupo "Agua e infusiones" (yerba, café, té y agua
+# saborizada: sin nutrientes que cuenten), los condimentos (van a gusto, aportan poco) y las comidas preparadas. El
+# agua y la soda envasadas (ALIMENTOS_AGUA, más abajo) se cargan aparte y solo se ofrecen si el hogar compra el agua.
 GRUPOS_CANASTA = [
     "Verduras y frutas", "Legumbres, cereales, papa, pan y pastas", "Leche, yogur y queso", "Carnes y huevos",
     "Aceites, frutas secas y semillas", "Alimentos de consumo opcional",
@@ -184,13 +244,55 @@ LISTOS_CRITERIO = ("Sin nada que haya que cocinar: carnes, pescados frescos y hu
 # Hogar: hasta cuántas personas comparten la compra (cada una con sus metas y restricciones).
 PERSONAS_MAXIMAS = 8
 
+# ============================================================
+# AGUA
+# ============================================================
+
+# Agua y soda envasadas (grupo "Agua e infusiones"): entran a la oferta solo si el hogar compra el agua.
+ALIMENTOS_AGUA = {"agua", "soda"}
+# Cómo toma agua el hogar (uno para todos). Cada modo combina de dónde sale el agua ("compra": el agua y la soda
+# envasadas entran a la oferta y la meta se le exige a la compra; si no, es la de la canilla, gratis, y la meta solo
+# se informa) con qué cuenta para la meta ("total": el agua de todo lo que se come y se toma, columna agua_g;
+# "bebidas": solo el agua y la soda que se compran, sin la de los alimentos). En la página son tres opciones.
+AGUA_MODOS = {
+    "canilla": {"nombre": "Tomo de la canilla", "corto": "agua de la canilla", "compra": False, "cuenta": "total",
+                "descripcion": "No se compra. Te decimos cuánta tomar por día, descontando la que traen los "
+                               "alimentos."},
+    "compra": {"nombre": "La compro", "corto": "agua comprada", "compra": True, "cuenta": "total",
+               "descripcion": "Agua o soda envasada hasta cubrir el agua del día, contando la que traen los "
+                              "alimentos."},
+    "bebidas": {"nombre": "Tomo 2 litros de bebida", "corto": "2 litros de bebida", "compra": True,
+                "cuenta": "bebidas",
+                "descripcion": "Agua o soda envasada: 8 vasos (2 litros) por día para un adulto, sin contar la de los "
+                               "alimentos."},
+}
+AGUA_MODO_PREDETERMINADO = "canilla"
+# Ingesta adecuada (AI) de agua total por día, en litros: la de las bebidas más la de los alimentos (NASEM/IOM 2004,
+# Dietary Reference Intakes for Water, Potassium, Sodium, Chloride, and Sulfate). (edad desde, edad hasta, litros);
+# el embarazo y la lactancia, de 14 a 50 años.
+AGUA_TOTAL_L = {
+    "F": [(4, 8, 1.7), (9, 13, 2.1), (14, 18, 2.3), (19, 200, 2.7)],
+    "M": [(4, 8, 1.7), (9, 13, 2.4), (14, 18, 3.3), (19, 200, 3.7)],
+    "embarazo": 3.0, "lactancia": 3.8,
+}
+# Agua de las bebidas por día, en litros. Adultos fuera del embarazo y la lactancia: 8 vasos de 250 ml (Guías
+# Alimentarias para la Población Argentina 2016, mensaje 1: "tomar a diario 8 vasos de agua segura"). Menores,
+# embarazo y lactancia: la parte de la AI de NASEM/IOM 2004 que viene de las bebidas.
+AGUA_BEBIDAS_L = {
+    "F": [(4, 8, 1.2), (9, 13, 1.6), (14, 18, 1.8), (19, 200, 2.0)],
+    "M": [(4, 8, 1.2), (9, 13, 1.8), (14, 18, 2.6), (19, 200, 2.0)],
+    "embarazo": 2.3, "lactancia": 3.1,
+}
+
 # Alimentos de origen animal: su vitamina A es retinol (preformada), la que tiene máximo tolerable.
 GRUPOS_VITAMINA_A_PREFORMADA = {"Carnes y huevos", "Leche, yogur y queso"}
 ALIMENTOS_VITAMINA_A_PREFORMADA = {"manteca", "crema_leche", "dulce_de_leche", "leche_condensada", "helado",
                                    "postre_lacteo", "pate", "morcilla"}
 
 # Variedad: ningún alimento genérico (subcategoría) pasa de estas porciones por día, escaladas por la energía
-# (porción de referencia de cada alimento, porcion_g: 200 ml de leche, 60 g de arroz, 150 g de carne).
+# (porción de referencia de cada alimento, porcion_g: 200 ml de leche, 60 g de arroz, 150 g de carne). El agua y la
+# soda (ALIMENTOS_AGUA) no tienen este tope (2 vasos no alcanzan para la meta de agua): cada una puede llegar a la meta
+# de agua del día de la persona.
 PORCIONES_MAX_POR_ALIMENTO = 2.0
 
 # Productos que se consideran en cada sucursal: los más baratos cada 100 g comestibles de cada subcategoría (y el
@@ -199,6 +301,13 @@ PRODUCTOS_POR_SUBCATEGORIA = 6
 
 # Lo que se vende a granel se compra de a 100 g.
 PASO_GRANEL_G = 100
+
+# Promociones (etapa 5): se aplican las que no piden banco, tarjeta, billetera ni programa de la cadena, ni un horario
+# o algunos días, y cuyo precio coincide con la leyenda (sepa/precio/promociones.py, columna aplicable). Si hay dos
+# para un mismo precio, se aplica una sola: la de menor precio por unidad (no se sabe si se suman). A granel, solo un
+# porcentaje o un precio por kilo: un 2×1 o un "llevando 3" son por unidades. La persona puede desactivarlas
+# ("Aplicar promociones", ?promos=0, --sin-promos); por defecto se aplican si la base trae alguna. Cómo entran al
+# modelo: docstring de canasta/modelo.py.
 
 # ============================================================
 # SUCURSALES
@@ -227,9 +336,46 @@ CANDIDATAS_MAXIMAS_RUTEO = 50
 # Cuántas de las alcanzables se optimizan: la más cercana de cada cadena (y, si faltan, las que siguen). Es más que
 # SUCURSALES_A_EVALUAR para que ampliar el tiempo sume cadenas nuevas en lugar de dejar todo igual.
 SUCURSALES_A_EVALUAR_CAMINATA = 10
+# Compra en dos supermercados (resultado.dos_super, a pedido después del resultado): a la sucursal elegida A se le
+# puede sumar una vecina B para comprar ahí lo que convenga. No se le pone precio al minuto: se informa el ahorro y los
+# minutos de más, y la persona decide. Vecinas: las que quedan a lo sumo DOS_SUPER_MINUTOS_ENTRE de A caminando
+# (estimado: línea recta × FACTOR_DESVIO_CAMINATA a VELOCIDAD_CAMINATA_KMH) y dentro del límite de caminata (o entre
+# las evaluadas, si no se buscó por tiempo); se prueban hasta DOS_SUPER_VECINAS, la más cercana a A de cada otra cadena
+# primero. Se propone si la combinación cubre mejor las metas (aunque cueste más: nunca se cambia nutrición por plata)
+# o, si las cubre igual, si ahorra al menos el DOS_SUPER_AHORRO_MINIMO_PCT % del costo de A y al menos
+# DOS_SUPER_AHORRO_MINIMO_PESOS: en la canasta de una semana (~$23.000) el 3 % son ~$700, poco para caminar 10 minutos
+# más y hacer dos colas; en la de un mes o de un hogar grande, el 3 % ya es plata. El 3 % también tiene que quedar
+# bien por encima de GAP_RELATIVO (1 %): un "ahorro" del tamaño del gap del solver es ruido, no un precio mejor.
+DOS_SUPER_MAXIMO = 2                     # sucursales por compra (la enumeración de pares supone 2)
+DOS_SUPER_MINUTOS_ENTRE = 10
+DOS_SUPER_VECINAS = 4
+DOS_SUPER_AHORRO_MINIMO_PCT = 3.0
+DOS_SUPER_AHORRO_MINIMO_PESOS = 1000.0
 RUTEO_SERVIDOR = "https://api.openrouteservice.org"
 RUTEO_PERFIL = "foot-walking"
 RUTEO_TIEMPO_ESPERA_S = 12
+
+# ============================================================
+# TEXTO LIBRE (etapa 6: LLM con Groq)
+# ============================================================
+
+# "Contalo con tus palabras": un LLM traduce lo que la persona escribe (o una prescripción) al pedido estructurado que
+# ya consume el motor (canasta/llm.py), y la persona lo confirma en el formulario antes de calcular. No elige
+# productos, no inventa precios ni nutrientes y no reemplaza al optimizador. La clave va en base_sepa/.env
+# (GROQ_API_KEY=...) y solo la usa el servidor local (python -m canasta): nunca va en una página.
+# Modelo: uno de los de Groq con salida estructurada. Los de GROQ_MODELOS_ESTRICTOS admiten el modo estricto (JSON
+# Schema garantizado por el servicio); con otro (por ejemplo "meta-llama/llama-4-maverick-17b-128e-instruct" o
+# "moonshotai/kimi-k2-instruct-0905") se pide un objeto JSON con el esquema en el prompt. En los dos casos la
+# respuesta se valida igual (llm.validar). Para cambiarlo, se cambia GROQ_MODELO (y, si el nuevo admite el modo
+# estricto según la documentación de Groq, se lo suma a GROQ_MODELOS_ESTRICTOS).
+GROQ_MODELO = "openai/gpt-oss-120b"
+GROQ_MODELOS_ESTRICTOS = {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}
+URL_GROQ = "https://api.groq.com/openai/v1/chat/completions"     # compatible con la API de OpenAI
+GROQ_TEMPERATURA = 0.1          # baja: traducir, no inventar
+GROQ_TIEMPO_ESPERA_S = 30
+LLM_TEXTO_MAXIMO = 4000         # caracteres del texto libre (la página y el servidor cortan ahí)
+LLM_PREGUNTAS_MAXIMAS = 10      # preguntas y notas que se muestran, cada una de a lo sumo LLM_LARGO_FRASE caracteres
+LLM_LARGO_FRASE = 300
 
 # ============================================================
 # MODELO

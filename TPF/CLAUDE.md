@@ -14,6 +14,8 @@
 - El orden de `RESTRICCIONES` define los bits de aptitud de la página: no reordenar.
 - La clave de OpenRouteService (`ORS_API_KEY` en `base_sepa/.env`) **nunca** va en `datos/sepa/canasta.html`
   (versionada): solo en `canasta_local.html` (ignorada por git).
+- La clave de Groq (`GROQ_API_KEY`, etapa 6) **no va en ninguna página**: la usa solo el servidor local
+  (`canasta/servidor.py`). La salida del LLM se valida con `canasta/llm.validar`; nunca entra al pedido sin validar.
 - Un tiempo estimado se muestra como estimado; no se dibuja un recorrido que no vino del servicio de rutas.
 
 ## Correr y verificar (desde `base_sepa/`)

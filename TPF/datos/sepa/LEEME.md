@@ -1,14 +1,15 @@
 # SEPA 2.0 — salida
 
-Precios minoristas del **2026-10-23** (SEPA, `sepa_viernes_2026-10-23.zip`), procesados el 2026-11-04 21:36 en 7.1 min.
+Precios minoristas del **2026-11-21** (SEPA, `sepa_2026-11-21.zip`), procesados el 2026-11-21 17:13 en 16.6 min.
 
 ## Archivos
 
 | Archivo | Qué es | Filas |
 |---|---|---:|
-| `dim_producto.parquet` / `.csv` | Productos comestibles: clasificación. presentación. nutrientes y composición (sin precio) | 28.030 |
-| `dim_tienda.parquet` / `.csv` | Sucursales con ubicación validada. división política y horarios | 2.666 |
-| `fact_precio.parquet` / `.csv.gz` | Precio de cada producto en cada tienda. normalizado | 8.240.279 |
+| `dim_producto.parquet` / `.csv` | Productos comestibles: clasificación. presentación. nutrientes y composición (sin precio) | 27.949 |
+| `dim_tienda.parquet` / `.csv` | Sucursales con ubicación validada. división política y horarios | 2.651 |
+| `fact_precio.parquet` / `.csv.gz` | Precio de cada producto en cada tienda. normalizado | 8.309.213 |
+| `promocion.parquet` / `.csv.gz` | Promociones vigentes de cada precio. con sus condiciones y si la canasta las aplica | 1.161.802 |
 | `calidad/` | Lo excluido y por qué, precios descartados, ubicaciones corregidas, verificación | |
 
 Relaciones: `fact_precio.id_producto` → `dim_producto.id_producto` y `fact_precio.id_tienda` → `dim_tienda.id_tienda` (muchos a uno). Los CSV usan `;` y coma decimal; para Power BI, pandas o R conviene el parquet.
@@ -17,96 +18,117 @@ Ejemplos: precio por kg de la banana en cada provincia → `fact_precio` (subcat
 
 ## Resumen de la corrida
 
-- Productos en SEPA ese día: 78.120; comestibles en `dim_producto`: 28.030 en 218 subcategorías y 34 categorías
-- Tiendas: 2.666 en 24 provincias; ubicación exacta 2.648. aproximada 2. dudosa 5. sin ubicación 10
-- Precios: 8.240.279 (con promoción vigente: 727.880); descartados por anormales: 6.337
+- Productos en SEPA ese día: 81.278; comestibles en `dim_producto`: 27.949 en 218 subcategorías y 34 categorías
+- Tiendas: 2.651 en 24 provincias; ubicación exacta 2.633. aproximada 2. dudosa 5. sin ubicación 10
+- Precios: 8.309.213 (con promoción vigente: 773.922); descartados por anormales: 7.119
+- Fecha de los precios. por sucursal: 2.600 del 2026-11-21 y 51 de días anteriores (se usan si tienen a lo sumo 15 días; las más viejas no entran): DEHEZA S.A.I.C.F. e I., del 2026-11-20 (35); ESTACION LIMA S.A., del 2026-11-20 (1); LA AGRICOLA REGIONAL COOPERATIVA LIMITADA, del 2026-11-20 (4); Mariano Max, del 2026-11-20 (11)
+- Promociones: 1.161.802 vigentes. 996.184 aplicables a la canasta
 
 | Categoría | Productos |
 |---|---:|
-| Bebidas alcohólicas | 3.573 |
-| Almacén | 2.527 |
-| Golosinas | 2.080 |
-| Galletitas | 1.991 |
-| Panificados | 1.796 |
-| Lácteos | 1.777 |
-| Bebidas | 1.504 |
-| Quesos | 1.400 |
-| Infusiones | 1.161 |
-| Pastas | 1.148 |
-| Verduras | 834 |
-| Fiambres | 776 |
-| Aderezos | 770 |
-| Cereales | 755 |
-| Conservas | 721 |
-| Snacks | 640 |
-| Frutos secos | 607 |
-| Pescados | 484 |
-| Carne vacuna | 482 |
-| Frutas | 412 |
-| Carnes procesadas | 359 |
-| Comidas preparadas | 358 |
-| Embutidos | 305 |
-| Aceites | 280 |
-| Legumbres | 270 |
-| Cerdo | 216 |
-| Huevos | 207 |
-| Harinas | 148 |
-| Pollo | 134 |
-| Verduras congeladas | 118 |
-| Achuras | 83 |
-| Otras carnes | 53 |
-| Grasas | 44 |
-| Frutas congeladas | 17 |
+| Bebidas alcohólicas | 3.583 |
+| Almacén | 2.500 |
+| Golosinas | 2.152 |
+| Galletitas | 1.920 |
+| Panificados | 1.881 |
+| Lácteos | 1.829 |
+| Bebidas | 1.446 |
+| Quesos | 1.393 |
+| Pastas | 1.127 |
+| Infusiones | 1.127 |
+| Verduras | 837 |
+| Aderezos | 760 |
+| Cereales | 742 |
+| Fiambres | 740 |
+| Conservas | 690 |
+| Snacks | 651 |
+| Frutos secos | 625 |
+| Pescados | 476 |
+| Carne vacuna | 468 |
+| Frutas | 426 |
+| Comidas preparadas | 357 |
+| Carnes procesadas | 353 |
+| Embutidos | 308 |
+| Aceites | 268 |
+| Legumbres | 259 |
+| Cerdo | 221 |
+| Huevos | 202 |
+| Harinas | 140 |
+| Pollo | 127 |
+| Verduras congeladas | 125 |
+| Achuras | 93 |
+| Otras carnes | 58 |
+| Grasas | 45 |
+| Frutas congeladas | 20 |
 
 | Grupo alimentario | Productos |
 |---|---:|
-| Alimentos de consumo opcional | 12.787 |
-| Legumbres. cereales. papa. pan y pastas | 4.318 |
-| Condimentos. aderezos y edulcorantes | 2.385 |
-| Leche. yogur y queso | 2.323 |
-| Carnes y huevos | 2.018 |
-| Verduras y frutas | 1.737 |
-| Agua e infusiones | 1.395 |
-| Aceites. frutas secas y semillas | 709 |
-| Comidas preparadas | 358 |
+| Alimentos de consumo opcional | 12.837 |
+| Legumbres. cereales. papa. pan y pastas | 4.239 |
+| Condimentos. aderezos y edulcorantes | 2.359 |
+| Leche. yogur y queso | 2.333 |
+| Carnes y huevos | 1.998 |
+| Verduras y frutas | 1.743 |
+| Agua e infusiones | 1.364 |
+| Aceites. frutas secas y semillas | 719 |
+| Comidas preparadas | 357 |
 
 | Fuente de los nutrientes | Productos |
 |---|---:|
-| generico: usda | 9.233 |
-| rotulo_web | 5.501 |
-| similar | 5.455 |
-| generico: rotulos | 4.987 |
-| rotulo_web+off | 1.610 |
-| rotulo_off | 845 |
-| rotulo_foto | 399 |
+| generico: usda | 9.176 |
+| similar | 5.439 |
+| generico: rotulos | 4.746 |
+| rotulo_web | 4.557 |
+| rotulo_web+off | 2.393 |
+| rotulo_off | 1.249 |
+| rotulo_foto | 389 |
 
 | Provincia | Tiendas |
 |---|---:|
-| Ciudad Autónoma de Buenos Aires | 946 |
-| Buenos Aires | 904 |
-| Córdoba | 157 |
+| Ciudad Autónoma de Buenos Aires | 939 |
+| Buenos Aires | 902 |
+| Córdoba | 158 |
 | Entre Ríos | 88 |
-| Mendoza | 86 |
+| Mendoza | 80 |
 | Río Negro | 65 |
 | Neuquén | 61 |
 | Salta | 50 |
-| Chubut | 46 |
 | Santa Fe | 46 |
+| Chubut | 46 |
 | Jujuy | 31 |
-| Santa Cruz | 30 |
+| Santa Cruz | 29 |
 | Tucumán | 26 |
 | Corrientes | 24 |
 | La Pampa | 22 |
-| Tierra del Fuego. Antártida e Islas del Atlántico Sur | 14 |
 | San Juan | 14 |
-| (sin ubicación) | 10 |
+| Tierra del Fuego. Antártida e Islas del Atlántico Sur | 14 |
 | Misiones | 10 |
+| (sin ubicación) | 10 |
 | Catamarca | 8 |
 | San Luis | 8 |
 | Santiago del Estero | 6 |
-| Chaco | 5 |
 | Formosa | 5 |
+| Chaco | 5 |
 | La Rioja | 4 |
+
+## Promociones
+
+Cada leyenda de SEPA se clasifica en `sepa/precio/promociones.py` (tipo, parámetros, condiciones). La canasta aplica solo las aplicables: sin banco, tarjeta, billetera ni programa de la cadena (fuera de alcance), sin horario ni días y con un precio que coincide con la leyenda.
+
+| Clasificación | Filas | % filas | Leyendas | % leyendas |
+|---|---:|---:|---:|---:|
+| aplicable | 996.184 | 85,7 % | 1.412 | 47,5 % |
+| desconocida | 149.105 | 12,8 % | 1.555 | 52,4 % |
+| no aplicable: otra condición | 16.498 | 1,4 % | 1 | 0,0 % |
+| no aplicable: precio | 15 | 0,0 % | 2 | 0,1 % |
+
+| Tipo | Filas |
+|---|---:|
+| porcentaje | 792.718 |
+| desconocida | 149.105 |
+| segunda_unidad | 146.738 |
+| nxm | 37.264 |
+| llevando_x | 35.977 |
 
 ## Verificación
 
@@ -149,6 +171,14 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | composición: sin_tacc en si/no/desconocido | 0 | sí |
 | composición: sin_lactosa en si/no/desconocido | 0 | sí |
 | composición: azucar_agregada en si/no/desconocido | 0 | sí |
+| dieta y religión: contiene_cerdo en desconocido/no/si | 0 | sí |
+| dieta y religión: contiene_carne en desconocido/no/si | 0 | sí |
+| dieta y religión: contiene_gelatina en desconocido/no/si | 0 | sí |
+| dieta y religión: contiene_alcohol en desconocido/no/si | 0 | sí |
+| dieta y religión: contiene_vino en desconocido/no/si | 0 | sí |
+| dieta y religión: contiene_carmin en desconocido/no/si | 0 | sí |
+| dieta y religión: rotulo_kosher en no/si | 0 | sí |
+| dieta y religión: rotulo_halal en no/si | 0 | sí |
 | composición: vegano implica vegetariano | 0 | sí |
 | composición: con leche, huevo, pescado o mariscos no es vegano | 0 | sí |
 | composición: con gluten no es sin TACC | 0 | sí |
@@ -166,6 +196,17 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | fact: promoción menor al precio de lista | 0 | sí |
 | producto: tiene al menos un precio en fact_precio | 0 | sí |
 | tienda: tiene al menos un precio en fact_precio | 0 |  |
+| tienda: precios de a lo sumo 15 días antes del ZIP y no posteriores | 0 | sí |
+| fact: fecha igual a la de su tienda (dim_tienda.fecha_precios) | 0 | sí |
+| tienda: con precios de un día anterior al del ZIP (se usan con su fecha) | 51 |  |
+| promoción: es de un precio de fact_precio | 0 | sí |
+| promoción: una por producto, tienda y orden | 0 | sí |
+| promoción: tipo conocido | 0 | sí |
+| promoción: la aplicable tiene un precio menor al de lista | 0 | sí |
+| promoción: la aplicable tiene forma (precio o grupo) y unidades | 0 | sí |
+| promoción: la aplicable no tiene motivo y la otra sí | 0 | sí |
+| promoción: con condición de pago no se aplica | 0 | sí |
+| promoción: desconocida (la leyenda no dice qué promoción es) | 149105 |  |
 
 ## Diccionario de datos
 
@@ -248,6 +289,14 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | `edulcorantes` | texto | si / no / desconocido |
 | `aceite_palma` | texto | si / no / desconocido |
 | `fuente_composicion` | texto | rótulo (catálogo web), rótulo (Open Food Facts), ingredientes o alimento genérico |
+| `contiene_cerdo` | texto | Carne, grasa o derivados de cerdo, o gelatina de origen no declarado: si / no / desconocido |
+| `contiene_carne` | texto | Carnes rojas, aves y sus derivados (no el pescado): si / no / desconocido |
+| `contiene_gelatina` | texto | Gelatina o colágeno de cualquier origen: si / no / desconocido |
+| `contiene_alcohol` | texto | Bebida alcohólica o alcohol entre los ingredientes (no el vinagre): si / no / desconocido |
+| `contiene_vino` | texto | Derivados de la uva que para kosher necesitan certificación (vino, mosto, jugo de uva, coñac): si / no / desconocido |
+| `contiene_carmin` | texto | Colorante carmín o cochinilla (INS 120): si / no / desconocido |
+| `rotulo_kosher` | texto | El nombre, la marca o el rótulo dicen KOSHER, KASHER o PARVE: si / no |
+| `rotulo_halal` | texto | El nombre, la marca o el rótulo dicen HALAL: si / no |
 | `exceso_azucares` | booleano | Sello de advertencia aproximado: exceso azucares (verdadero / falso) |
 | `exceso_grasas_saturadas` | booleano | Sello de advertencia aproximado: exceso grasas saturadas (verdadero / falso) |
 | `exceso_grasas_totales` | booleano | Sello de advertencia aproximado: exceso grasas totales (verdadero / falso) |
@@ -303,12 +352,13 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | `horario_viernes` | texto | Horario del viernes: 'HH:MM-HH:MM' (turnos separados por coma); vacío = cerrado; nulo = no informado |
 | `horario_sabado` | texto | Horario del sabado: 'HH:MM-HH:MM' (turnos separados por coma); vacío = cerrado; nulo = no informado |
 | `horario_domingo` | texto | Horario del domingo: 'HH:MM-HH:MM' (turnos separados por coma); vacío = cerrado; nulo = no informado |
+| `fecha_precios` | fecha | Día de los precios de la sucursal: el de la última actualización del archivo de su comercio, que puede ser anterior al del ZIP (hasta DIAS_TOLERANCIA_PRECIO días; si no, el comercio no entra) |
 
 ### fact_precio
 
 | Columna | Tipo | Descripción |
 |---|---|---|
-| `fecha` | datetime64[s] | Día de los precios (fecha del ZIP de SEPA) |
+| `fecha` | fecha | Día del precio: el de su sucursal (dim_tienda.fecha_precios), que puede ser anterior al del ZIP |
 | `id_producto` | texto | Producto (dim_producto) |
 | `id_tienda` | texto | Tienda (dim_tienda) |
 | `precio` | número | Precio de lista publicado (ARS) por la presentación |
@@ -318,4 +368,32 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | `precio_normalizado` | número | Precio por kg, litro o unidad (según unidad_normalizada): comparable dentro de la subcategoría |
 | `unidad_normalizada` | texto | kg, l o unidad |
 | `precio_100g` | número | Precio cada 100 g tal como se compra; dividido por parte_comestible da el de la parte comestible, que es la base de los nutrientes |
+
+### promocion
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id_producto` | texto | Producto (dim_producto) |
+| `id_tienda` | texto | Tienda (dim_tienda) |
+| `orden` | entero | 1 o 2: SEPA publica hasta dos promociones por producto y sucursal |
+| `leyenda` | texto | Leyenda de la promoción tal como la publica la cadena |
+| `precio_lista` | número | Precio de lista (el de fact_precio) |
+| `precio_promocion` | número | Precio unitario con la promoción que publica SEPA (en un 2×1, la mitad del de lista) |
+| `tipo` | texto | porcentaje, nxm (2×1, 3×2), segunda_unidad (2.ª al 70 %), precio_fijo, llevando_x (llevando n) o desconocida (la leyenda no dice qué promoción es) |
+| `n` | entero | nxm: unidades que se llevan; segunda_unidad: 2; llevando_x: unidades que hay que llevar |
+| `m` | entero | nxm: unidades que se pagan |
+| `porcentaje` | número | Descuento en %: porcentaje y segunda_unidad (sobre la segunda unidad) |
+| `precio_leyenda` | número | Precio que dice la leyenda: precio_fijo y 'c/u $P' por unidad; 'n x $P', por las n |
+| `cada_unidad` | booleano | llevando_x: el precio vale para cada unidad desde la n-ésima (verdadero) o por grupo de n |
+| `tope` | entero | Unidades máximas con la promoción, si la leyenda lo dice (stock declarado, máximo por compra) |
+| `condicion_pago` | texto | tarjeta, banco, billetera, fidelidad o efectivo si la leyenda exige un medio de pago o un programa de la cadena (no se aplican: fuera de alcance) |
+| `condicion` | texto | Otra condición que la canasta no puede asegurar: un horario, algunos días, jubilados, online |
+| `vigencia_desde` | fecha | Desde cuándo vale, si la leyenda lo dice |
+| `vigencia_hasta` | fecha | Hasta cuándo vale |
+| `aplicable` | booleano | Se puede aplicar a la compra: tipo entendido, sin condiciones de pago ni de otro tipo y con un precio coherente |
+| `motivo` | texto | Por qué no se aplica (vacío si se aplica) |
+| `resumen` | texto | La promoción en pocas letras, para el ticket: 2×1, 2.ª al 70 %, 25 % de descuento |
+| `forma` | texto | Cómo entra al modelo de la canasta: precio (cada unidad a precio_unitario desde 'unidades' unidades) o grupo (cada grupo de 'unidades' unidades a unidades × precio_unitario) |
+| `unidades` | entero | Unidades de la forma: desde cuántas (precio) o de a cuántas (grupo) |
+| `precio_unitario` | número | Precio por unidad con la promoción que usa la canasta (el publicado si coincide con la leyenda; si no lo hay, el de la leyenda) |
 

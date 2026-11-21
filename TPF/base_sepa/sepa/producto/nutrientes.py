@@ -158,6 +158,40 @@ def controlar_rotulo(r: pd.DataFrame, energia_generico: pd.Series, exento: pd.Se
     return motivo
 
 
+def porcion_como_100g(tabla: pd.DataFrame, porcion: pd.Series, referencia: pd.Series) -> pd.Series:
+    """
+    Tablas de los catálogos web que publican los valores de la porción como si fueran cada 100 g. Desde noviembre de
+    2026 Jumbo, Disco y Vea lo hacen en ~27 % de los productos con tabla: un aceite de girasol con 108 kcal y 12 g de
+    grasa "cada 100 ml" (son los de la cuchara de 13 ml), unos snacks con 126 kcal (los de 25 g; antes publicaban 504).
+    En Jumbo, 1.868 de los 1.871 rótulos que cambiaron así valen el anterior por porción / 100. Con ellos el
+    "rótulo más representativo" de un genérico pasaba a ser uno por porción (snacks de maíz, 145 kcal) y los rótulos
+    buenos quedaban lejos del genérico: 1.159 productos más excluidos, entre ellos los aceites más baratos.
+
+    Es una tabla por porción si la porción (en la unidad de la tabla) es menor que 100, su energía está lejos de la de
+    referencia del alimento (menos de 1/RATIO_ENERGIA_GENERICO) y llevada a 100 g (× 100 / porción) queda dentro del
+    rango y más cerca. referencia: energía cada 100 g del alimento genérico sin los rótulos web (USDA o la mediana de
+    los rótulos de Open Food Facts verificados). Devuelve la máscara; las filas se reescalan con reescalar_porcion.
+    """
+    kcal = tabla["energia_kcal"].astype(float)
+    p = porcion.astype(float)
+    ref = referencia.astype(float).where(referencia > 0)
+    escalada = kcal * 100 / p
+    r, r_esc = kcal / ref, escalada / ref
+    return ((p > 0) & (p < 100) & (r < 1 / cfg.RATIO_ENERGIA_GENERICO)
+            & (r_esc >= 1 / cfg.RATIO_ENERGIA_GENERICO) & (r_esc <= cfg.RATIO_ENERGIA_GENERICO)
+            & (np.abs(np.log(r_esc)) < np.abs(np.log(r)))).fillna(False).astype(bool)
+
+
+def reescalar_porcion(tabla: pd.DataFrame, porcion: pd.Series, mascara: pd.Series, columnas: list[str]) -> pd.DataFrame:
+    """Lleva a 100 g (o 100 ml) los valores de las filas de la máscara, que son de la porción."""
+    t = tabla.copy()
+    factor = (100 / porcion.astype(float)).where(mascara, 1.0)
+    for c in columnas:
+        if c in t:
+            t[c] = t[c].astype(float) * factor
+    return t
+
+
 def sodio_verosimil(sodio: pd.Series, sodio_generico: pd.Series) -> pd.Series:
     """
     Un sodio imposible (más que la sal pura) es un error de unidades si dividido por 1.000 queda en un valor
@@ -340,6 +374,13 @@ def _cerrar(out: pd.DataFrame, gen: pd.DataFrame) -> pd.DataFrame:
     escala_carb = (out["carbohidratos_g"] / g["carbohidratos_g"].where(g["carbohidratos_g"] > 0)).fillna(0)
     out.loc[heredado, "azucares_g"] = g.loc[heredado, "azucares_g"] * escala_carb[heredado]
     out["azucares_g"] = np.minimum(out["azucares_g"], out["carbohidratos_g"])
+    # La fibra que el rótulo no declara viene del genérico y tiene que entrar en lo que dejan los macronutrientes
+    # declarados (MAX_GRAMOS_100): un rótulo de Open Food Facts sin fibra con 10 + 76,7 + 16,7 g de proteínas,
+    # carbohidratos y grasas (unas galletitas, 20/11/2026) heredaba 2,7 g y sumaba 106 g. Una fibra declarada que no
+    # entra ya la rechaza controlar_rotulo, así que solo se recorta la heredada. El margen de 0,001 g cubre el
+    # redondeo a 4 decimales de cada columna que viene después (sin él quedaba en 105,0001).
+    macros = out["proteinas_g"] + out["carbohidratos_g"] + out["grasas_totales_g"] + out["alcohol_g"]
+    out["fibra_g"] = np.minimum(out["fibra_g"], (cfg.MAX_GRAMOS_100 - 0.001 - macros).clip(lower=0))
     secos = (out["proteinas_g"] + out["carbohidratos_g"] + out["grasas_totales_g"] + out["fibra_g"]
              + out["alcohol_g"] + out["sodio_mg"] * 2.5 / 1000)
     out["agua_g"] = np.minimum(out["agua_g"], (100 - secos).clip(lower=0))
@@ -391,6 +432,22 @@ def armar(productos: pd.DataFrame, catalogo: pd.DataFrame, off: pd.DataFrame, we
         # Los rótulos web que pasan sus controles propios también cuentan (uno por producto: el web, si hay).
         w = p[["clave_producto"]].merge(web[web["tiene_tabla"]], left_on="clave_producto", right_on="ean", how="left")
         w.index = p.index
+        # Tablas con los valores de la porción como si fueran cada 100 g (porcion_como_100g): se llevan a 100 g antes
+        # de todo, contra una referencia sin los rótulos web (la mediana de Open Food Facts verificada si hay al menos
+        # 5 del alimento; si no, USDA).
+        if "porcion" in w:
+            from sepa.fuentes.catalogos_web import CAMPOS
+            fdc = p["alimento_id"].map(cat["fdc_id"])
+            e_usda = usda.nutrientes(fdc.dropna().astype(int).unique().tolist())["energia_kcal"]
+            ref_usda = fdc.map(lambda x: e_usda.get(int(x), np.nan) if pd.notna(x) else np.nan).astype(float)
+            off_ok = off100.loc[ok_off, "energia_kcal"].astype(float).groupby(p.loc[ok_off, "alimento_id"])
+            mediana_off = off_ok.median().where(off_ok.size() >= 5)
+            referencia = p["alimento_id"].map(mediana_off).astype(float).fillna(ref_usda)
+            por_porcion = porcion_como_100g(w, w["porcion"], referencia) & w["energia_kcal"].notna()
+            w = reescalar_porcion(w, w["porcion"], por_porcion, list(CAMPOS.values()))
+            stats["web_porcion_como_100g"] = int(por_porcion.sum())
+            logger.info("Rótulos web con los valores de la porción como si fueran cada 100 g: %d (se llevan a 100 g)",
+                        int(por_porcion.sum()))
         unidades_ok = w["unidades_ok"].astype("boolean").fillna(True).astype(bool)
         es_ml_web = w["unidad_base"].fillna("").str.lower().str.startswith("ml").to_numpy()
         w100 = _por_100g(w, es_ml_web, densidad, MACROS)

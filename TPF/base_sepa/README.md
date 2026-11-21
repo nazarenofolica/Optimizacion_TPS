@@ -11,6 +11,7 @@ estrella** listo para usar en Power BI, pandas o R:
 | `dim_producto` | producto comestible | `id_producto` (EAN o código interno de cadena) | Nombre, marca, categoría, subcategoría, grupo alimentario, presentación, 33 nutrientes cada 100 g, ingredientes, alérgenos, aptitudes (vegano, sin TACC...), NOVA, sellos. **Sin precio** |
 | `dim_tienda` | sucursal | `id_tienda` (`comercio-bandera-sucursal`) | Cadena, bandera, formato, tipo, dirección, coordenada validada, provincia / departamento / municipio (códigos INDEC), barrio y comuna en CABA, horarios |
 | `fact_precio` | producto × tienda | `id_producto` + `id_tienda` | Precio publicado, promoción vigente, presentación (500 g, 1 l, 12 unidades, 1 kg a granel) y **precio normalizado** por kg, litro o unidad (y cada 100 g) |
+| `promocion` | promoción de un precio (hasta 2) | `id_producto` + `id_tienda` + `orden` | Leyenda de SEPA clasificada (desde la etapa 5): tipo (porcentaje, 2×1, 2.ª al 70 %, precio fijo, llevando n o desconocida), parámetros, condiciones de pago u horario, vigencia, si la canasta la aplica y por qué no, y cómo entra al modelo |
 
 "1 kg de banana a $x" y "500 g de banana a $y" no son comparables tal como se publican: el hecho lleva cada
 precio a la misma unidad dentro de cada subcategoría (kg para la banana, litro para la leche, unidad para los
@@ -23,6 +24,7 @@ pip install -r requirements.txt
 
 python -m sepa --descargar     # baja el ZIP del día (~320 MB) y arma todo
 python -m sepa                 # vuelve a procesar el ZIP que ya está en datos/entrada/
+python -m sepa --diario        # sin intervención (lo usa el ETL diario de GitHub Actions)
 ```
 
 | Opción | Qué hace |
@@ -31,9 +33,12 @@ python -m sepa                 # vuelve a procesar el ZIP que ya está en datos/
 | `--zip RUTA` | Usa ese ZIP |
 | `--actualizar-off` | Vuelve a bajar el dump de Open Food Facts (si no, se reutiliza 30 días) |
 | `--actualizar-web` | Vuelve a recorrer los catálogos online de Jumbo, Disco y Vea |
+| `--diario` | Como `--descargar`, y si los catálogos web no están en `datos/cache/web/` (un equipo nuevo) los recorre como `--actualizar-web` en lugar de cortarse; con las cachés, hace lo mismo que `--descargar` |
+| `--ultima-fecha` | Solo escribe la fecha (AAAA-MM-DD) del último ZIP publicado por SEPA, sin bajarlo |
 
 La primera corrida baja a `datos/cache/` Open Food Facts (~1,2 GB), USDA (~6 MB) y consulta las APIs
-geográficas; las siguientes reutilizan todo y tardan unos minutos. El resultado queda en `../datos/sepa/`, con
+geográficas; los catálogos web se recorren con `--actualizar-web` (o solos con `--diario`). Las siguientes reutilizan
+todo y tardan unos minutos. El ETL diario en GitHub Actions está en [../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md). El resultado queda en `../datos/sepa/`, con
 un `LEEME.md` que trae el **diccionario de datos** de las tres tablas y el resumen de la corrida.
 
 Tests: `python -m unittest discover -s tests -v`
@@ -48,6 +53,7 @@ copy .env.example .env               # ORS_API_KEY=... (gratis en openrouteservi
 python -m canasta                    # exporta ../datos/sepa/canasta_local.html con la clave y la sirve en localhost
 python -m canasta --exportar         # ../datos/sepa/canasta.html, la versionada (nunca lleva la clave)
 python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15   # en la consola
+python -m canasta --perfil oficinista --lat -34.60386 --lon -58.38419 --caminata 15 --dos-super   # y si conviene un 2.º súper
 CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                         # paridad Python / navegador
 ```
 
@@ -60,6 +66,37 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   en línea recta × 1,3 a 5 km/h, y la página lo dice; no se dibuja recorrido.
 - La página se sirve por `http://localhost`: abierta como archivo, las teselas de OpenStreetMap pueden no cargar y el
   navegador no comparte la ubicación. `?rutas=0` vuelve a la búsqueda anterior (las más cercanas en línea recta).
+- **Agua** (`--agua`, `?agua=` en la página, `AGUA_*` en `canasta/config.py`), un modo por hogar: `canilla` (la
+  predeterminada: no se compra; se informa cuánta tomar además de la que traen los alimentos, según la ingesta adecuada
+  de agua total de NASEM 2004), `compra` (agua y soda envasadas entran a la oferta hasta cubrir esa misma meta,
+  contando el agua de los alimentos, columna `agua_g`) y `bebidas` (2 litros de agua o soda comprada por día para un
+  adulto, los 8 vasos de las Guías Alimentarias; sin contar los alimentos). El agua no tiene el tope de dos porciones.
+- **Dos supermercados** (`--dos-super`, `&dos=1` en el enlace de la página o el botón "¿Conviene sumar un segundo
+  súper?", `DOS_SUPER_*` en `canasta/config.py`): después del resultado, a la sucursal elegida se le prueba sumar una
+  vecina a ≤ 10 min caminando, enumerando los pares con el modelo de siempre (`resultado.dos_super`). Conviene si cubre
+  mejor las metas o, con las mismas, si ahorra al menos 3 % y $1.000; se informan el ahorro y los minutos de más
+  (tramo entre las dos, estimado) y el ticket sale dividido por sucursal.
+- **Promociones** (etapa 5, criterio en `canasta/config.py`): las de la tabla `promocion` que se pueden aplicar
+  entran al modelo solo en la etapa del costo (precio efectivo, tope, "llevando n" con una binaria, grupos enteros
+  para el 2×1 y la 2.ª unidad; ver el docstring de `canasta/modelo.py`), y el ticket muestra el descuento de cada
+  renglón y el ahorro. "Aplicar promociones" en el paso 3, `?promos=0|1` en el enlace, `--sin-promos` en la consola.
+  La base del 21/11/2026 trae 996.184 aplicables (DIA, La Anónima y parte de la Cooperativa Obrera; las de Carrefour
+  y Coto no dicen qué promoción son). Con una base sin la tabla, no hay promociones y todo da lo mismo que antes.
+- **Sin cerdo, halal y kosher** (etapa 4, `PESCADOS_*` y los criterios en `canasta/config.py`): con las columnas de
+  dieta y religión; "desconocido" no es apto. Sin certificaciones en la base, halal y kosher no ofrecen carnes ni
+  aves (solo las rotuladas, y no hay) y aplican lo que se puede verificar por ingredientes (kosher: sin mariscos,
+  pescados sin escamas, gelatina, carmín ni derivados de la uva). La mezcla carne-leche por comida no se modela.
+- **Condiciones médicas** (`referencia/condiciones.csv`, `CONDICIONES` en `canasta/config.py`): anemia por falta de
+  hierro, osteoporosis, colesterol alto, déficit de B12 o de vitamina D y enfermedad renal crónica. No filtran
+  productos: cambian metas con su fuente (NASEM, FAO/OMS, NCEP ATP III, BHOF, KDOQI), sin pasar nunca un máximo
+  tolerable, y las que requieren supervisión profesional lo avisan. Perfiles ocultos para probarlas:
+  `?perfiles=kosher,halal,anemia`.
+- **Contalo con tus palabras** (etapa 6, `canasta/llm.py`, `canasta/servidor.py`, `GROQ_*` y `LLM_*` en
+  `canasta/config.py`): con `GROQ_API_KEY` en `.env`, la página local ofrece en el paso 1 escribir el hogar (o pegar
+  una prescripción); un LLM de Groq lo traduce al pedido, `llm.validar` lo revisa contra `config.py` y el formulario
+  queda prellenado, con lo que falta como preguntas, para confirmar antes de calcular. El texto se envía a Groq (la
+  página lo avisa y pide confirmarlo) y no se guarda. `python -m canasta --llm-simulado` lo prueba sin clave, con
+  respuestas de ejemplo. La página publicada no tiene servidor y no lo ofrece.
 
 ## Estructura
 
@@ -70,7 +107,7 @@ SEPA 2.0/
 │   ├── config.py             rutas y todos los umbrales, con su porqué
 │   ├── fuentes/              descarga y lectura: SEPA, Open Food Facts, USDA, catálogos web, geografía
 │   ├── producto/             dim_producto: identificación, contenido, categoría, clasificación,
-│   │                         nutrientes, similitud, composición
+│   │                         nutrientes, similitud, composición, dieta y religión
 │   ├── tienda/               dim_tienda: coordenadas, división política, horarios
 │   ├── precio/               fact_precio: precios anormales y normalización
 │   ├── verificacion.py       controles que las tres tablas cumplen siempre
@@ -80,6 +117,7 @@ SEPA 2.0/
 │   │                         parte comestible, unidad de precio, grupo alimentario
 │   ├── categorias_web.csv    categoría de góndola -> alimentos compatibles
 │   ├── composicion_alimentos.csv   alérgenos y aptitudes "por naturaleza" de cada alimento
+│   ├── condiciones.csv       condiciones médicas: qué meta cambia, cómo, con qué fuente y si requiere supervisión
 │   ├── rotulos_fotos.csv     tablas nutricionales leídas de fotos de envases
 │   └── nutricion_manual.csv  correcciones puntuales de nutrientes
 ├── tests/
@@ -130,7 +168,13 @@ SEPA 2.0/
 7. **Composición**: alérgenos (sí / no / desconocido), trazas, apto vegetariano y vegano, sin TACC, sin lactosa,
    NOVA, aditivos, azúcar agregada, edulcorantes, aceite de palma; y sellos de advertencia aproximados (en los
    polvos para preparar, que la ley evalúa sobre lo preparado, solo los de azúcares y grasas).
-8. **Precio plausible**: un producto cuyo precio por kg o litro está por debajo de la quinta parte del
+8. **Dieta y religión** (`sepa/producto/religion.py`, etapa 4): `contiene_cerdo`, `contiene_carne`,
+   `contiene_gelatina`, `contiene_alcohol`, `contiene_vino`, `contiene_carmin` (sí / no / desconocido) y los rótulos
+   `rotulo_kosher` y `rotulo_halal`, desde el alimento genérico, el nombre y la lista de ingredientes (sin las trazas
+   ni los aromatizantes sintéticos; el vinagre y el "licor de cacao" no son alcohol). La gelatina sin origen
+   declarado puede ser porcina. Un `dim_producto` anterior no las trae: la canasta las calcula al cargar con la misma
+   función. En la base hay 2 productos rotulados kosher o parve (ninguno de la canasta) y ninguno halal.
+9. **Precio plausible**: un producto cuyo precio por kg o litro está por debajo de la quinta parte del
    percentil 10 de su subcategoría o por encima de 8 veces el percentil 90, o muy por debajo del de sus
    "gemelos" (los casi iguales que venden otras cadenas), tiene el contenido mal cargado o un precio
    desactualizado y se excluye (sin poner precio en la dimensión). Percentiles y no la mediana porque hay
@@ -154,13 +198,34 @@ cada producto es la mediana de las medianas de cada cadena; dentro de x2 / ÷2 u
 estación de servicio cobra una gaseosa 1,7 veces lo que un supermercado; una cadena de descuento, 40 % menos),
 más de 3 veces arriba o abajo se descarta siempre, y en el medio queda si es coherente con la dispersión
 normal del producto. Con solo dos cadenas que no coinciden no hay mayoría: gana la que tiene un precio posible
-para su subcategoría (una cadena publica el precio de una caja de six-packs como si fuera uno). Los comercios
-cuyo archivo no es del día (uno repite un archivo de 2025) se excluyen enteros.
+para su subcategoría (una cadena publica el precio de una caja de six-packs como si fuera uno).
+
+**Fecha de los precios, por sucursal.** Cada cadena sube al ZIP del día su archivo con la fecha de su última
+actualización, y varias suben el del día anterior. Si el archivo tiene a lo sumo `DIAS_TOLERANCIA_PRECIO` (15) días
+respecto del ZIP, sus precios se usan con su fecha: `fact_precio.fecha` y `dim_tienda.fecha_precios` son las de cada
+sucursal, y la canasta lo avisa ("precios de hace N días"); no tener los precios del día es un problema de largo plazo,
+en dos semanas no cambia la compra. Si es más viejo (una cadena repite un archivo de 2025), el comercio se excluye
+entero. `calidad/lectura_comercios.csv` dice de cada archivo su fecha, cuántos días tiene y si quedó `ok` (del día),
+`anterior` (se usa con su fecha) o `desactualizado` (afuera); la verificación controla que ninguna sucursal pase la
+tolerancia y cuenta las que usan precios de días anteriores.
 
 Lo que vende una sola cadena no tiene con quién compararse: se compara con sus gemelos de otras cadenas
 (descripción casi igual, contenido parecido, precio con consenso de al menos dos cadenas, ponderado por
 tiendas). Así aparecen las cadenas chicas que siguen publicando precios de hace años para códigos viejos (una
 mayonesa a $156 el litro, un jugo en polvo a $25): esos productos quedan afuera con su motivo.
+
+### promocion
+
+SEPA publica hasta dos promociones por precio (`productos_precio_unitario_promo1` / `productos_leyenda_promo1` y
+`..._promo2`), con una leyenda libre distinta en cada cadena. `sepa/precio/promociones.py` clasifica cada leyenda
+distinta una vez: tipo (`porcentaje`, `nxm`, `segunda_unidad`, `precio_fijo`, `llevando_x` o `desconocida`), n, m,
+porcentaje, precio, tope de unidades, condición de pago (tarjeta, banco, billetera, programa de la cadena: nunca se
+aplican, quedan fuera de alcance), otra condición (horario, días, jubilados, online) y vigencia. `aplicable` dice si la
+canasta la puede aplicar y `motivo`, por qué no. El precio por unidad con la promoción es el que publica SEPA si
+coincide con la leyenda (±3 %); si no lo hay, el que sale de la leyenda. Con el ZIP del 20/11/2026: 83,5 % de las
+filas con promoción, aplicables (DIA y La Anónima casi todas); 15,3 %, desconocidas (Carrefour, Coto y la mayoría de
+la Cooperativa Obrera solo publican la vigencia); 1,2 %, con horario; ninguna pide banco o tarjeta. Es una tabla
+aparte (y no columnas de `fact_precio`) porque puede haber dos por precio y así `fact_precio` no cambia.
 
 ## Calidad
 

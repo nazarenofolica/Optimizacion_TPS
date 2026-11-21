@@ -2,6 +2,7 @@
 fact_precio: una fila por producto y tienda con el precio publicado ese día,
 limpio y llevado a la misma unidad dentro de cada subcategoría.
 
+  fecha                  día de los precios de esa sucursal (el de la última actualización de su comercio)
   precio                 precio de lista publicado (ARS) por la presentación
   precio_promocion       precio unitario de la promoción de alcance general vigente (si hay)
   cantidad, unidad       la presentación que compra ese precio: 500 g, 1,5 l, 12 unidades o, a granel, 1 kg
@@ -131,7 +132,11 @@ def armar(datos: DatosSEPA, precios: pd.DataFrame, dim_producto: pd.DataFrame, d
     stats["productos_excluidos_por_precio"] = len(excluidos)
 
     fact = pd.DataFrame({
-        "fecha": pd.Timestamp(datos.fecha),
+        # La fecha de los precios de cada sucursal (la del archivo de su comercio: hasta DIAS_TOLERANCIA_PRECIO días
+        # antes de la del ZIP), no la del ZIP.
+        "fecha": (obs["tienda"].map(tiendas["fecha_precios"]) if "fecha_precios" in tiendas
+                  else pd.Series(pd.Timestamp(datos.fecha), index=obs.index)).fillna(pd.Timestamp(datos.fecha))
+        .astype("datetime64[ns]").to_numpy(),
         "id_producto": obs["producto"].map(prod["id_producto"]).to_numpy(),
         "id_tienda": obs["tienda"].map(tiendas["id_tienda"]).to_numpy(),
         "precio": obs["precio"].round(2).to_numpy(),

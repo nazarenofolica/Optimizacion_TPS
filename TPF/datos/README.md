@@ -1,22 +1,23 @@
 # Datos del TPF
 
 La base de datos del trabajo está en [`sepa/`](sepa/): un **modelo estrella** con los precios
-minoristas de todo el país del **viernes 23 de octubre de 2026**, publicados por el sistema SEPA
+minoristas de todo el país del **sábado 21 de noviembre de 2026**, publicados por el sistema SEPA
 (Precios Claros) de la Secretaría de Comercio, cruzados con nutrientes y composición de cada producto.
 
 Está lista para usar: no hace falta correr nada para leerla. La arma el pipeline de
 [`../base_sepa/`](../base_sepa/), que explica paso a paso cómo se construye cada tabla.
 
-## Las tres tablas
+## Las tablas
 
 | Archivo | Una fila por | Filas | Clave |
 |---|---|---:|---|
-| [`sepa/dim_producto.parquet`](sepa/dim_producto.parquet) | producto comestible | 28.036 | `id_producto` (EAN de 13 dígitos o código interno de cadena) |
-| [`sepa/dim_tienda.parquet`](sepa/dim_tienda.parquet) | sucursal | 2.666 | `id_tienda` (`comercio-bandera-sucursal`) |
-| [`sepa/fact_precio.parquet`](sepa/fact_precio.parquet) | producto × tienda | 8.241.172 | `id_producto` + `id_tienda` |
+| [`sepa/dim_producto.parquet`](sepa/dim_producto.parquet) | producto comestible | 27.949 | `id_producto` (EAN de 13 dígitos o código interno de cadena) |
+| [`sepa/dim_tienda.parquet`](sepa/dim_tienda.parquet) | sucursal | 2.651 | `id_tienda` (`comercio-bandera-sucursal`) |
+| [`sepa/fact_precio.parquet`](sepa/fact_precio.parquet) | producto × tienda | 8.309.213 | `id_producto` + `id_tienda` |
+| [`sepa/promocion.parquet`](sepa/promocion.parquet) | promoción de un precio (hasta 2) | 1.161.802 (996.184 aplicables) | `id_producto` + `id_tienda` + `orden` |
 
 ```
-              dim_producto (28.036)                      dim_tienda (2.666)
+              dim_producto (27.949)                      dim_tienda (2.651)
    nutrientes cada 100 g, composición,            cadena, formato, dirección, coordenada
    grupo alimentario, presentación — SIN precio   validada, provincia / departamento / municipio
                      │ 1                                   1 │
@@ -26,17 +27,18 @@ Está lista para usar: no hace falta correr nada para leerla. La arma el pipelin
                          precio normalizado por kg / l / unidad y cada 100 g
 ```
 
-**`dim_producto`** (86 columnas). Nombre, marca, categoría y subcategoría; grupo de las Guías
+**`dim_producto`** (94 columnas). Nombre, marca, categoría y subcategoría; grupo de las Guías
 Alimentarias para la Población Argentina; alimento genérico (`alimento_id`: 218, como "leche
 entera", "lentejas secas" o "nalga"); presentación (contenido, gramos del envase, parte comestible,
 densidad); **33 nutrientes cada 100 g comestibles** sin vacíos (energía, macronutrientes, fibra,
 sodio, 8 minerales y 13 vitaminas) con su fuente (`fuente_nutrientes`); ingredientes, alérgenos,
 aptitud vegetariana, vegana, sin TACC y sin lactosa, grado NOVA y sellos de advertencia aproximados.
 
-**`dim_tienda`** (39 columnas). Comercio (15 cadenas, 23 banderas), formato, dirección, coordenada
-validada contra la API Georef (2.648 exactas, 2 aproximadas, 5 dudosas, 10 sin ubicación), provincia,
-departamento y municipio con códigos INDEC, barrio y comuna en CABA, y horarios. Cubre las 24
-jurisdicciones.
+**`dim_tienda`** (40 columnas). Comercio (15 cadenas, 23 banderas), formato, dirección, coordenada
+validada contra la API Georef (2.633 exactas, 2 aproximadas, 5 dudosas, 10 sin ubicación), provincia,
+departamento y municipio con códigos INDEC, barrio y comuna en CABA, horarios y `fecha_precios`, el día
+de los precios de la sucursal: 2.600 son del 21/11 y 51 del 20/11 (las cadenas que no publicaron el día
+entran con su último archivo si tiene a lo sumo 15 días). Cubre las 24 jurisdicciones.
 
 **`fact_precio`**. Precio de lista, precio de promoción vigente (cuando hay), presentación (500 g,
 1 l, 12 unidades, 1 kg a granel) y dos precios comparables:
@@ -62,7 +64,7 @@ p = precio.merge(producto, on="id_producto").merge(tienda[["id_tienda", "provinc
 p["precio_100g_comestible"] = p["precio_100g"] / p["parte_comestible"]
 ```
 
-`fact_precio` tiene 8,2 millones de filas: con poca memoria conviene leer solo las columnas que se
+`fact_precio` tiene 8,3 millones de filas: con poca memoria conviene leer solo las columnas que se
 usan (`pd.read_parquet(..., columns=[...])`).
 
 ## Calidad
@@ -71,16 +73,16 @@ usan (`pd.read_parquet(..., columns=[...])`).
 
 | Archivo | Contenido |
 |---|---|
-| `productos_excluidos.csv` | 3.502 productos que parecían comida y quedaron afuera, cada uno con su motivo |
-| `precios_descartados.csv` | precios anormales descartados (6.337) |
+| `productos_excluidos.csv` | 3.716 productos que parecían comida y quedaron afuera, cada uno con su motivo |
+| `precios_descartados.csv` | precios anormales descartados (7.119) |
 | `tiendas_ubicacion.csv` | coordenadas corregidas o dudosas |
 | `nutrientes_genericos.csv` | perfil nutricional de cada uno de los 218 alimentos genéricos y su fuente |
 | `validacion_similitud.csv` | error de la imputación de nutrientes por productos parecidos |
-| `verificacion.csv` | los 52 controles que la base cumple en cada corrida (ningún crítico falla) |
-| `lectura_comercios.csv` | archivos de cada cadena leídos, omitidos o desactualizados |
+| `verificacion.csv` | los 71 controles que la base cumple en cada corrida (64 críticos; ninguno falla) |
+| `lectura_comercios.csv` | archivos de cada cadena: fecha, días antes del ZIP y si quedó del día (`ok`), de un día anterior dentro de la tolerancia de 15 días (`anterior`, se usa con su fecha), desactualizado, ilegible o sin precios |
 
-Origen de los nutrientes: el 30 % de los productos tiene rótulo propio (catálogos web, Open Food
-Facts o foto del envase), el 19 % toma el de productos casi iguales con rótulo y el 51 % usa el de su
+Origen de los nutrientes: el 31 % de los productos tiene rótulo propio (catálogos web, Open Food
+Facts o foto del envase), el 19 % toma el de productos casi iguales con rótulo y el 50 % usa el de su
 alimento genérico (sobre todo frescos y marcas propias). Los límites conocidos de la base están al
 final de [`../base_sepa/README.md`](../base_sepa/README.md).
 

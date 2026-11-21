@@ -2,12 +2,17 @@
 De una persona (edad, sexo, peso, actividad, etapa, restricciones) a sus metas diarias:
 
   1. Energía: gasto en reposo (Schofield, FAO/OMS/UNU 2004) por el nivel de actividad; en chicos, la ecuación de
-     gasto total de FAO más el crecimiento; más el embarazo o la lactancia; por el objetivo de peso.
+     gasto total de FAO más el crecimiento; más el embarazo o la lactancia; por el objetivo de peso (o más un
+     superávit fijo, para aumentar de peso).
   2. Proteína por kg de peso (ajustado si hay obesidad) según edad, etapa, actividad y objetivo.
   3. Carbohidratos, grasas, saturadas, trans y azúcares libres como porcentaje de la energía; fibra por cada
      1.000 kcal.
   4. Micronutrientes: mínimo (RDA o AI) y máximo (UL) de referencia/requerimientos_nutricionales.csv.
-  5. Reglas de las Guías Alimentarias (referencia/guias_alimentarias.csv).
+  5. Agua, según cómo la toma el hogar (config.AGUA_MODOS): el agua total del día (NASEM) o solo la de las bebidas
+     (8 vasos de las Guías); se le exige a la compra si el agua se compra y, si es de la canilla, solo se informa.
+  6. Reglas de las Guías Alimentarias (referencia/guias_alimentarias.csv).
+  7. Condiciones médicas (referencia/condiciones.csv): cambian metas con su fuente (más hierro con anemia, menos
+     saturadas con colesterol alto...), sin pasar nunca un máximo tolerable, y avisan si requieren supervisión.
 
 Cada número queda registrado en `pasos` con su fórmula y su fuente: la página muestra el cálculo completo.
 """
@@ -49,11 +54,12 @@ class Persona:
             errores.append(f"Actividad desconocida: {self.actividad}.")
         if self.objetivo not in cfg.OBJETIVO:
             errores.append(f"Objetivo desconocido: {self.objetivo}.")
-        if self.etapa not in ("general", "embarazo", "lactancia"):
+        desde, hasta = cfg.ETAPA_EDADES
+        if self.etapa not in cfg.ETAPAS:
             errores.append(f"Etapa desconocida: {self.etapa}.")
-        elif self.etapa != "general" and (self.sexo != "F" or not 14 <= self.edad <= 50):
-            errores.append("Embarazo y lactancia aplican a mujeres de 14 a 50 años.")
-        if self.etapa == "embarazo" and self.trimestre not in (1, 2, 3):
+        elif self.etapa != "general" and (self.sexo != "F" or not desde <= self.edad <= hasta):
+            errores.append(f"Embarazo y lactancia aplican a mujeres de {desde} a {hasta} años.")
+        if self.etapa == "embarazo" and self.trimestre not in cfg.ENERGIA_EMBARAZO:
             errores.append("Falta el trimestre del embarazo (1, 2 o 3).")
         desconocidas = [r for r in self.restricciones if r not in cfg.RESTRICCIONES]
         if desconocidas:
@@ -165,6 +171,17 @@ def _energia(p: Persona, peso: float, pasos: list[dict], avisos: list[str]) -> f
         if p.objetivo != "mantener":
             if p.etapa != "general":
                 avisos.append("En el embarazo y la lactancia no se busca bajar ni subir de peso: se mantiene.")
+            elif "superavit_kcal" in obj:
+                nueva = energia + obj["superavit_kcal"]
+                pasos.append({"titulo": f"Objetivo: {obj['nombre'].lower()}",
+                              "formula": f"{_fmt(energia)} + {_fmt(obj['superavit_kcal'])} kcal de superávit",
+                              "resultado": f"{_fmt(nueva)} kcal/día",
+                              "fuente": "Superávit habitual para recuperar peso: 300 a 500 kcal/día "
+                                        "(~0,25 a 0,5 kg por semana)"})
+                energia = nueva
+                if p.altura_cm is not None and p.peso_kg / (p.altura_cm / 100) ** 2 >= cfg.IMC_SOBREPESO:
+                    avisos.append("Con un IMC de sobrepeso no se recomienda aumentar de peso; consultá a un "
+                                  "profesional.")
             else:
                 nueva = max(energia * obj["factor"], reposo * cfg.PISO_ENERGIA_REPOSO)
                 pasos.append({"titulo": f"Objetivo: {obj['nombre'].lower()}",
@@ -211,6 +228,9 @@ def _proteina_g_kg(p: Persona, pasos: list[dict]) -> float:
         elif p.objetivo == "bajar":
             valor = max(valor, cfg.PROTEINA_BAJAR)
             motivos.append(f"{_fmt(cfg.PROTEINA_BAJAR, 1)} al bajar de peso")
+        elif p.objetivo == "aumentar":
+            valor = max(valor, cfg.PROTEINA_AUMENTAR)
+            motivos.append(f"{_fmt(cfg.PROTEINA_AUMENTAR, 1)} para aumentar de peso")
     pasos.append({"titulo": "Proteína por kg de peso",
                   "formula": "el mayor de: " + "; ".join(motivos),
                   "resultado": f"{_fmt(valor, 2)} g por kg por día",
@@ -277,6 +297,15 @@ def _micronutrientes(p: Persona, pasos: list[dict], avisos: list[str]) -> list[M
             f = cfg.FACTOR_VEGETARIANO[c]
             nota = f"× {_fmt(f, 1)} por dieta vegetariana (menor absorción)"
             mn *= f
+            # El mínimo ajustado no puede pasar el máximo tolerable (hierro de una embarazada vegetariana: 27 × 1,8 =
+            # 48,6 mg contra 45 mg): se apunta al máximo y lo que falta lo indica un profesional, como suplemento.
+            if mx is not None and mn > mx:
+                nombre, unidad = NOMBRES[c]
+                avisos.append(f"Con dieta vegetariana, el {nombre.lower()} que hace falta ({_fmt(mn, 1)} {unidad}) supera "
+                              f"el máximo tolerable ({_fmt(mx, 1)} {unidad}): la canasta apunta al máximo y la "
+                              "diferencia se cubre con un suplemento indicado por un profesional.")
+                nota += f"; se limita al máximo tolerable ({_fmt(mx, 1)})"
+                mn = mx
         if c == "sodio_mg" and "hipertension" in p.restricciones:
             mx = min(mx, cfg.SODIO_HIPERTENSION_MG)
             nota = "tope de 1.500 mg por hipertensión (AHA)"
@@ -361,8 +390,161 @@ def _reglas(energia: float) -> list[Meta]:
     return metas
 
 
-def calcular(p: Persona) -> Requerimientos:
+# ------------------------------------------------------------
+# Condiciones médicas (referencia/condiciones.csv)
+# ------------------------------------------------------------
+
+def condiciones() -> dict[str, list[dict]]:
+    """referencia/condiciones.csv por condición, en el orden de la tabla."""
+    salida: dict[str, list[dict]] = {}
+    for f in leer_tabla(cfg.RUTA_CONDICIONES).to_dict("records"):
+        salida.setdefault(f["condicion"], []).append(f)
+    return salida
+
+
+def _minusc(texto: str) -> str:
+    """La primera letra en minúscula ("Vitamina B12" -> "vitamina B12")."""
+    return texto[:1].lower() + texto[1:]
+
+
+def _cantidad(x: float) -> str:
+    return _fmt(x, 0 if x >= 100 else 1)
+
+
+def _aviso_condicion(fila: dict) -> str:
+    aviso = fila["aviso"]
+    return f"Requiere supervisión profesional: {_minusc(aviso)}" if fila["requiere_supervision"] == "si" else aviso
+
+
+def _cambio_texto(f: dict) -> str:
+    """Qué cambia una fila de la tabla, en palabras, sin los números de una persona (para el criterio)."""
+    nombre, unidad = NOMBRES[f["meta"]]
+    v = float(f["valor"])
+    return {"factor_minimo": f"{nombre}: el mínimo × {_fmt(v, 1)}, sin pasar el máximo tolerable",
+            "minimo_al_menos": f"{nombre}: al menos {_cantidad(v)} {unidad} por día",
+            "maximo_a_lo_sumo": f"{nombre}: a lo sumo {_cantidad(v)} {unidad} por día",
+            "maximo_pct_energia": f"{nombre}: menos del {_fmt(v)} % de la energía",
+            "prioridad": f"{nombre}: prioritaria"}[f["cambio"]]
+
+
+def criterio_condicion(clave: str) -> str:
+    """El criterio de una condición para mostrarlo: qué metas cambia, sus fuentes y el aviso."""
+    filas = condiciones()[clave]
+    cambios = [_cambio_texto(f) for f in filas if f["cambio"] != "ninguno"]
+    que = ("No filtra productos: cambia metas. " + ". ".join(cambios) + "." if cambios
+           else "No filtra productos ni cambia metas: solo avisa.")
+    fuentes = "; ".join(dict.fromkeys(f["fuente"] for f in filas))
+    return f"{que} {_aviso_condicion(filas[0])} Fuentes: {fuentes}."
+
+
+def _condiciones(p: Persona, metas: list[Meta], energia: float, pasos: list[dict], avisos: list[str]) -> None:
+    """Aplica a las metas las condiciones de la persona (en el orden de sus restricciones), con su paso y su aviso.
+    Ningún mínimo queda por encima de su máximo: si pasaría, se apunta al máximo y se avisa."""
+    tabla = condiciones()
+    req = leer_tabla(cfg.RUTA_REQUERIMIENTOS)
+    for c in [r for r in p.restricciones if r in cfg.CONDICIONES]:
+        nombre_c, filas = cfg.RESTRICCIONES[c], tabla[c]
+        formulas, resultados = [], []
+        for f in filas:
+            if f["cambio"] == "ninguno":
+                continue
+            v = float(f["valor"])
+            nombre, unidad = NOMBRES[f["meta"]]
+            m = next((x for x in metas if x.clave == f["meta"]), None)
+            if m is None:                      # una meta que nadie más pone (el colesterol): va con los macros
+                m = Meta(f["meta"], nombre, unidad, f["meta"], tipo="macro", fuente=f["fuente"].split(":")[0])
+                metas.insert(max(i for i, x in enumerate(metas) if x.tipo == "macro") + 1, m)
+            corto = None
+            if f["cambio"] == "factor_minimo":
+                base = float(_fila_etapa(req, p, "minimo")[f["meta"]])
+                formula = f"{nombre}: {_cantidad(base)} × {_fmt(v, 1)} = {_cantidad(base * v)} {unidad}"
+                # El factor vegetariano es el mismo motivo (menor absorción): no se suman, vale el mayor.
+                if p.vegetariana and cfg.FACTOR_VEGETARIANO.get(f["meta"], 0) >= v:
+                    formula += " (ya lo pide la dieta vegetariana)"
+                else:
+                    m.minimo = max(m.minimo or 0.0, base * v)
+                    corto = f"× {_fmt(v, 1)}"
+                formulas.append(formula)
+            elif f["cambio"] == "minimo_al_menos":
+                formulas.append(f"{nombre}: al menos {_cantidad(v)} {unidad}")
+                m.minimo = max(m.minimo or 0.0, v)
+                corto = f"al menos {_cantidad(v)} {unidad}"
+            elif f["cambio"] == "maximo_a_lo_sumo":
+                formulas.append(f"{nombre}: a lo sumo {_cantidad(v)} {unidad}")
+                m.maximo = v if m.maximo is None else min(m.maximo, v)
+                corto = f"a lo sumo {_cantidad(v)} {unidad}"
+            elif f["cambio"] == "maximo_pct_energia":
+                kcal = cfg.KCAL_POR_G[f["meta"]]
+                tope = v / 100 * energia / kcal
+                formulas.append(f"{nombre}: {_fmt(v)} % de {_fmt(energia)} kcal ÷ {kcal} kcal/g = {_cantidad(tope)} "
+                                f"{unidad}")
+                m.maximo = tope if m.maximo is None else min(m.maximo, tope)
+                corto = f"menos del {_fmt(v)} % de la energía"
+            elif f["cambio"] == "prioridad":
+                formulas.append(f"{nombre}: prioritaria (lo que falte pesa {_fmt(v)} veces)")
+                m.peso = max(m.peso, cfg.PESO_DEFICIT_PREDETERMINADO * v)      # dos condiciones no se multiplican
+                corto = "prioritaria"
+            else:
+                raise ValueError(f"Cambio desconocido en condiciones.csv: {f['cambio']}")
+            if corto:
+                m.nota = (f"{m.nota}; " if m.nota else "") + f"{corto} por {_minusc(nombre_c)}"
+            if m.minimo is not None and m.maximo is not None and m.minimo > m.maximo:
+                avisos.append(f"Con {_minusc(nombre_c)}, el {_minusc(nombre)} que hace falta ({_fmt(m.minimo, 1)} "
+                              f"{unidad}) supera el máximo tolerable ({_fmt(m.maximo, 1)} {unidad}): la canasta "
+                              "apunta al máximo y la diferencia la indica un profesional.")
+                m.nota += f"; se limita al máximo tolerable ({_fmt(m.maximo, 1)})"
+                m.minimo = m.maximo
+            if f["cambio"] == "prioridad":
+                resultados.append(f"{_minusc(nombre)} prioritaria")
+            elif m.minimo is not None and m.maximo is not None:
+                resultados.append(f"{_minusc(nombre)} {_cantidad(m.minimo)} a {_cantidad(m.maximo)} {unidad}")
+            else:
+                resultados.append(f"{_minusc(nombre)} {'≥' if m.minimo is not None else '≤'} "
+                                  f"{_cantidad(m.minimo if m.minimo is not None else m.maximo)} {unidad}")
+        pasos.append({"titulo": f"Condición: {_minusc(nombre_c)}",
+                      "formula": "; ".join(formulas) if formulas else "No cambia las metas: solo avisa",
+                      "resultado": "; ".join(resultados) if resultados else "las metas de siempre",
+                      "fuente": "; ".join(dict.fromkeys(f["fuente"] for f in filas))})
+        avisos.append(_aviso_condicion(filas[0]))
+
+
+def _agua(p: Persona, modo: str, pasos: list[dict]) -> Meta:
+    """Meta de agua del día, en gramos (≈ ml). Con agua comprada se le exige a la compra; de la canilla, se informa."""
+    m = cfg.AGUA_MODOS[modo]
+    total = m["cuenta"] == "total"
+    tabla = cfg.AGUA_TOTAL_L if total else cfg.AGUA_BEBIDAS_L
+    if p.etapa != "general":
+        litros = tabla[p.etapa]
+        grupo = "el embarazo" if p.etapa == "embarazo" else "la lactancia"
+    else:
+        d, h, litros = next(x for x in tabla[p.sexo] if x[0] <= p.edad <= x[1])
+        quienes = "chicos" if h <= 8 else "mujeres" if p.sexo == "F" else "varones"
+        grupo = f"{quienes} de {d} años o más" if h >= cfg.EDAD_MAXIMA else f"{quienes} de {d} a {h} años"
+    if total:
+        cuenta = "el agua de todo lo que come y toma (bebidas y alimentos)"
+        fuente = "NASEM/IOM 2004, ingesta adecuada de agua total"
+    else:
+        cuenta = "solo el agua y la soda que se compran, sin la de los alimentos"
+        fuente = ("Guías Alimentarias para la Población Argentina (2016): 8 vasos de agua segura por día"
+                  if not p.es_menor and p.etapa == "general" else "NASEM/IOM 2004, agua de las bebidas")
+    if m["compra"]:
+        resultado, tipo, nota = f"{_fmt(litros, 1)} L por día", "nutriente", f"cuenta {cuenta}"
+    else:
+        resultado, tipo = f"{_fmt(litros, 1)} L por día, de la canilla (no se compra)", "informativa"
+        nota = "informativa: el agua es la de la canilla; se muestra cuánta aportan los alimentos"
+    pasos.append({"titulo": "Agua", "formula": f"Para {grupo}; cuenta {cuenta}", "resultado": resultado,
+                  "fuente": fuente})
+    if total:
+        return Meta("agua", "Agua", "ml", "agua_g", litros * 1000, tipo=tipo, fuente=fuente, nota=nota)
+    return Meta("agua", "Agua (bebidas)", "ml", None, litros * 1000, tipo=tipo, fuente=fuente, nota=nota,
+                alimentos=set(cfg.ALIMENTOS_AGUA), medida="g")
+
+
+def calcular(p: Persona, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> Requerimientos:
+    """agua: cómo toma agua el hogar (una clave de config.AGUA_MODOS)."""
     errores = p.validar()
+    if agua not in cfg.AGUA_MODOS:
+        errores.append(f"Modo de agua desconocido: {agua}.")
     if errores:
         raise ValueError(" ".join(errores))
     pasos: list[dict] = []
@@ -373,7 +555,9 @@ def calcular(p: Persona) -> Requerimientos:
     prot = g_kg * peso
     pasos.append({"titulo": "Proteína del día", "formula": f"{_fmt(g_kg, 2)} g/kg × {_fmt(peso, 1)} kg",
                   "resultado": f"{_fmt(prot)} g/día", "fuente": ""})
-    metas = _macros(p, energia, prot, pasos) + _micronutrientes(p, pasos, avisos) + _reglas(energia)
+    metas = (_macros(p, energia, prot, pasos) + _micronutrientes(p, pasos, avisos) + [_agua(p, agua, pasos)]
+             + _reglas(energia))
+    _condiciones(p, metas, energia, pasos, avisos)
     if "diabetes" in p.restricciones or "hipertension" in p.restricciones:
         avisos.append("Con diabetes o hipertensión, esta canasta es orientativa: el plan lo ajusta el médico o un "
                       "nutricionista.")
@@ -385,9 +569,13 @@ def calcular(p: Persona) -> Requerimientos:
 # ------------------------------------------------------------
 
 def perfiles() -> list[dict]:
-    """referencia/perfiles.csv con los tipos de cada campo."""
+    """referencia/perfiles.csv con los tipos de cada campo. visible: si la página lo ofrece entre los perfiles de
+    ejemplo (los demás se cargan por enlace, ?perfiles=id, o desde la consola)."""
     salida = []
     for f in leer_tabla(cfg.RUTA_PERFILES).to_dict("records"):
+        if f["visible"] not in ("si", "no"):
+            raise ValueError(f"Perfil {f['id']}: visible tiene que ser si o no, no {f['visible']!r}")
+        f["visible"] = f["visible"] == "si"
         f["edad"], f["peso_kg"] = int(f["edad"]), float(f["peso_kg"])
         f["altura_cm"] = float(f["altura_cm"]) if f["altura_cm"] else None
         f["trimestre"] = int(f["trimestre"]) if f["trimestre"] else None

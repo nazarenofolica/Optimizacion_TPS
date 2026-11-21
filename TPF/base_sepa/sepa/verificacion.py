@@ -10,12 +10,15 @@ salida/calidad/verificacion.md.
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 import numpy as np
 import pandas as pd
 
 from sepa import config as cfg
+from sepa.precio.promociones import TIPOS as TIPOS_PROMOCION
 from sepa.producto.nutrientes import NUTRIENTES
+from sepa.producto.religion import COLUMNAS as RELIGION
 
 logger = logging.getLogger("sepa.verificacion")
 
@@ -42,7 +45,58 @@ def _control(resultados: list, nombre: str, mascara: pd.Series | np.ndarray | in
     resultados.append({"control": nombre, "filas_que_fallan": n, "critico": critico, "ejemplos": muestra})
 
 
-def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.DataFrame) -> pd.DataFrame:
+def _promocion(r: list, f: pd.DataFrame, pr: pd.DataFrame) -> None:
+    """Controles de la tabla promocion: cada promoción es de un precio publicado, con un tipo conocido y, si se
+    aplica, con un precio menor al de lista y sin condiciones; una con condición de pago nunca se aplica."""
+    clave = pr["id_producto"].astype(str) + "|" + pr["id_tienda"].astype(str)
+    # Con los códigos de las categorías de fact_precio (8 millones de claves como texto no entran en memoria).
+    cp, ct = (f[c].astype("category") for c in ("id_producto", "id_tienda"))
+    nt = len(ct.cat.categories) + 1
+    en_fact = cp.cat.codes.to_numpy(np.int64) * nt + ct.cat.codes.to_numpy(np.int64)
+    codigo = lambda col, cat: pd.Categorical(pr[col].astype(str), categories=cat.cat.categories).codes  # noqa: E731
+    p_cod, t_cod = codigo("id_producto", cp).astype(np.int64), codigo("id_tienda", ct).astype(np.int64)
+    es_de_fact = (p_cod >= 0) & (t_cod >= 0) & np.isin(p_cod * nt + t_cod, en_fact)
+    _control(r, "promoción: es de un precio de fact_precio", ~es_de_fact, True, clave)
+    _control(r, "promoción: una por producto, tienda y orden", pr.duplicated(["id_producto", "id_tienda", "orden"]),
+             True, clave)
+    _control(r, "promoción: tipo conocido", ~pr["tipo"].isin(TIPOS_PROMOCION), True, clave)
+    aplicable = pr["aplicable"].astype(bool)
+    pu, lista = pr["precio_unitario"], pr["precio_lista"]
+    _control(r, "promoción: la aplicable tiene un precio menor al de lista",
+             aplicable & ~((pu > 0) & (pu < lista)), True, clave)
+    _control(r, "promoción: la aplicable tiene forma (precio o grupo) y unidades",
+             aplicable & ~(pr["forma"].isin(["precio", "grupo"]) & (pr["unidades"] >= 1)), True, clave)
+    _control(r, "promoción: la aplicable no tiene motivo y la otra sí",
+             aplicable.ne(pr["motivo"].astype(str).eq("")), True, clave)
+    _control(r, "promoción: con condición de pago no se aplica", aplicable & pr["condicion_pago"].notna(), True, clave)
+    _control(r, "promoción: desconocida (la leyenda no dice qué promoción es)", pr["tipo"].eq("desconocida"), False,
+             pr["leyenda"].astype(str))
+
+
+def _fechas(r: list, t: pd.DataFrame, f: pd.DataFrame, fecha_zip: date | None) -> None:
+    """La fecha de los precios de cada sucursal (config.DIAS_TOLERANCIA_PRECIO): nunca más vieja que la tolerancia ni
+    posterior al ZIP, la misma en todos sus precios de fact_precio; y cuántas usan precios de un día anterior."""
+    tid = t["id_tienda"]
+    fecha = pd.to_datetime(t["fecha_precios"])
+    ref = pd.Timestamp(fecha_zip) if fecha_zip is not None else fecha.max()
+    dias = (ref - fecha).dt.days
+    _control(r, f"tienda: precios de a lo sumo {cfg.DIAS_TOLERANCIA_PRECIO} días antes del ZIP y no posteriores",
+             fecha.isna() | (dias > cfg.DIAS_TOLERANCIA_PRECIO) | (dias < 0), True, tid)
+    # Por sucursal, con los códigos de la categoría (8 millones de fechas se agrupan sin pasar las claves a texto).
+    rango = f.groupby("id_tienda", observed=True)["fecha"].agg(["min", "max"])
+    propia = fecha.set_axis(tid.astype(str))
+    otra = rango.index.astype(str)
+    distinta = ((rango["min"].to_numpy() != rango["max"].to_numpy())
+                | (rango["min"].to_numpy() != propia.reindex(otra).to_numpy()))
+    _control(r, "fact: fecha igual a la de su tienda (dim_tienda.fecha_precios)", int(distinta.sum()), True)
+    _control(r, "tienda: con precios de un día anterior al del ZIP (se usan con su fecha)", dias > 0, False,
+             tid + " (" + fecha.dt.strftime("%Y-%m-%d") + ")")
+
+
+def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.DataFrame,
+              promocion: pd.DataFrame | None = None, fecha_zip: date | None = None) -> pd.DataFrame:
+    """promocion: la tabla de precio/promociones.py (una base anterior a la etapa 5 no la tiene). fecha_zip: el día del
+    ZIP, contra el que se mide la antigüedad de los precios de cada sucursal (si falta, la fecha más reciente)."""
     r: list = []
     p, t, f = dim_producto, dim_tienda, fact
     ids = p["id_producto"]
@@ -80,6 +134,10 @@ def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.Dat
         _control(r, f"composición: contiene_{a} en si/no/desconocido", ~p[f"contiene_{a}"].isin(TRIESTADO), True, ids)
     for c in ("apto_vegetariano", "apto_vegano", "sin_tacc", "sin_lactosa", "azucar_agregada"):
         _control(r, f"composición: {c} en si/no/desconocido", ~p[c].isin(TRIESTADO), True, ids)
+    for c in RELIGION:
+        if c in p:              # un dim_producto anterior a la etapa 4 no las trae (canasta/oferta.py las calcula)
+            validos = TRIESTADO if c.startswith("contiene_") else {"si", "no"}
+            _control(r, f"dieta y religión: {c} en {'/'.join(sorted(validos))}", ~p[c].isin(validos), True, ids)
     _control(r, "composición: vegano implica vegetariano",
              p["apto_vegano"].eq("si") & ~p["apto_vegetariano"].eq("si"), True, ids)
     animal = p[["contiene_leche", "contiene_huevo", "contiene_pescado", "contiene_mariscos"]].eq("si").any(axis=1)
@@ -112,6 +170,10 @@ def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.Dat
     _control(r, "producto: tiene al menos un precio en fact_precio", sin_precio, True, ids)
     sin_hechos = ~tid.isin(f["id_tienda"].unique())
     _control(r, "tienda: tiene al menos un precio en fact_precio", sin_hechos, False, tid)
+    if "fecha_precios" in t:
+        _fechas(r, t, f, fecha_zip)
+    if promocion is not None:
+        _promocion(r, f, promocion)
 
     res = pd.DataFrame(r)
     criticos = res[res["critico"] & res["filas_que_fallan"].gt(0)]

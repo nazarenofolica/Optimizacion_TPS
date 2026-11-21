@@ -1,0 +1,26 @@
+# Condiciones médicas que cambian las metas de la canasta (no filtran productos). Las usa canasta/requerimientos.py
+# (y su espejo en canasta/web/motor.js); cada condición es una restricción más de canasta/config.py (CONDICIONES).
+# Solo condiciones con fuente sólida. Nunca diagnóstico ni suplementación: la canasta es comida del supermercado, y
+# ningún mínimo pasa un máximo tolerable (si pasaría, se apunta al máximo y se avisa).
+#   meta: clave de la meta (columna de nutrientes); vacía si la condición solo avisa.
+#   cambio: factor_minimo (el mínimo de referencia de la persona × valor; no se acumula con el factor vegetariano,
+#           que es el mismo motivo: se toma el mayor), minimo_al_menos (el mínimo pasa a ser al menos valor),
+#           maximo_a_lo_sumo (tope de valor; crea la meta si no existe), maximo_pct_energia (tope de valor % de la
+#           energía, con config.KCAL_POR_G), prioridad (el déficit de la meta pesa valor veces en la etapa 1 del
+#           modelo; en una meta informativa solo se marca como prioritaria) o ninguno (solo el aviso).
+#   requiere_supervision: si = la página lo marca y el aviso empieza con "Requiere supervisión profesional".
+#   aviso: uno por condición (el de la primera fila; las demás repiten el mismo).
+# La hipertensión (sodio ≤ 1.500 mg, AHA) y la diabetes (azúcares libres < 5 % de la energía, OMS 2015) también
+# cambian metas, pero además filtran productos por sus sellos: siguen en config.py (SODIO_HIPERTENSION_MG,
+# AZUCARES_LIBRES_PCT_DIABETES) para no duplicarlas.
+condicion;meta;cambio;valor;fuente;requiere_supervision;aviso
+anemia_ferropenica;hierro_mg;factor_minimo;1.8;NASEM 2001, DRI de hierro: la RDA supone 18 % de absorción y con una dieta de baja absorción pide 1,8 veces. Con anemia se apunta a ese valor alto, sin pasar el máximo tolerable (45 mg en adultos);si;La anemia se trata con el hierro que indica el médico (OMS 2016: suplementación diaria de hierro): la canasta solo suma el hierro de los alimentos y la vitamina C que ayuda a absorberlo.
+anemia_ferropenica;vitamina_c_mg;prioridad;2;FAO/OMS 2004, Vitamin and mineral requirements in human nutrition, cap. 13: la vitamina C de la misma comida mejora la absorción del hierro de los vegetales;si;La anemia se trata con el hierro que indica el médico (OMS 2016: suplementación diaria de hierro): la canasta solo suma el hierro de los alimentos y la vitamina C que ayuda a absorberlo.
+osteoporosis;calcio_mg;minimo_al_menos;1200;NASEM 2011, DRI de calcio y vitamina D (RDA de 1.200 mg para mujeres desde los 51 años y todos desde los 71). Bone Health & Osteoporosis Foundation, Clinician's Guide 2022 (1.000 a 1.200 mg desde los 50);no;El tratamiento de la osteoporosis lo indica el médico. La vitamina D casi no está en la comida: si con la comida y el sol no alcanza, el médico evalúa un suplemento.
+osteoporosis;vitamina_d_ug;minimo_al_menos;20;NASEM 2011 (RDA de 20 µg, 800 UI, desde los 71 años). BHOF 2022 (800 a 1.000 UI desde los 50);no;El tratamiento de la osteoporosis lo indica el médico. La vitamina D casi no está en la comida: si con la comida y el sol no alcanza, el médico evalúa un suplemento.
+osteoporosis;vitamina_d_ug;prioridad;2;NASEM 2011, DRI de calcio y vitamina D;no;El tratamiento de la osteoporosis lo indica el médico. La vitamina D casi no está en la comida: si con la comida y el sol no alcanza, el médico evalúa un suplemento.
+colesterol_alto;grasas_saturadas_g;maximo_pct_energia;7;NCEP ATP III (NHLBI 2002), cambios terapéuticos del estilo de vida: grasas saturadas por debajo del 7 % de las calorías;no;La canasta baja las grasas saturadas y el colesterol de la compra. Los controles y la medicación los indica el médico.
+colesterol_alto;colesterol_mg;maximo_a_lo_sumo;200;NCEP ATP III (NHLBI 2002): colesterol de la dieta por debajo de 200 mg por día;no;La canasta baja las grasas saturadas y el colesterol de la compra. Los controles y la medicación los indica el médico.
+deficit_b12;vitamina_b12_ug;prioridad;2;NASEM 1998, DRI de tiamina, riboflavina, niacina, B6, folato y B12 (RDA de 2,4 µg. Desde los 50 años, buena parte de alimentos fortificados o suplementos);si;Un déficit de B12 se repone con el suplemento o las inyecciones que indica el médico: la comida sola no alcanza. La canasta prioriza la B12 de los alimentos (carnes, huevos y lácteos).
+deficit_vitamina_d;vitamina_d_ug;prioridad;2;NASEM 2011, DRI de calcio y vitamina D (RDA de 15 µg hasta los 70 años y 20 µg desde los 71);si;La vitamina D sale sobre todo del sol y casi no está en la comida: con déficit, la dosis del suplemento la indica el médico. La canasta la marca como prioritaria pero no se la exige a la compra (la perseguiría con productos fortificados carísimos sin llegar).
+enfermedad_renal;;ninguno;;KDOQI 2020, Clinical Practice Guideline for Nutrition in CKD (National Kidney Foundation): la proteína, el potasio, el fósforo y el sodio se ajustan según la etapa y el tratamiento;si;La proteína, el potasio, el fósforo y el sodio se ajustan según la etapa de la enfermedad y si hay diálisis: el plan lo arman el nefrólogo y un nutricionista. Esta canasta no cambia esas metas y no sirve como plan.

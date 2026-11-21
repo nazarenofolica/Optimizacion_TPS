@@ -1,7 +1,11 @@
 """Paridad entre el motor de la página (canasta/web/motor.js, en Chrome headless) y el de Python.
 
-Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de ../datos/sepa/; tarda alrededor
-de un minuto. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave). Por eso es opcional:  CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
+Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de ../datos/sepa/; tarda varios
+minutos. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave), la compra
+en dos supermercados (MotorCanasta.dosSuper contra resultado.dos_super) y las promociones (etapa 5: además de las
+que trae la base, se le agregan unas de prueba a la sucursal elegida, oferta.promociones_de_prueba, y se exporta otra
+página con ellas). Compara también la fecha de los precios de cada sucursal (tolerancia de 15 días). Por eso es opcional:
+CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
 """
 
 from __future__ import annotations
@@ -16,20 +20,67 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 from canasta import config as cfg
-from canasta import exportar, resultado, rutas
+from canasta import exportar, oferta, resultado, rutas
 from canasta import requerimientos as rq
 
 NAVEGADORES = [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                "google-chrome", "chromium", "chromium-browser"]
 CASOS = [
-    # perfiles, lugar, días, listos
-    (["oficinista"], (-34.60386, -58.38419), 7, False),                    # CABA
-    (["celiaca", "vegano"], (-31.41670, -64.18330), 7, False),             # Córdoba, hogar con restricciones
-    (["escolar"], (-32.89785, -68.84131), 14, True),                       # Mendoza, listos para comer
-]
+    # perfiles, lugar, días, listos, agua
+    (["oficinista"], (-34.60386, -58.38419), 7, False, "canilla"),                    # CABA
+    (["celiaca", "vegano"], (-31.41670, -64.18330), 7, False, "canilla"),             # Córdoba, hogar con restricciones
+    (["escolar"], (-32.89785, -68.84131), 14, True, "canilla"),                       # Mendoza, listos para comer
+    (["bajo_peso"], (-32.94682, -60.63932), 7, False, "canilla"),                     # Rosario, aumentar de peso
+    (["oficinista"], (-34.60386, -58.38419), 7, False, "compra"),                     # CABA, agua comprada
+    (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
+    (["caso_extremo"], (-34.60386, -58.38419), 7, False, "canilla"),                  # CABA, ninguna cubre todo
+    (["kosher", "halal", "anemia"], (-34.60386, -58.38419), 7, False, "canilla"),     # CABA, etapa 4: religión y
+                                                                                      # condiciones médicas
+    (["oficinista"], (-31.457372, -64.200399), 7, False, "canilla"),                  # Córdoba, en la puerta de un
+]                                                                                     # Mariano Max: precios del día
+                                                                                      # anterior (tolerancia de 15 días)
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
+CASOS_DOS_SUPER = [
+    # perfiles, lugar, minutos de caminata, listos; lo que da Python
+    (["oficinista"], (-34.60386, -58.38419), 15, False),                 # Microcentro: conviene, por ahorro
+    (["oficinista"], (-31.41670, -64.18330), 15, False),                 # Córdoba: no conviene (ahorra poco)
+    (["restricciones_extremas"], (-31.41670, -64.18330), 30, True),      # Córdoba a 30 min: conviene, por metas
+]
+# Página mínima para la compra en dos supermercados (la interfaz todavía no la usa): los datos, el motor y rutas.js de
+# la página exportada, y un guion que arma la canasta como la página (tiempos de Rutas.tiempos, sin clave: estimados)
+# y después llama a MotorCanasta.dosSuper con el mismo pedido y ese resultado.
+ARNES_DOS_SUPER = """<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Dos supermercados</title></head><body>
+<pre id="resultado-json" hidden></pre>
+%(scripts)s
+<script>
+(async () => {
+  const salida = document.getElementById("resultado-json");
+  try {
+    const s = document.createElement("script");
+    s.textContent = document.getElementById("motor-codigo").textContent;
+    document.head.appendChild(s);
+    const M = window.MotorCanasta, q = new URLSearchParams(location.search);
+    const resumen = await M.cargarPaquete(document.getElementById("datos-meta").textContent,
+      document.getElementById("datos-binario").textContent);
+    const personas = q.get("perfiles").split(",").map((id) => resumen.perfiles.find((f) => f.id === id));
+    const lat = Number(q.get("lat")), lon = Number(q.get("lon")), minutos = Number(q.get("caminata"));
+    const rutas = await Rutas.tiempos(resumen.parametros, { lat, lon }, M.candidatasCaminando(lat, lon, minutos));
+    const pedido = { personas, lat, lon, dias: Number(q.get("dias")), listos: q.get("listos") === "1",
+      agua: q.get("agua"), tiempos: rutas.tiempos, caminata_minutos: minutos, aviso_tiempos: rutas.aviso };
+    const r = await M.armar(pedido);
+    const ds = await M.dosSuper(pedido, r);
+    salida.textContent = JSON.stringify({ resultado: r, dos_super: ds, tiempos: rutas.tiempos });
+  } catch (err) {
+    salida.textContent = JSON.stringify({ error: String((err && err.stack) || err) });
+  }
+})();
+</script></body></html>
+"""
 
 
 def _navegador() -> str | None:
@@ -51,6 +102,22 @@ class TestParidadPagina(unittest.TestCase):
         cls.dir = Path(tempfile.mkdtemp(prefix="canasta_"))
         cls.pagina = exportar.exportar(cls.dir / "canasta.html")
         cls.perfiles = {p["id"]: p for p in rq.perfiles()}
+        exportada = cls.pagina.read_text(encoding="utf-8")
+        scripts = [re.search(rf'<script id="{i}"[^>]*>.*?</script>', exportada, re.S).group(0)
+                   for i in ("datos-meta", "datos-binario", "motor-codigo", "config-rutas")]
+        scripts.append(f"<script>\n{(exportar.DIR_WEB / 'rutas.js').read_text(encoding='utf-8')}</script>")
+        cls.arnes = cls.dir / "dos_super.html"
+        cls.arnes.write_text(ARNES_DOS_SUPER.replace("%(scripts)s", "\n".join(scripts)), encoding="utf-8")
+
+    @staticmethod
+    def _arnes(pagina: Path, destino: Path) -> Path:
+        """El arnés de dos súper con los datos y el motor de esa página."""
+        exportada = pagina.read_text(encoding="utf-8")
+        scripts = [re.search(rf'<script id="{i}"[^>]*>.*?</script>', exportada, re.S).group(0)
+                   for i in ("datos-meta", "datos-binario", "motor-codigo", "config-rutas")]
+        scripts.append(f"<script>\n{(exportar.DIR_WEB / 'rutas.js').read_text(encoding='utf-8')}</script>")
+        destino.write_text(ARNES_DOS_SUPER.replace("%(scripts)s", "\n".join(scripts)), encoding="utf-8")
+        return destino
 
     @classmethod
     def tearDownClass(cls):
@@ -58,46 +125,212 @@ class TestParidadPagina(unittest.TestCase):
 
     def test_busqueda_por_tiempo_caminando(self):
         # La página exportada sin clave estima los tiempos por distancia, igual que rutas.py sin clave: las mismas
-        # sucursales dentro del límite y los mismos costos.
-        ids, (lat, lon), minutos = ["oficinista"], (-34.60386, -58.38419), 15
-        js = self._pagina(ids, lat, lon, 7, False, extra=f"&caminata={minutos}")
-        tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
-        py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, 7, tiempos=tiempos,
-                             caminata_minutos=minutos, aviso_tiempos=aviso)
-        self.assertEqual(js["caminata"]["fuente"], "estimado")
-        self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
-        for a, b in zip(py["sucursales"], js["sucursales"]):
-            self.assertAlmostEqual(a["minutos"], b["minutos"], delta=0.11)
-            self.assertLessEqual(a["minutos"], minutos)
-            self.assertEqual(a["costo"] is None, b["costo"] is None, f"{a['id']}: {a['mensaje']} | {b['mensaje']}")
-            if a["costo"] is not None:
-                self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+        # sucursales dentro del límite y los mismos costos. El segundo es el caso de la demo en que ninguna sucursal
+        # logra todas las metas (caso_extremo en el Microcentro): las dos dejan sin cubrir lo mismo.
+        for ids, (lat, lon), listos in ((["oficinista"], (-34.60386, -58.38419), False),
+                                        (["caso_extremo"], (-34.60386, -58.38419), False)):
+            with self.subTest(perfiles=ids, listos=listos):
+                minutos = 15
+                js = self._pagina(ids, lat, lon, 7, listos, extra=f"&caminata={minutos}")
+                tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, 7, listos=listos,
+                                     tiempos=tiempos, caminata_minutos=minutos, aviso_tiempos=aviso)
+                self.assertEqual(js["caminata"]["fuente"], "estimado")
+                self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+                for a, b in zip(py["sucursales"], js["sucursales"]):
+                    self.assertAlmostEqual(a["minutos"], b["minutos"], delta=0.11)
+                    self.assertLessEqual(a["minutos"], minutos)
+                    self.assertEqual(a["costo"] is None, b["costo"] is None, f"{a['id']}: {a['mensaje']} | {b['mensaje']}")
+                    if a["costo"] is not None:
+                        self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+                        self.assertEqual(bool(a["faltantes"]), bool(b["faltantes"]), a["bandera"])
 
-    def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0") -> dict:
+    def _pagina(self, ids, lat, lon, dias, listos, extra="&rutas=0", agua=cfg.AGUA_MODO_PREDETERMINADO) -> dict:
         # rutas=0: la página busca las sucursales como resultado.armar sin tiempos (las más cercanas en línea recta).
-        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&motor=pagina{extra}")
+        consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias={dias}&listos={int(listos)}&agua={agua}"
+                    f"&motor=pagina{extra}")
+        return self._correr(self.pagina, consulta)
+
+    def _correr(self, pagina: Path, consulta: str) -> dict:
         r = subprocess.run([self.navegador, "--headless=new", "--disable-gpu", "--virtual-time-budget=600000",
-                            "--dump-dom", f"{self.pagina.as_uri()}?{consulta}"],
+                            "--dump-dom", f"{pagina.as_uri()}?{consulta}"],
                            capture_output=True, text=True, encoding="utf-8", timeout=900)
         m = re.search(r'<pre id="resultado-json" hidden="">(.*?)</pre>', r.stdout, re.S)
         if not m or not m.group(1).strip():
             self.skipTest("la página no llegó a calcular (¿sin conexión para bajar el solver?)")
         return json.loads(html.unescape(m.group(1)))
 
+    def test_dos_supermercados(self):
+        # La misma búsqueda por tiempo (estimado) en los dos motores y, sobre cada resultado, la compra en dos súper.
+        # La selección de vecinas y las cuentas son deterministas: mismas vecinas, minutos y decisión. Los costos, con
+        # la brecha del MILP (TOLERANCIA_COSTO). Si los motores eligen B distintas, solo se acepta cuando en los dos
+        # esos pares quedan dentro de esa brecha uno del otro (un empate del solver, no una lógica distinta).
+        agua = cfg.AGUA_MODO_PREDETERMINADO
+        for ids, (lat, lon), minutos, listos in CASOS_DOS_SUPER:
+            with self.subTest(perfiles=ids, minutos=minutos, listos=listos):
+                consulta = (f"perfiles={','.join(ids)}&lat={lat}&lon={lon}&dias=7&listos={int(listos)}&agua={agua}"
+                            f"&caminata={minutos}")
+                pagina = self._correr(self.arnes, consulta)
+                self.assertNotIn("error", pagina)
+                personas = [rq.persona_desde(self.perfiles[i]) for i in ids]
+                tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+                py = resultado.armar(personas, lat, lon, 7, listos=listos, tiempos=tiempos, caminata_minutos=minutos,
+                                     aviso_tiempos=aviso, agua=agua)
+                a, b = resultado.dos_super(personas, py, tiempos), pagina["dos_super"]
+                self.assertEqual(set(tiempos), set(pagina["tiempos"]))
+                self.assertEqual(a["a"]["id"], b["a"]["id"])
+                self.assertEqual(a["costo_a"], next(s["costo"] for s in py["sucursales"] if s.get("elegida")))
+                self.assertLessEqual(abs(a["costo_a"] - b["costo_a"]) / a["costo_a"], TOLERANCIA_COSTO)
+                self.assertEqual(a["metas_antes"]["cumple"], b["metas_antes"]["cumple"])
+                self.assertEqual(a["metas_antes"]["total"], b["metas_antes"]["total"])
+                # Vecinas: las mismas, en el mismo orden, a los mismos minutos de A y con la misma fecha de precios.
+                self.assertEqual([v["id"] for v in a["vecinas"]], [v["id"] for v in b["vecinas"]])
+                self.assertEqual([(v["fecha_precios"], v["dias_precios"]) for v in a["vecinas"]],
+                                 [(v["fecha_precios"], v["dias_precios"]) for v in b["vecinas"]])
+                self.assertEqual((a["a"]["fecha_precios"], a["a"]["dias_precios"]),
+                                 (b["a"]["fecha_precios"], b["a"]["dias_precios"]))
+                for va, vb in zip(a["vecinas"], b["vecinas"]):
+                    self.assertAlmostEqual(va["minutos_desde_a"], vb["minutos_desde_a"], delta=0.11)
+                    self.assertEqual(va["costo"] is None, vb["costo"] is None, va["id"])
+                    if va["costo"] is not None:
+                        self.assertLessEqual(abs(va["costo"] - vb["costo"]) / va["costo"], TOLERANCIA_COSTO, va["id"])
+                        self.assertAlmostEqual(va["puntaje"], vb["puntaje"], delta=0.02, msg=va["id"])
+                self.assertEqual((a["estado"], a["motivo"]), (b["estado"], b["motivo"]))
+                self.assertEqual(set(a), set(b))                             # la misma forma
+                if a["costo_a"] == b["costo_a"]:
+                    self.assertEqual(a["ahorro_minimo"], b["ahorro_minimo"])
+                self.assertEqual(a["b"] is None, b["b"] is None)
+                if a["b"] is None:
+                    self.assertIsNone(b["ticket"])
+                    if a["costo_a"] == b["costo_a"]:
+                        self.assertEqual(a["mensaje"], b["mensaje"])
+                    continue
+                for ds in (a, b):                                           # cuentas de cada motor
+                    self.assertAlmostEqual(ds["ahorro"], ds["costo_a"] - ds["costo_combinado"], places=2)
+                    t = ds["ticket"]
+                    self.assertEqual([x["tienda"]["id"] for x in t["sucursales"]], [ds["a"]["id"], ds["b"]["id"]])
+                    self.assertAlmostEqual(sum(x["subtotal"] for x in t["sucursales"]), ds["costo_combinado"], delta=0.05)
+                    self.assertAlmostEqual(t["total"], ds["costo_combinado"], delta=0.05)
+                    for x in t["sucursales"]:
+                        self.assertTrue(all(it["id_tienda"] == x["tienda"]["id"] for it in x["items"]))
+                    # Cada súper con la fecha de sus precios; la del ticket, la más vieja de las dos.
+                    self.assertEqual(t["fecha_precios"], min(x["tienda"]["fecha_precios"] for x in t["sucursales"]))
+                    self.assertEqual(ds["personas"] is None, ds["motivo"] != "metas")
+                if a["b"]["id"] != b["b"]["id"]:
+                    # Empate dentro de la brecha: en cada motor, el par que eligió el otro cuesta casi lo mismo.
+                    for ds in (a, b):
+                        costo = {v["id"]: v["costo"] for v in ds["vecinas"]}
+                        self.assertLessEqual(abs(costo[a["b"]["id"]] - costo[b["b"]["id"]]) / ds["costo_combinado"],
+                                             TOLERANCIA_COSTO)
+                    continue
+                self.assertLessEqual(abs(a["costo_combinado"] - b["costo_combinado"]) / a["costo_combinado"],
+                                     TOLERANCIA_COSTO)
+                self.assertLessEqual(abs(a["ahorro"] - b["ahorro"]),
+                                     TOLERANCIA_COSTO * (a["costo_a"] + a["costo_combinado"]))
+                self.assertAlmostEqual(a["minutos"]["extra"], b["minutos"]["extra"], delta=0.11)
+                for ta, tb in zip(a["minutos"]["tramos"], b["minutos"]["tramos"]):
+                    self.assertAlmostEqual(ta["minutos"], tb["minutos"], delta=0.11)
+                    self.assertEqual(ta["fuente"], tb["fuente"])
+                self.assertEqual(a["metas_despues"]["cumple"], b["metas_despues"]["cumple"])
+                if (a["costo_a"], a["costo_combinado"]) == (b["costo_a"], b["costo_combinado"]):
+                    self.assertEqual(set(a["productos_b"]), set(b["productos_b"]))
+                    if a["minutos"]["extra"] == b["minutos"]["extra"]:
+                        self.assertEqual(a["mensaje"], b["mensaje"])
+
+    def test_promociones(self):
+        # Promociones de prueba en la sucursal elegida del oficinista en el Microcentro (la base de hoy no trae): un
+        # 2×1 y la 2.ª al 70 % en lo que más pesa del ticket, un "llevando 3, c/u" y una que pide un banco. Las dos
+        # páginas (la de una sucursal y el arnés de dos súper) se exportan con ellas y se comparan con Python.
+        ids, (lat, lon) = ["oficinista"], (-34.60386, -58.38419)
+        personas = [rq.persona_desde(self.perfiles[i]) for i in ids]
+        base = resultado.armar(personas, lat, lon, 7)
+        elegida = next(s for s in base["sucursales"] if s.get("elegida"))["id"]
+        items = sorted((it for it in base["ticket"]["items"] if not it["granel"]), key=lambda it: -it["subtotal"])
+        def promo(it, forma, unidades, factor, resumen, **extra):
+            return {"id_producto": it["id_producto"], "id_tienda": elegida, "forma": forma, "unidades": unidades,
+                    "precio_unitario": round(it["precio_unitario"] * factor, 2), "resumen": resumen, **extra}
+        promos = pd.DataFrame([promo(items[0], "grupo", 2, 0.5, "2×1"), promo(items[1], "grupo", 2, 0.65, "2.ª al 70 %"),
+                               promo(items[2], "precio", 3, 0.8, "Llevando 3: 20 % de descuento"),
+                               promo(items[3], "precio", 1, 0.5, "50 % de descuento", aplicable=False,
+                                     motivo="requiere un banco")])
+        with oferta.promociones_de_prueba(promos):
+            pagina = exportar.exportar(self.dir / "promos.html")
+            arnes = self._arnes(pagina, self.dir / "promos_dos.html")
+            py = resultado.armar(personas, lat, lon, 7)
+            minutos = 15
+            tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+            py15 = resultado.armar(personas, lat, lon, 7, tiempos=tiempos, caminata_minutos=minutos, aviso_tiempos=aviso)
+            ds_py = resultado.dos_super(personas, py15, tiempos)
+        js = self._correr(pagina, f"perfiles=oficinista&lat={lat}&lon={lon}&dias=7&listos=0&agua=canilla&motor=pagina"
+                                  f"&rutas=0")
+        self.assertNotIn("error", js)
+        self.assertTrue(py["opciones"]["promos"] and js["opciones"]["promos"])
+        self.assertEqual(py["opciones"]["promos_en_base"], js["opciones"]["promos_en_base"])
+        self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+        for a, b in zip(py["sucursales"], js["sucursales"]):
+            if a["costo"] is not None:
+                self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+        tp, tj = py["ticket"], js["ticket"]
+        self.assertLessEqual(abs(tp["total"] - tj["total"]) / tp["total"], TOLERANCIA_COSTO)
+        for t in (tp, tj):                                                  # las cuentas de cada motor
+            self.assertAlmostEqual(t["total"], sum(it["subtotal"] for it in t["items"]), delta=0.05)
+            self.assertAlmostEqual(t["total_lista"] - t["total"], t["ahorro_promociones"], delta=0.05)
+            for it in t["items"]:
+                self.assertAlmostEqual(it["subtotal_lista"] - it["subtotal"], it["descuento"], delta=0.011)
+        if tp["tienda"]["id"] == tj["tienda"]["id"] == elegida:
+            # La misma promoción en cada renglón que las dos compran, con el mismo estado (aplicada o por qué no).
+            pp = {it["id_producto"]: it for it in tp["items"]}
+            pj = {it["id_producto"]: it for it in tj["items"]}
+            for k in set(pp) & set(pj):
+                self.assertEqual(pp[k]["promo"] is None, pj[k]["promo"] is None, k)
+                if pp[k]["promo"] and pp[k]["unidades_compra"] == pj[k]["unidades_compra"]:
+                    self.assertEqual(pp[k]["promo"], pj[k]["promo"], k)
+                    self.assertAlmostEqual(pp[k]["subtotal"], pj[k]["subtotal"], places=2)
+            self.assertGreater(tp["ahorro_promociones"], 0)
+            self.assertGreater(tj["ahorro_promociones"], 0)
+            banco = items[3]["id_producto"]
+            for t in (pp, pj):
+                if banco in t:
+                    self.assertEqual(t[banco]["promo"]["motivo"], "requiere un banco")
+        # Dos súper: cada sucursal del par aplica las suyas, igual en los dos motores.
+        ds_js = self._correr(arnes, f"perfiles=oficinista&lat={lat}&lon={lon}&dias=7&listos=0&agua=canilla"
+                                    f"&caminata={minutos}")["dos_super"]
+        self.assertEqual(ds_py["a"]["id"], ds_js["a"]["id"])
+        self.assertLessEqual(abs(ds_py["costo_a"] - ds_js["costo_a"]) / ds_py["costo_a"], TOLERANCIA_COSTO)
+        self.assertEqual([v["id"] for v in ds_py["vecinas"]], [v["id"] for v in ds_js["vecinas"]])
+        for va, vb in zip(ds_py["vecinas"], ds_js["vecinas"]):
+            if va["costo"] is not None:
+                self.assertLessEqual(abs(va["costo"] - vb["costo"]) / va["costo"], TOLERANCIA_COSTO, va["id"])
+        self.assertEqual(ds_py["b"] is None, ds_js["b"] is None)
+        for ds in (ds_py, ds_js):
+            if ds["ticket"]:
+                t = ds["ticket"]
+                self.assertAlmostEqual(t["total"], ds["costo_combinado"], delta=0.05)
+                self.assertAlmostEqual(t["total_lista"] - t["total"], t["ahorro_promociones"], delta=0.05)
+
     def test_los_dos_motores_dan_lo_mismo(self):
-        for ids, (lat, lon), dias, listos in CASOS:
-            with self.subTest(perfiles=ids, dias=dias, listos=listos):
-                js = self._pagina(ids, lat, lon, dias, listos)
-                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, dias, listos=listos)
+        for ids, (lat, lon), dias, listos, agua in CASOS:
+            with self.subTest(perfiles=ids, dias=dias, listos=listos, agua=agua):
+                js = self._pagina(ids, lat, lon, dias, listos, agua=agua)
+                py = resultado.armar([rq.persona_desde(self.perfiles[i]) for i in ids], lat, lon, dias, listos=listos,
+                                     agua=agua)
                 self.assertNotIn("error", js)
+                self.assertEqual(js["opciones"]["agua"], agua)
+                self.assertEqual(py["catalogo"]["productos_canasta"], js["catalogo"]["productos_canasta"])
                 # Requerimientos idénticos: mismos números y el mismo texto de cada paso.
                 for a, b in zip(py["personas"], js["personas"]):
                     self.assertEqual(a["requerimientos"]["energia_kcal"], b["requerimientos"]["energia_kcal"])
                     self.assertEqual(a["requerimientos"]["pasos"], b["requerimientos"]["pasos"])
+                    self.assertEqual(a["requerimientos"]["avisos"], b["requerimientos"]["avisos"])
+                    self.assertEqual(a["restricciones"]["criterios"], b["restricciones"]["criterios"])
                     self.assertEqual(a["restricciones"]["efecto"], b["restricciones"]["efecto"])
                     self.assertEqual(a["restricciones"]["productos_aptos"], b["restricciones"]["productos_aptos"])
-                # Mismas sucursales, con costos dentro de la brecha y el mismo cumplimiento.
+                # Mismas sucursales, con costos dentro de la brecha y el mismo cumplimiento, y la misma fecha de precios
+                # de cada una (las de días anteriores, con los mismos días).
                 self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+                self.assertEqual(py["fecha_precios"], js["fecha_precios"])
+                self.assertEqual([(s["fecha_precios"], s["dias_precios"]) for s in py["sucursales"]],
+                                 [(s["fecha_precios"], s["dias_precios"]) for s in js["sucursales"]])
                 for a, b in zip(py["sucursales"], js["sucursales"]):
                     self.assertEqual(a["costo"] is None, b["costo"] is None, a["bandera"])
                     if a["costo"] is not None:
@@ -107,6 +340,8 @@ class TestParidadPagina(unittest.TestCase):
                 elegida_js = next(s for s in js["sucursales"] if s.get("elegida"))
                 self.assertLessEqual(abs(elegida_py["costo"] - elegida_js["costo"]) / elegida_py["costo"], TOLERANCIA_COSTO)
                 if elegida_py["id"] == elegida_js["id"]:
+                    self.assertEqual(py["ticket"]["fecha_precios"], js["ticket"]["fecha_precios"])
+                    self.assertEqual(py["ticket"]["tienda"]["dias_precios"], js["ticket"]["tienda"]["dias_precios"])
                     for a, b in zip(py["personas"], js["personas"]):
                         estados = lambda p: [(c["clave"], c["estado"]) for c in p["cobertura"] + p["reglas"]]  # noqa: E731
                         self.assertEqual(estados(a), estados(b))

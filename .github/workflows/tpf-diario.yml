@@ -1,0 +1,306 @@
+# TPF: ETL diario. Baja los precios del último día de SEPA, rearma la base (python -m sepa --diario), exporta la
+# página de la canasta (python -m canasta --exportar, sin clave de rutas) y la publica en GitHub Pages.
+#
+# - No commitea nada: la base del día vive solo en el runner y en el sitio publicado (no hay historial de precios).
+# - Si SEPA no publicó un día nuevo desde el que ya está en el sitio, termina bien, sin rearmar ni publicar.
+# - Si falla algo (una fuente, la verificación de sepa/verificacion.py, la exportación), el job falla y queda
+#   publicada la página anterior. GitHub avisa por mail y se abre (o se comenta) un issue.
+# - Las fuentes que no cambian a diario (Open Food Facts, catálogos web, Georef/USIG, USDA) viajan entre corridas en la
+#   caché de Actions (datos/cache/ no se versiona).
+# Detalle y activación: TPF/docs/DESPLIEGUE.md.
+
+name: "TPF · ETL diario y página"
+
+on:
+  schedule:
+    # En UTC (Argentina = UTC-3). SEPA sube el ZIP de cada día a la API recién a la tarde de ese día.
+    - cron: "30 10 * * *"   # 07:30 en Argentina: toma el último ZIP publicado (si no estaba ya en el sitio)
+    - cron: "0 21 * * *"    # 18:00 en Argentina: el ZIP de ese mismo día, ya publicado
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Rearmar y publicar aunque el sitio ya tenga el último día de SEPA"
+        type: boolean
+        default: false
+      actualizar_web:
+        description: "Volver a recorrer los catálogos de Jumbo, Disco y Vea (tarda mucho más)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Una sola corrida a la vez (la de la mañana, la de la tarde o una manual); la que llega espera, no cancela.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.10"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
+  CACHE_DIR: TPF/base_sepa/datos/cache
+
+jobs:
+  etl:
+    name: Base del día y página
+    runs-on: ubuntu-24.04
+    # La primera corrida (sin caché) baja Open Food Facts (~1,2 GB) y recorre los catálogos web; las siguientes,
+    # solo el ZIP de SEPA (~330 MB).
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      pages: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: TPF/base_sepa
+    outputs:
+      nuevo: ${{ steps.fecha.outputs.nuevo }}
+      fecha: ${{ steps.dia.outputs.fecha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: TPF/base_sepa/requirements.txt
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+
+      # Falla acá, con un mensaje claro, si Pages no está configurado con "GitHub Actions" como origen.
+      - name: Sitio de GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: ¿Hay un día nuevo en SEPA?
+        id: fecha
+        env:
+          SITIO: ${{ steps.pages.outputs.base_url }}
+          FORZAR: ${{ inputs.forzar }}
+        run: |
+          # Si la API de SEPA no responde, es un error real: el job falla.
+          disponible=$(python -m sepa --ultima-fecha | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | tail -n 1) || true
+          if [ -z "$disponible" ]; then
+            echo "::error::La API de SEPA no informó la fecha del último ZIP."
+            exit 1
+          fi
+          # La fecha que está publicada (fecha.txt del sitio); vacía la primera vez.
+          publicada=$(curl -fsSL --max-time 30 "$SITIO/fecha.txt" 2>/dev/null | tr -d '[:space:]' || true)
+          if ! [[ "$publicada" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then publicada=""; fi
+          echo "Último ZIP de SEPA: $disponible · publicado en el sitio: ${publicada:-ninguno}"
+          if [ "$FORZAR" != "true" ] && [ -n "$publicada" ] && ! [[ "$disponible" > "$publicada" ]]; then
+            echo "::notice::Sin novedades: el sitio ya tiene los precios del $publicada (último ZIP de SEPA: $disponible). No se rearma ni se publica."
+            echo "### Sin novedades: el sitio ya tiene los precios del $publicada" >> "$GITHUB_STEP_SUMMARY"
+            echo "nuevo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "nuevo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Cachés de las fuentes que no cambian a diario (se restaura la última de cada una).
+      - name: Restaurar caché · Open Food Facts
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: cache-off
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHE_DIR }}/openfoodfacts
+          key: tpf-off-${{ github.run_id }}
+          restore-keys: tpf-off-
+
+      - name: Restaurar caché · catálogos web
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: cache-web
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHE_DIR }}/web
+          key: tpf-web-${{ github.run_id }}
+          restore-keys: tpf-web-
+
+      - name: Restaurar caché · geografía y USDA
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: cache-ref
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ env.CACHE_DIR }}/geo
+            ${{ env.CACHE_DIR }}/usda
+          key: tpf-ref-${{ github.run_id }}
+          restore-keys: tpf-ref-
+
+      - name: Armar la base (python -m sepa --diario)
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: sepa
+        env:
+          ACTUALIZAR_WEB: ${{ inputs.actualizar_web }}
+        run: |
+          df -h . | tail -n 1
+          free -g | head -n 2
+          argumentos=(--diario)
+          if [ "$ACTUALIZAR_WEB" = "true" ]; then argumentos+=(--actualizar-web); fi
+          python -m sepa "${argumentos[@]}" 2>&1 | tee "$RUNNER_TEMP/sepa.log"
+          du -sh datos/cache/* datos/entrada 2>/dev/null || true
+
+      - name: Motivo de la falla
+        if: failure() && steps.sepa.outcome == 'failure'
+        run: |
+          touch "$RUNNER_TEMP/sepa.log"
+          {
+            echo "## No se publicó: falló el armado de la base"
+            if grep -q "controles críticos que fallan" "$RUNNER_TEMP/sepa.log"; then
+              echo "Falló la **verificación** (\`sepa/verificacion.py\`). La página publicada sigue siendo la anterior."
+              echo "Las tablas de esta corrida quedan en el artefacto \`corrida-fallida\`."
+            else
+              echo "Falló una fuente o un paso del pipeline. La página publicada sigue siendo la anterior."
+            fi
+            echo '```'
+            grep -E "\[ERROR\]|Error|Traceback" "$RUNNER_TEMP/sepa.log" | tail -n 40 || true
+            tail -n 15 "$RUNNER_TEMP/sepa.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar las tablas de la corrida fallida
+        if: failure() && steps.sepa.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrida-fallida
+          path: ${{ env.CACHE_DIR }}/corrida_fallida/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Fecha de los precios
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: dia
+        run: |
+          zip=$(ls datos/entrada/sepa_*.zip | head -n 1)
+          fecha=$(basename "$zip" .zip)
+          fecha=${fecha#sepa_}
+          echo "fecha=$fecha" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Precios de SEPA del $fecha"
+            grep -E "Listo en|Verificación:" "$RUNNER_TEMP/sepa.log" | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Exportar la página (python -m canasta --exportar)
+        if: steps.fecha.outputs.nuevo == 'true'
+        run: |
+          python -m canasta --exportar
+          # La página publicada nunca lleva la clave de rutas (en CI no hay; esto lo confirma).
+          if ! grep -qF '<script id="config-rutas" type="application/json">{"clave": ""}</script>' ../datos/sepa/canasta.html; then
+            echo "::error::La página exportada lleva una clave de rutas: no se publica."
+            exit 1
+          fi
+
+      # El sitio: la página es un único HTML autosuficiente, así que va directo como index.html (la URL del sitio
+      # abre la canasta, sin redirección, y los enlaces con ?perfiles=...&lat=... funcionan en la raíz). También como
+      # canasta.html, el nombre que usan la presentación y la documentación. fecha.txt dice qué día está publicado.
+      - name: Armar el sitio
+        if: steps.fecha.outputs.nuevo == 'true'
+        env:
+          FECHA: ${{ steps.dia.outputs.fecha }}
+        run: |
+          sitio="$GITHUB_WORKSPACE/_site"
+          mkdir -p "$sitio"
+          cp ../datos/sepa/canasta.html "$sitio/index.html"
+          cp ../datos/sepa/canasta.html "$sitio/canasta.html"
+          printf '%s\n' "$FECHA" > "$sitio/fecha.txt"
+          ls -la "$sitio"
+
+      - name: Subir el sitio
+        if: steps.fecha.outputs.nuevo == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      # --- Guardar las cachés solo si la corrida salió bien (un catálogo cortado a la mitad no debe quedar guardado)
+      # y si cambiaron. La clave lleva una huella del contenido (nombre, tamaño y fecha de cada archivo).
+      - name: Huellas de las cachés
+        if: steps.fecha.outputs.nuevo == 'true'
+        id: huellas
+        working-directory: ${{ env.CACHE_DIR }}
+        run: |
+          huella() {
+            find "$@" -type f ! -name '*.part' -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort | sha256sum | cut -c1-16
+          }
+          echo "off=tpf-off-$(huella openfoodfacts)" >> "$GITHUB_OUTPUT"
+          echo "web=tpf-web-$(huella web)" >> "$GITHUB_OUTPUT"
+          echo "ref=tpf-ref-$(huella geo usda)" >> "$GITHUB_OUTPUT"
+
+      - name: Guardar caché · Open Food Facts
+        if: steps.fecha.outputs.nuevo == 'true' && steps.huellas.outputs.off != steps.cache-off.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CACHE_DIR }}/openfoodfacts
+          key: ${{ steps.huellas.outputs.off }}
+
+      - name: Guardar caché · catálogos web
+        if: steps.fecha.outputs.nuevo == 'true' && steps.huellas.outputs.web != steps.cache-web.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CACHE_DIR }}/web
+          key: ${{ steps.huellas.outputs.web }}
+
+      - name: Guardar caché · geografía y USDA
+        if: steps.fecha.outputs.nuevo == 'true' && steps.huellas.outputs.ref != steps.cache-ref.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.CACHE_DIR }}/geo
+            ${{ env.CACHE_DIR }}/usda
+          key: ${{ steps.huellas.outputs.ref }}
+
+  deploy:
+    name: Publicar en GitHub Pages
+    needs: etl
+    if: needs.etl.outputs.nuevo == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  avisos:
+    name: Aviso por issue
+    needs: [etl, deploy]
+    # Solo en la rama principal (la del cron): una prueba en otra rama no abre issues.
+    if: always() && (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      # Un solo issue abierto por vez: si ya hay uno, se comenta; cuando vuelve a andar, se cierra.
+      - name: Abrir, comentar o cerrar el issue
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          ETL: ${{ needs.etl.result }}
+          DEPLOY: ${{ needs.deploy.result }}
+        with:
+          script: |
+            const titulo = "ETL diario de la canasta: falló la corrida";
+            const corrida = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const fallo = process.env.ETL === "failure" || process.env.DEPLOY === "failure";
+            const { data } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", per_page: 100 });
+            const abierto = data.find((i) => i.title === titulo && !i.pull_request);
+            if (fallo && abierto) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: abierto.number,
+                body: `Volvió a fallar: ${corrida}` });
+            } else if (fallo) {
+              await github.rest.issues.create({ ...context.repo, title: titulo,
+                body: `La corrida ${corrida} falló y no se publicó: la página sigue con los precios del último día ` +
+                      `que pasó la verificación.\n\nEl resumen de la corrida dice en qué paso falló. Ver ` +
+                      `TPF/docs/DESPLIEGUE.md. Este issue se cierra solo cuando una corrida vuelve a andar.` });
+            } else if (abierto) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: abierto.number,
+                body: `Volvió a andar: ${corrida}` });
+              await github.rest.issues.update({ ...context.repo, issue_number: abierto.number, state: "closed" });
+            }

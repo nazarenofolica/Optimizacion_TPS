@@ -161,5 +161,48 @@ class TestSimilitud(unittest.TestCase):
                          [True, True, True, True, True, False, False, False])
 
 
+class TestPorcionComo100g(unittest.TestCase):
+    def test_reconoce_y_reescala_las_tablas_por_porcion(self):
+        # Casos reales del catálogo de Jumbo del 21/11/2026 (referencia: la energía del alimento cada 100 g).
+        tabla = pd.DataFrame({
+            "energia_kcal": [108.0, 126.0, 504.0, 32.0, 54.0, 20.0],
+            "grasas_totales_g": [12.0, 7.1, 28.4, 0.0, 0.0, 0.0], "sodio_mg": [0.0, 201.0, 804.0, 4.0, 10.0, 5.0]})
+        porcion = pd.Series([13.0, 25.0, 25.0, 20.0, 20.0, np.nan])
+        referencia = pd.Series([884.0, 476.0, 476.0, 259.0, 120.0, 259.0])
+        m = nu.porcion_como_100g(tabla, porcion, referencia)
+        # Aceite (cuchara de 13 ml) y snacks (25 g) por porción; los snacks bien cargados, no; una mermelada light de
+        # 54 kcal tampoco (llevada a 100 g se pasaría); sin porción no se puede saber.
+        self.assertEqual(m.tolist(), [True, True, False, True, False, False])
+        t = nu.reescalar_porcion(tabla, porcion, m, ["energia_kcal", "grasas_totales_g", "sodio_mg"])
+        self.assertAlmostEqual(t.loc[0, "energia_kcal"], 830.77, places=1)
+        self.assertAlmostEqual(t.loc[0, "grasas_totales_g"], 92.31, places=1)
+        self.assertEqual(t.loc[1, "energia_kcal"], 504.0)
+        self.assertEqual(t.loc[2].tolist(), tabla.loc[2].tolist())               # las otras, sin tocar
+        self.assertEqual(t.loc[3, "energia_kcal"], 160.0)
+
+
+class TestCerrar(unittest.TestCase):
+    def test_la_fibra_heredada_entra_en_lo_que_dejan_los_macros(self):
+        # Galletitas con rótulo de Open Food Facts sin fibra (ZIP del 20/11/2026): 10 + 76,7 + 16,7 g; el genérico
+        # traía 2,7 g de fibra y la fila sumaba 106 g (falla crítica de la verificación). Otra, con lugar, la conserva.
+        columnas = nu.NUTRIENTES
+        gen = pd.DataFrame([dict.fromkeys(columnas, 1.0) | {"fibra_g": 2.7, "grasas_totales_g": 15.0,
+                                                           "carbohidratos_g": 70.0}], index=["galletitas"])
+        filas = []
+        for prot, carb, grasa in ((10.0, 230 / 3, 50 / 3), (7.0, 60.0, 15.0)):     # 76,67 y 16,67 g sin redondear
+            f = dict.fromkeys(columnas, 0.0) | {"proteinas_g": prot, "carbohidratos_g": carb, "grasas_totales_g": grasa,
+                                               "fibra_g": 2.7, "agua_g": 5.0, "alcohol_g": 0.0}
+            f |= {"alimento_id": "galletitas", "_azucares_g_heredado": False}
+            f |= {f"_{c}_heredado": False for c in ("grasas_monoinsaturadas_g", "grasas_poliinsaturadas_g",
+                                                     "colesterol_mg")}
+            filas.append(f)
+        out = nu._cerrar(pd.DataFrame(filas), gen).round(4)          # como en armar(): 4 decimales
+        macros = out["proteinas_g"] + out["carbohidratos_g"] + out["grasas_totales_g"] + out["fibra_g"] + out["alcohol_g"]
+        self.assertLessEqual(macros.iloc[0], 105.0)                   # también después del redondeo
+        self.assertAlmostEqual(out["fibra_g"].iloc[0], 105.0 - 310 / 3, places=2)
+        self.assertEqual(out["fibra_g"].iloc[1], 2.7)
+        self.assertLessEqual((out["agua_g"] + macros).max(), 105.0)
+
+
 if __name__ == "__main__":
     unittest.main()

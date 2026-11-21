@@ -43,23 +43,62 @@
         <span class="paso-texto">La compra<small id="sub-compra"></small></span></button>
     </div>
     <div class="panel-cuerpo">
+      <div id="retomar" class="retomar" role="region" aria-label="Canasta de la última vez" hidden>
+        <p id="retomar-texto"></p>
+        <span class="retomar-acciones">
+          <button type="button" class="boton-texto" id="retomar-si">Retomarla</button>
+          <button type="button" class="boton-texto" id="retomar-no">Descartar</button>
+        </span>
+      </div>
 
       <section class="paso" id="paso-hogar" data-panel="hogar" role="tabpanel" aria-labelledby="t-hogar">
         <h2 id="t-hogar" class="sr-only">Quiénes comen</h2>
+        <!-- Contalo con tus palabras (etapa 6): solo con el servidor local (python -m canasta), que tiene la clave de
+             Groq. En la página publicada no hay servidor y el bloque no aparece. -->
+        <div id="texto-libre" class="texto-libre" hidden>
+          <details id="tl-detalles">
+            <summary><span class="tl-titulo"><b>Contalo con tus palabras</b> <small>opcional</small></span>
+              <span class="tl-bajada">Escribí quiénes comen y qué no pueden comer, o pegá una indicación médica:
+                completamos el formulario y vos lo revisás.</span></summary>
+            <div class="tl-cuerpo">
+              <p id="tl-sin-clave" class="ayuda" hidden>Para usarlo, poné tu clave de Groq en <code>base_sepa/.env</code>
+                (<code>GROQ_API_KEY=…</code>) y volvé a abrir <code>python -m canasta</code>. Mientras tanto, completá el
+                formulario de abajo.</p>
+              <div id="tl-form">
+                <label class="campo tl-campo"><span class="etiqueta">Tu texto</span>
+                  <textarea id="tl-texto" rows="4" maxlength="4000" spellcheck="true"
+                    placeholder="Somos mi hija de 8 años, celíaca, y yo, mujer de 40 y 62 kg. Compramos para dos semanas."></textarea></label>
+                <p id="tl-contador" class="tl-contador" aria-live="off"></p>
+                <div class="tl-privacidad" role="note"><i aria-hidden="true">i</i>
+                  <p><b>Lo que escribas se envía a Groq</b>, un servicio externo de inteligencia artificial, para
+                    pasarlo al formulario. Nosotros no lo guardamos. Si pegás una indicación médica, sacale el nombre,
+                    el DNI y los datos de contacto.</p></div>
+                <label class="tl-casilla"><input type="checkbox" id="tl-acepto">
+                  <span>Entiendo que el texto se envía a Groq para interpretarlo.</span></label>
+                <div class="tl-acciones">
+                  <button type="button" class="boton-secundario" id="tl-interpretar" disabled>Interpretar el texto</button>
+                  <p id="tl-estado" class="tl-estado" role="status"></p>
+                </div>
+              </div>
+              <div id="tl-resultado" class="tl-resultado" tabindex="-1" hidden></div>
+            </div>
+          </details>
+        </div>
         <div class="personas-fila">
           <div id="personas" class="personas" role="tablist" aria-label="Personas del hogar"></div>
           <button type="button" id="agregar-persona" class="boton-agregar">+ Agregar persona</button>
         </div>
 
         <div id="editor" class="editor" role="tabpanel">
+         <div class="campo perfiles-campo">
+           <span class="etiqueta" id="l-perfiles">Empezar con un perfil de ejemplo <small>opcional</small></span>
+           <div id="perfiles-ejemplo" class="perfiles" role="group" aria-labelledby="l-perfiles"></div>
+           <p id="perfil-estado" class="ayuda perfil-estado" aria-live="polite"></p>
+         </div>
          <div class="editor-grid">
           <div class="columna">
-          <div class="fila2">
-            <label class="campo"><span class="etiqueta">Nombre</span>
-              <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
-            <label class="campo"><span class="etiqueta">Cargar un perfil de ejemplo</span>
-              <select id="p-perfil"></select></label>
-          </div>
+          <label class="campo"><span class="etiqueta">Nombre</span>
+            <input type="text" id="p-nombre" maxlength="40" autocomplete="off" placeholder="Opcional"></label>
           <div class="campo">
             <span class="etiqueta" id="l-sexo">Sexo biológico</span>
             <div class="segmentado" role="radiogroup" aria-labelledby="l-sexo">
@@ -100,7 +139,7 @@
             <div id="objetivos" class="segmentado" role="radiogroup" aria-labelledby="l-objetivo"></div>
           </div>
           <div class="campo">
-            <span class="etiqueta">Lo que no puede o no quiere comer</span>
+            <span class="etiqueta" id="l-restricciones">Lo que no puede o no quiere comer</span>
             <div id="restricciones"></div>
           </div>
           </div>
@@ -151,6 +190,17 @@
           <span><b>Solo alimentos listos para comer</b>
             <small>Para quien no cocina: sin carnes ni huevos crudos, arroz, fideos, legumbres secas ni harinas.</small></span>
         </label>
+        <label class="interruptor" id="campo-promos">
+          <input type="checkbox" id="promos" role="switch" aria-describedby="promos-ayuda">
+          <span class="perilla" aria-hidden="true"></span>
+          <span><b>Aplicar promociones</b>
+            <small id="promos-ayuda">Solo las que no piden banco ni tarjeta: 2×1, la 2.ª al 70 %, descuentos. Si piden
+              llevar varias, la compra las lleva.</small></span>
+        </label>
+        <div class="campo campo-agua">
+          <span class="etiqueta" id="l-agua">El agua</span>
+          <div id="aguas" class="opciones" role="radiogroup" aria-labelledby="l-agua"></div>
+        </div>
        </div>
       </section>
     </div>

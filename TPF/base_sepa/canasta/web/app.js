@@ -23,23 +23,37 @@ const COLOR_GRUPO = {
   "Carnes y huevos": "#a8483a",
   "Aceites, frutas secas y semillas": "#7a6a2c",
   "Alimentos de consumo opcional": "#8a6d9e",
+  "Agua e infusiones": "#2f7f9e",
 };
+// Grupos del paso 1. "Salud" suma, después de la hipertensión y la diabetes, las condiciones médicas (CONDICIONES):
+// cambian metas, no filtran productos, y algunas requieren supervisión profesional.
 const GRUPOS_RESTRICCIONES = [
-  { titulo: "Dieta", claves: ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_ultraprocesados"] },
+  { titulo: "Dieta y religión", claves: ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_ultraprocesados",
+    "sin_cerdo", "halal", "kosher"] },
   { titulo: "Alergias (también sin trazas)", alergia: true },
-  { titulo: "Salud", claves: ["hipertension", "diabetes"] },
+  { titulo: "Salud", claves: ["hipertension", "diabetes"], condiciones: true },
 ];
 const PERSONA_NUEVA = { nombre: "", sexo: "F", edad: 34, peso_kg: 63, altura_cm: 163, actividad: "liviana",
   objetivo: "mantener", etapa: "general", trimestre: 2, restricciones: [] };
 
 const estado = {
-  P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false,
+  P: null, perfiles: [], criterios: {}, condiciones: {}, hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
+  promos: false, promosEnBase: 0,   // aplicar promociones (solo si la base trae alguna aplicable)
   caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
   mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
-  escalera: new Map(),   // minutos -> {resumen, resultado, rutas}: la mejor compra con cada límite de caminata
+  escalera: new Map(),   // minutos -> {resumen, resultado, rutas, pedido}: la mejor compra con cada límite de caminata
+  pedido: null,          // el pedido con el que se armó estado.resultado (dosSuper necesita exactamente ese)
+  dos: new WeakMap(),    // resultado -> {ds, rutas}: la compra en dos súper calculada sobre ese resultado
+  vistaDos: false,       // el ticket muestra la compra en dos súper (si conviene) en lugar de la de uno
+  capaDos: null, puntosMapa: null,
+  delTexto: {},          // lo que el texto libre completó en los pasos 2 y 3 (dias, agua...), para marcarlo
 };
 const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
 const PARAMETROS = new URLSearchParams(location.search);
+// Un enlace con un caso (?perfiles=…&lat=…) arranca de los valores predeterminados más lo que trae: no mezcla nada
+// guardado de una sesión anterior.
+const CON_CASO = ["perfiles", "perfil", "lat", "lon", "dias", "listos", "agua", "caminata", "promos"]
+  .some((k) => PARAMETROS.has(k));
 // ?rutas=0 busca como antes (la más cercana de cada cadena, en línea recta): lo usa el test de paridad con Python.
 const CON_RUTAS = PARAMETROS.get("rutas") !== "0";
 
@@ -81,6 +95,7 @@ const motor = (() => {
       const M = window.MotorCanasta;
       if (tipo === "paquete") return M.cargarPaquete(datos.meta, datos.binario).then((resumen) => ({ resumen }));
       if (tipo === "candidatas") return Promise.resolve({ candidatas: M.candidatasCaminando(datos.lat, datos.lon, datos.minutos) });
+      if (tipo === "dos_super") return M.dosSuper(datos.pedido, datos.resultado, avance).then((dos_super) => ({ dos_super }));
       return M.armar(datos.pedido, avance).then((resultado) => ({ resultado }));
     }
     const id = ++siguiente;
@@ -93,27 +108,76 @@ const motor = (() => {
 })();
 
 // ============================================================
-// Guardado local (comodidad: si el navegador no deja, no pasa nada)
+// Guardado local (comodidad: si el navegador no deja, no pasa nada). La página siempre abre limpia; si hay una
+// canasta guardada de antes, un aviso ofrece retomarla.
 // ============================================================
+
+let guardoEnEstaVisita = false;
 
 function guardar() {
   try {
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias,
-      listos: estado.listos, caminata: estado.caminata }));
+      listos: estado.listos, agua: estado.agua, caminata: estado.caminata, promos: estado.promos }));
+    guardoEnEstaVisita = true;
   } catch (err) { /* sin almacenamiento */ }
 }
 
-function recuperar() {
+// Lo guardado, ya validado, o null si no hay nada (o si es igual a como abre la página).
+function leerGuardado() {
   try {
     const g = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) || "null");
-    if (g && Array.isArray(g.hogar) && g.hogar.length) {
-      estado.hogar = g.hogar.slice(0, estado.P.PERSONAS_MAXIMAS).map((p) => ({ ...PERSONA_NUEVA, ...p }));
-      estado.lugar = g.lugar || null;
-      estado.dias = String(g.dias) in estado.P.DIAS_PERIODO ? g.dias : 7;
-      estado.listos = Boolean(g.listos);
-      if (estado.P.CAMINATA_OPCIONES.includes(g.caminata)) estado.caminata = g.caminata;
-    }
-  } catch (err) { /* sin almacenamiento */ }
+    if (!g || !Array.isArray(g.hogar) || !g.hogar.length) return null;
+    const P = estado.P;
+    const hogar = g.hogar.slice(0, P.PERSONAS_MAXIMAS).map((p) => ({ ...PERSONA_NUEVA, ...p,
+      restricciones: Array.isArray(p.restricciones) ? p.restricciones.filter((r) => r in P.RESTRICCIONES) : [] }));
+    const lugar = g.lugar && Number.isFinite(g.lugar.lat) && Number.isFinite(g.lugar.lon) ? g.lugar : null;
+    const comoNueva = (p) => JSON.stringify(Object.keys(PERSONA_NUEVA).map((k) => p[k])) ===
+      JSON.stringify(Object.values(PERSONA_NUEVA));
+    if (!lugar && hogar.length === 1 && comoNueva(hogar[0])) return null;
+    return { hogar, lugar, dias: String(g.dias) in P.DIAS_PERIODO ? Number(g.dias) : 7, listos: Boolean(g.listos),
+      agua: g.agua in P.AGUA_MODOS ? g.agua : P.AGUA_MODO_PREDETERMINADO,
+      caminata: P.CAMINATA_OPCIONES.includes(g.caminata) ? g.caminata : P.CAMINATA_MINUTOS,
+      promos: estado.promosEnBase > 0 && g.promos !== false };
+  } catch (err) {
+    return null;   // sin almacenamiento o con algo ilegible
+  }
+}
+
+function avisoRetomar(g) {
+  const el = $("#retomar");
+  const n = g.hogar.length;
+  const quienes = n === 1 ? nombrePersona(g.hogar[0], 0) : `${n} personas`;
+  const donde = g.lugar ? `, cerca de ${g.lugar.corto || g.lugar.nombre}` : "";
+  $("#retomar-texto").innerHTML = `Tenés una canasta de la última vez: <b>${esc(quienes + donde)}</b>.`;
+  el.hidden = false;
+  $("#retomar-si").addEventListener("click", () => {
+    Object.assign(estado, { hogar: g.hogar, actual: 0, lugar: g.lugar, dias: g.dias, listos: g.listos, agua: g.agua,
+      caminata: g.caminata, promos: g.promos, anterior: null });
+    estado.escalera.clear();
+    el.hidden = true;
+    sincronizarControles();
+    guardar();
+    $(".persona-boton").focus();
+  }, { once: true });
+  $("#retomar-no").addEventListener("click", () => {
+    // Si en esta visita ya se guardó algo nuevo, lo de antes ya no está: no hay que borrar lo nuevo.
+    if (!guardoEnEstaVisita) try { localStorage.removeItem(CLAVE_GUARDADO); } catch (err) { /* sin almacenamiento */ }
+    el.hidden = true;
+    const primero = $("[data-perfil]");
+    if (primero) primero.focus();
+  }, { once: true });
+}
+
+// Después de cambiar el estado entero (al retomar lo guardado), cada control vuelve a mostrar lo que hay.
+function sincronizarControles() {
+  $$('[name="caminata"]').forEach((c) => { c.checked = Number(c.value) === estado.caminata; });
+  $$('[name="dias"]').forEach((c) => { c.checked = Number(c.value) === estado.dias; });
+  $$('[name="agua"]').forEach((c) => { c.checked = c.value === estado.agua; });
+  $("#listos").checked = estado.listos;
+  $("#promos").checked = estado.promos;
+  if (estado.lugar) elegirLugar(estado.lugar, true, false);
+  cargarEditor();
+  dibujarPersonas();
 }
 
 // ============================================================
@@ -135,11 +199,14 @@ function resumenPersona(p) {
 
 function erroresPersona(p) {
   const P = estado.P, e = [];
+  // Sexo y trimestre vacíos solo llegan del texto libre, cuando el texto no los dice: se piden, no se adivinan.
+  if (p.sexo !== "F" && p.sexo !== "M") e.push("Elegí el sexo biológico.");
   if (!(p.edad >= P.EDAD_MINIMA && p.edad <= P.EDAD_MAXIMA)) {
     e.push(`La edad tiene que estar entre ${P.EDAD_MINIMA} y ${P.EDAD_MAXIMA} años (antes de los ${P.EDAD_MINIMA}, la alimentación la indica el pediatra).`);
   }
   if (!(p.peso_kg >= P.PESO_RANGO_KG[0] && p.peso_kg <= P.PESO_RANGO_KG[1])) e.push("Revisá el peso.");
   if (p.altura_cm != null && !(p.altura_cm >= P.ALTURA_RANGO_CM[0] && p.altura_cm <= P.ALTURA_RANGO_CM[1])) e.push("Revisá la altura.");
+  if (p.etapa === "embarazo" && !(String(p.trimestre) in P.ENERGIA_EMBARAZO)) e.push("Elegí el trimestre del embarazo.");
   return e;
 }
 
@@ -160,6 +227,7 @@ function dibujarPersonas() {
     ? `${quienes}, compra para ${periodo}, cerca de ${estado.lugar.corto || estado.lugar.nombre}${caminata}.`
     : `${quienes}, compra para ${periodo}. Falta elegir dónde comprás.`;
   marcarPasos();
+  marcarDelTexto();
 }
 
 // Las pestañas de los pasos: cada una se marca completa cuando tiene lo necesario y muestra un resumen corto.
@@ -174,7 +242,8 @@ function marcarPasos() {
   $("#sub-hogar").textContent = n === 1 ? nombrePersona(estado.hogar[0], 0) : `${n} personas`;
   $("#sub-ubicacion").textContent = estado.lugar
     ? `${estado.lugar.corto || estado.lugar.nombre}${CON_RUTAS && estado.caminata ? `, ${estado.caminata} min` : ""}` : "Falta elegir";
-  $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "");
+  $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "")
+    + `, ${estado.P.AGUA_MODOS[estado.agua].corto}` + (estado.promosEnBase && !estado.promos ? ", sin promociones" : "");
 }
 
 const PASOS = ["hogar", "ubicacion", "compra"];
@@ -224,17 +293,18 @@ function prepararPasos() {
 function cargarEditor() {
   const p = estado.hogar[estado.actual];
   $("#p-nombre").value = p.nombre;
-  $("#p-perfil").value = "";
-  form()["p-sexo"].value = p.sexo;
+  $$('[name="p-sexo"]').forEach((c) => { c.checked = c.value === p.sexo; });
   $("#p-edad").value = p.edad ?? "";
   $("#p-peso").value = p.peso_kg ?? "";
   $("#p-altura").value = p.altura_cm ?? "";
   form()["p-etapa"].value = p.etapa;
-  form()["p-trimestre"].value = String(p.trimestre || 2);
+  const trimestre = p.trimestre === null ? "" : String(p.trimestre || 2);    // null: del texto, sin decirlo
+  $$('[name="p-trimestre"]').forEach((c) => { c.checked = c.value === trimestre; });
   form()["p-actividad"].value = p.actividad;
   form()["p-objetivo"].value = p.objetivo;
   $$('[name="p-restriccion"]').forEach((c) => { c.checked = p.restricciones.includes(c.value); });
   actualizarVisibles();
+  marcarPerfil();
 }
 
 function leerEditor() {
@@ -246,7 +316,7 @@ function leerEditor() {
   p.peso_kg = numero($("#p-peso").value);
   p.altura_cm = numero($("#p-altura").value);
   p.etapa = form()["p-etapa"].value;
-  p.trimestre = Number(form()["p-trimestre"].value);
+  p.trimestre = Number(form()["p-trimestre"].value) || null;
   p.actividad = form()["p-actividad"].value;
   p.objetivo = form()["p-objetivo"].value;
   p.restricciones = $$('[name="p-restriccion"]:checked').map((c) => c.value);
@@ -262,6 +332,10 @@ function actualizarVisibles() {
   const act = estado.P.ACTIVIDAD[p.actividad];
   $("#actividad-desc").textContent = act ? act.descripcion : "";
   $("#errores-persona").textContent = erroresPersona(p).join(" ");
+  // Las condiciones elegidas que requieren supervisión muestran su aviso ahí mismo, antes de calcular.
+  const sup = p.restricciones.filter((r) => estado.condiciones[r] && estado.condiciones[r].supervision);
+  $(".avisos-supervision").innerHTML = sup.map((r) => `<p class="aviso-supervision"><i aria-hidden="true">!</i>` +
+    `<span><b>${esc(estado.P.RESTRICCIONES[r])}: requiere supervisión profesional.</b> ${esc(estado.condiciones[r].aviso)}</span></p>`).join("");
 }
 
 function alCambiarEditor(e) {
@@ -271,17 +345,46 @@ function alCambiarEditor(e) {
   }
   leerEditor();
   actualizarVisibles();
+  marcarPerfil();
   dibujarPersonas();
   guardar();
+}
+
+// Los datos de una persona tal como los carga un perfil de ejemplo (el nombre va aparte).
+const datosDePerfil = (f) => ({ sexo: f.sexo, edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm,
+  actividad: f.actividad, objetivo: f.objetivo, etapa: f.etapa, trimestre: f.trimestre || 2, restricciones: [...f.restricciones] });
+
+// ¿La persona sigue teniendo exactamente los datos del perfil que cargó? El nombre no cuenta.
+function sigueIgual(p, f) {
+  const d = datosDePerfil(f), lista = (r) => [...r].sort().join("|");
+  return ["sexo", "edad", "peso_kg", "altura_cm", "actividad", "objetivo", "etapa"].every((k) => (p[k] ?? null) === (d[k] ?? null))
+    && (p.etapa !== "embarazo" || p.trimestre === d.trimestre) && lista(p.restricciones) === lista(d.restricciones);
+}
+
+// El perfil de la persona que se está editando queda marcado; si se cambió algún dato, dice "con cambios".
+function marcarPerfil() {
+  const p = estado.hogar[estado.actual];
+  const f = p.perfil ? estado.perfiles.find((x) => x.id === p.perfil) : null;
+  const igual = Boolean(f) && sigueIgual(p, f);
+  $$("[data-perfil]").forEach((b) => {
+    const suyo = Boolean(f) && b.dataset.perfil === f.id;
+    b.setAttribute("aria-pressed", String(suyo && igual));
+    b.classList.toggle("con-cambios", suyo && !igual);
+    $(".perfil-cambios", b).hidden = !(suyo && !igual);
+  });
+  $("#perfil-estado").textContent = !f ? ""
+    : igual ? `Cargaste el perfil ${f.nombre}. Podés cambiar cualquier dato.`
+    : `Basado en el perfil ${f.nombre}, con cambios. Tocalo de nuevo para volver a sus datos.`;
 }
 
 function cargarPerfil(id) {
   const f = estado.perfiles.find((x) => x.id === id);
   if (!f) return;
   const p = estado.hogar[estado.actual];
-  Object.assign(p, { sexo: f.sexo, edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm, actividad: f.actividad,
-    objetivo: f.objetivo, etapa: f.etapa, trimestre: f.trimestre || 2, restricciones: [...f.restricciones] });
-  if (!p.nombre.trim()) p.nombre = f.nombre;
+  const anterior = p.perfil ? estado.perfiles.find((x) => x.id === p.perfil) : null;
+  // El nombre se reemplaza solo si estaba vacío o era el del perfil anterior: no pisa uno escrito a mano.
+  if (!p.nombre.trim() || (anterior && p.nombre === anterior.nombre)) p.nombre = f.nombre;
+  Object.assign(p, datosDePerfil(f), { perfil: f.id });
   cargarEditor();
   dibujarPersonas();
   guardar();
@@ -289,16 +392,28 @@ function cargarPerfil(id) {
 
 function prepararHogar() {
   const P = estado.P;
-  $("#p-perfil").innerHTML = `<option value="">Elegí un perfil…</option>` +
-    estado.perfiles.map((f) => `<option value="${esc(f.id)}">${esc(f.nombre)}: ${esc(f.descripcion)}</option>`).join("");
+  $("#perfiles-ejemplo").innerHTML = estado.perfiles.filter((f) => f.visible).map((f) =>
+    `<button type="button" class="perfil" data-perfil="${esc(f.id)}" aria-pressed="false">
+      <b>${esc(f.nombre)}<span class="perfil-cambios" hidden>con cambios</span></b><small>${esc(f.descripcion)}</small></button>`).join("");
+  $("#perfiles-ejemplo").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-perfil]");
+    if (b) cargarPerfil(b.dataset.perfil);
+  });
   $("#actividades").innerHTML = Object.entries(P.ACTIVIDAD).map(([clave, a], i) =>
     `<label><input type="radio" name="p-actividad" value="${clave}"><span style="--nivel:${i + 1}">${esc(a.nombre)}</span></label>`).join("");
   $("#objetivos").innerHTML = Object.entries(P.OBJETIVO).map(([clave, o]) =>
     `<label><input type="radio" name="p-objetivo" value="${clave}"><span>${esc(o.nombre)}</span></label>`).join("");
   $("#restricciones").innerHTML = GRUPOS_RESTRICCIONES.map((g) => {
-    const claves = g.alergia ? Object.keys(P.ALERGIAS) : g.claves;
-    return `<div class="grupo-restricciones"><h3>${esc(g.titulo)}</h3><div class="chips">${claves.map((k) =>
-      `<label class="chip"><input type="checkbox" name="p-restriccion" value="${k}"><span>${esc(P.RESTRICCIONES[k].replace(/^Alergia (al|a la|a) /, ""))}</span></label>`).join("")}</div></div>`;
+    const claves = g.alergia ? Object.keys(P.ALERGIAS) : g.claves.concat(g.condiciones ? P.CONDICIONES : []);
+    const nombre = (k) => P.RESTRICCIONES[k].replace(/^Alergia (al|a la|a) /, "");
+    const supervision = (k) => Boolean(estado.condiciones[k] && estado.condiciones[k].supervision);
+    const chips = claves.map((k) => `<label class="chip"><input type="checkbox" name="p-restriccion" value="${k}"><span>` +
+      `${esc(nombre(k))}${supervision(k) ? '<b class="chip-marca" title="Requiere supervisión profesional">con supervisión</b>' : ""}` +
+      "</span></label>").join("");
+    const criterios = claves.map((k) => `<dt>${esc(P.RESTRICCIONES[k])}</dt><dd>${esc(estado.criterios[k] || "")}</dd>`).join("");
+    return `<div class="grupo-restricciones"><h3>${esc(g.titulo)}</h3><div class="chips">${chips}</div>
+      ${g.condiciones ? '<div class="avisos-supervision" aria-live="polite"></div>' : ""}
+      <details class="criterios-grupo"><summary>Qué exige cada una</summary><dl>${criterios}</dl></details></div>`;
   }).join("");
 
   $("#personas").addEventListener("click", (e) => {
@@ -321,13 +436,10 @@ function prepararHogar() {
     cargarEditor();
     dibujarPersonas();
     guardar();
-    $("#p-perfil").focus();
+    $("[data-perfil]")?.focus();
   });
   $("#editor").addEventListener("input", alCambiarEditor);
-  $("#editor").addEventListener("change", (e) => {
-    if (e.target.id === "p-perfil") { cargarPerfil(e.target.value); return; }
-    alCambiarEditor(e);
-  });
+  $("#editor").addEventListener("change", alCambiarEditor);
 }
 
 // ============================================================
@@ -340,7 +452,7 @@ function mostrarLugar(texto, error = false) {
   el.classList.toggle("error", error);
 }
 
-function elegirLugar(lugar, mover = true) {
+function elegirLugar(lugar, mover = true, guardarlo = true) {
   estado.lugar = lugar;
   mostrarLugar(`Comprás cerca de: ${lugar.nombre}`);
   $("#lugares").innerHTML = "";
@@ -355,7 +467,7 @@ function elegirLugar(lugar, mover = true) {
     if (mover) estado.mapa.setView(punto, lugar.precision === "localidad" ? 13 : 15);
   }
   dibujarPersonas();
-  guardar();
+  if (guardarlo) guardar();
 }
 
 async function georef(recurso, params) {
@@ -469,7 +581,7 @@ function prepararUbicacion() {
   $("#caminatas").innerHTML = estado.P.CAMINATA_OPCIONES.map((m) =>
     `<label><input type="radio" name="caminata" value="${m}" ${m === estado.caminata ? "checked" : ""}><span>${m} min</span></label>`).join("");
   $("#caminatas").addEventListener("change", (e) => { estado.caminata = Number(e.target.value); estado.anterior = null; dibujarPersonas(); guardar(); });
-  if (estado.lugar) elegirLugar(estado.lugar);
+  if (estado.lugar) elegirLugar(estado.lugar, true, false);   // el lugar del enlace no se guarda hasta que se toque algo
 }
 
 // Teselas de OpenStreetMap (la URL actual, sin subdominios). Desde file:// pueden no cargar porque OSM exige el
@@ -490,6 +602,206 @@ function prepararCompra() {
   $("#periodos").addEventListener("change", (e) => { estado.dias = Number(e.target.value); dibujarPersonas(); guardar(); });
   $("#listos").checked = estado.listos;
   $("#listos").addEventListener("change", (e) => { estado.listos = e.target.checked; dibujarPersonas(); guardar(); });
+  $("#aguas").innerHTML = Object.entries(estado.P.AGUA_MODOS).map(([clave, m]) =>
+    `<label><input type="radio" name="agua" value="${clave}" ${clave === estado.agua ? "checked" : ""}>
+      <span><b>${esc(m.nombre)}</b><small>${esc(m.descripcion)}</small></span></label>`).join("");
+  $("#aguas").addEventListener("change", (e) => { estado.agua = e.target.value; dibujarPersonas(); guardar(); });
+  // Promociones: si la base de hoy no trae ninguna que se pueda aplicar, la casilla queda apagada y lo dice.
+  const promos = $("#promos");
+  promos.checked = estado.promos;
+  promos.disabled = !estado.promosEnBase;
+  if (!estado.promosEnBase) {
+    $("#promos-ayuda").textContent = "Los precios de hoy no traen promociones que se puedan aplicar sin banco ni "
+      + "tarjeta: el total va a precio de lista.";
+  }
+  promos.addEventListener("change", (e) => { estado.promos = e.target.checked; dibujarPersonas(); guardar(); });
+}
+
+// ============================================================
+// Contalo con tus palabras (etapa 6): el servidor local (python -m canasta) le pasa el texto a Groq y devuelve el
+// pedido ya validado (canasta/llm.py). Acá solo se prellena el formulario: nada se calcula hasta "Armar la canasta".
+// La clave nunca llega a la página; sin servidor (la página publicada, o abierta como archivo) el bloque no aparece.
+// ============================================================
+
+const CAMPOS_TEXTO = ["nombre", "sexo", "edad", "peso_kg", "altura_cm", "actividad", "objetivo", "etapa", "trimestre"];
+// Dónde va la marca "del texto" de cada campo (la etiqueta del control).
+const ETIQUETA_TEXTO = {
+  nombre: () => $("#p-nombre").closest(".campo").querySelector(".etiqueta"),
+  sexo: () => $("#l-sexo"),
+  edad: () => $("#p-edad").closest(".campo").querySelector(".etiqueta"),
+  peso_kg: () => $("#p-peso").closest(".campo").querySelector(".etiqueta"),
+  altura_cm: () => $("#p-altura").closest(".campo").querySelector(".etiqueta"),
+  etapa: () => $("#l-etapa"),
+  actividad: () => $("#l-actividad"),
+  objetivo: () => $("#l-objetivo"),
+  restricciones: () => $("#l-restricciones"),
+  dias: () => $("#l-periodo"),
+  agua: () => $("#l-agua"),
+  listos: () => $("#listos").closest("label").querySelector("b"),
+  promos: () => $("#promos").closest("label").querySelector("b"),
+  caminata_minutos: () => $("#l-caminata"),
+};
+const valorHogar = { dias: () => estado.dias, agua: () => estado.agua, listos: () => estado.listos,
+  promos: () => estado.promos, caminata_minutos: () => estado.caminata };
+const mismaLista = (a, b) => [...a].sort().join("|") === [...b].sort().join("|");
+
+// Cada campo que vino del texto y sigue con ese valor lleva la marca; si la persona lo cambia, la marca se va.
+function marcarDelTexto() {
+  if (!estado.P) return;
+  const p = estado.hogar[estado.actual] || {};
+  const del = p.del_texto || {}, hogar = estado.delTexto || {};
+  for (const [campo, etiqueta] of Object.entries(ETIQUETA_TEXTO)) {
+    const el = etiqueta();
+    if (!el) continue;
+    let marca = el.querySelector(".del-texto");
+    let vino;
+    if (campo in valorHogar) vino = campo in hogar && hogar[campo] === valorHogar[campo]();
+    else if (campo === "etapa") vino = "etapa" in del && del.etapa === p.etapa && (p.etapa !== "embarazo" || del.trimestre === p.trimestre);
+    else if (campo === "restricciones") vino = "restricciones" in del && mismaLista(del.restricciones, p.restricciones);
+    else vino = campo in del && del[campo] === p[campo];
+    if (vino && !marca) {
+      marca = document.createElement("span");
+      marca.className = "del-texto";
+      marca.textContent = "del texto";
+      marca.title = "Lo completamos con tu texto: revisalo";
+      el.appendChild(marca);
+    }
+    if (marca) marca.hidden = !vino;
+  }
+}
+
+// Las personas del pedido validado, para el formulario. Lo obligatorio que el texto no dijo queda vacío (el formulario
+// lo pide); lo opcional, con el valor de siempre del formulario y sin marca.
+function personaDelTexto(x) {
+  const p = { ...PERSONA_NUEVA, nombre: x.nombre || "", sexo: "", edad: null, peso_kg: null, altura_cm: null,
+    restricciones: [...(x.restricciones || [])] };
+  const del = {};
+  for (const k of CAMPOS_TEXTO) {
+    if (x[k] != null) { p[k] = x[k]; del[k] = x[k]; }
+  }
+  if (p.etapa === "embarazo" && x.trimestre == null) p.trimestre = null;
+  if (p.restricciones.length) del.restricciones = [...p.restricciones];
+  p.del_texto = del;
+  return p;
+}
+
+function aplicarInterpretacion(r) {
+  const P = estado.P, ped = r.pedido;
+  if (ped.personas.length) {
+    estado.hogar = ped.personas.slice(0, P.PERSONAS_MAXIMAS).map(personaDelTexto);
+    const conError = estado.hogar.findIndex((p) => erroresPersona(p).length);
+    estado.actual = Math.max(conError, 0);
+  }
+  const hogar = {};
+  if (ped.dias != null && String(ped.dias) in P.DIAS_PERIODO) { estado.dias = ped.dias; hogar.dias = ped.dias; }
+  if (ped.agua != null && ped.agua in P.AGUA_MODOS) { estado.agua = ped.agua; hogar.agua = ped.agua; }
+  if (ped.listos != null) { estado.listos = ped.listos; hogar.listos = ped.listos; }
+  if (ped.promos != null && estado.promosEnBase) { estado.promos = ped.promos; hogar.promos = ped.promos; }
+  if (ped.caminata_minutos != null && P.CAMINATA_OPCIONES.includes(ped.caminata_minutos)) {
+    estado.caminata = ped.caminata_minutos;
+    hogar.caminata_minutos = ped.caminata_minutos;
+  }
+  estado.delTexto = hogar;
+  estado.anterior = null;
+  estado.escalera.clear();
+  $("#retomar").hidden = true;
+  sincronizarControles();
+  guardar();
+}
+
+function listaTexto(titulo, items, clase = "") {
+  if (!items.length) return "";
+  return `<div class="tl-lista ${clase}"><p class="tl-sub">${esc(titulo)}</p><ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+
+function mostrarInterpretacion(r) {
+  const P = estado.P, ped = r.pedido;
+  const n = ped.personas.length;
+  const partes = [];
+  if (n) partes.push(`${n === 1 ? "1 persona" : `${n} personas`} (${ped.personas.map((p, i) => nombrePersona(p, i)).join(", ")})`);
+  if (ped.dias != null) partes.push(`la compra para ${P.DIAS_PERIODO[ped.dias]}`);
+  if (ped.agua != null) partes.push(P.AGUA_MODOS[ped.agua].corto);
+  if (ped.listos) partes.push("solo alimentos listos para comer");
+  if (ped.caminata_minutos != null) partes.push(`hasta ${ped.caminata_minutos} min caminando`);
+  const cargado = partes.length
+    ? `Cargamos ${partes.length > 1 ? partes.slice(0, -1).join(", ") + " y " + partes[partes.length - 1] : partes[0]}.`
+    : "No cambiamos nada del formulario.";
+  const sigue = n ? "Revisá a cada persona y completá lo que falta: nada se calcula hasta que toques «Armar la canasta»." : "";
+  const el = $("#tl-resultado");
+  el.innerHTML = `<p class="tl-entendimos"><b>Lo que entendimos.</b> ${esc(cargado)} ${esc(sigue)}</p>
+    ${r.simulado ? '<p class="tl-simulado">Modo de prueba: no se envió nada a Groq y esta es una respuesta de ejemplo, no la de tu texto.</p>' : ""}
+    ${listaTexto("Para completar o aclarar", r.preguntas, "tl-preguntas")}
+    ${listaTexto("Atención", r.avisos, "tl-avisos")}
+    ${listaTexto("Lo que la canasta no aplica", r.notas, "tl-notas")}`;
+  el.hidden = false;
+  el.focus({ preventScroll: true });
+}
+
+async function interpretarTexto() {
+  const texto = $("#tl-texto").value.trim(), boton = $("#tl-interpretar"), aviso = $("#tl-estado");
+  if (!texto || !$("#tl-acepto").checked || boton.disabled) return;
+  boton.disabled = true;
+  boton.classList.add("trabajando");
+  $("#tl-texto").readOnly = true;
+  aviso.classList.remove("error");
+  aviso.textContent = "Interpretando…";
+  const corte = new AbortController();
+  const reloj = setTimeout(() => corte.abort(), 45000);
+  try {
+    const resp = await fetch("/api/interpretar", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto, consentimiento: true }), signal: corte.signal, cache: "no-store" });
+    let datos = null;
+    try { datos = await resp.json(); } catch (err) { /* sin cuerpo JSON */ }
+    if (!resp.ok || !datos || !datos.pedido) {
+      throw new Error((datos && datos.error) || `El servidor local respondió con un error (${resp.status}).`);
+    }
+    aplicarInterpretacion(datos);
+    mostrarInterpretacion(datos);
+    aviso.textContent = "";
+  } catch (err) {
+    aviso.classList.add("error");
+    aviso.textContent = err.name === "AbortError" ? "Tardó demasiado: probá de nuevo en un rato o completá el formulario a mano."
+      : err instanceof TypeError ? "No se pudo hablar con el servidor local: ¿sigue abierto python -m canasta?"
+      : err.message;
+  } finally {
+    clearTimeout(reloj);
+    $("#tl-texto").readOnly = false;
+    boton.classList.remove("trabajando");
+    habilitarInterpretar();
+  }
+}
+
+function habilitarInterpretar() {
+  const largo = $("#tl-texto").value.length, maximo = estado.P.LLM_TEXTO_MAXIMO;
+  $("#tl-contador").textContent = largo ? `${fmt(largo)} de ${fmt(maximo)} caracteres` : "";
+  $("#tl-contador").classList.toggle("cerca", largo > maximo * 0.9);
+  $("#tl-interpretar").disabled = !$("#tl-texto").value.trim() || !$("#tl-acepto").checked
+    || $("#tl-interpretar").classList.contains("trabajando");
+}
+
+// Solo se pregunta al servidor si la página se sirve desde esta máquina: en la publicada no hay backend.
+async function prepararTextoLibre() {
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return;
+  let info = null;
+  try {
+    const corte = new AbortController();
+    setTimeout(() => corte.abort(), 3000);
+    const resp = await fetch("/api/estado", { cache: "no-store", signal: corte.signal });
+    if (resp.ok) info = await resp.json();
+  } catch (err) { return; }                     // servidor sin la API (otro servidor de archivos): no se ofrece
+  if (!info || typeof info.llm !== "boolean") return;
+  $("#texto-libre").hidden = false;
+  $("#tl-form").hidden = !info.llm;
+  $("#tl-sin-clave").hidden = info.llm;
+  const area = $("#tl-texto");
+  area.maxLength = estado.P.LLM_TEXTO_MAXIMO;
+  area.addEventListener("input", habilitarInterpretar);
+  $("#tl-acepto").addEventListener("change", habilitarInterpretar);
+  $("#tl-interpretar").addEventListener("click", interpretarTexto);
+  if (info.simulado) {
+    $("#tl-estado").textContent = "Modo de prueba (--llm-simulado): las respuestas son de ejemplo y no se envía nada a Groq.";
+  }
+  habilitarInterpretar();
 }
 
 // ============================================================
@@ -520,7 +832,7 @@ function contar(el) {
   if (SIN_MOVIMIENTO.matches || !Number.isFinite(final)) { el.textContent = pesos(final, 0); return; }
   const inicio = performance.now(), dura = 900;
   const paso = (t) => {
-    const x = Math.min(1, (t - inicio) / dura);
+    const x = Math.min(1, Math.max(0, (t - inicio) / dura));   // el primer cuadro puede ser anterior al inicio
     el.textContent = pesos(final * (1 - Math.pow(2, -10 * x)) / (1 - Math.pow(2, -10)), 0);
     if (x < 1) requestAnimationFrame(paso); else el.textContent = pesos(final, 0);
   };
@@ -544,7 +856,7 @@ function resumenOpcion(r) {
   if (!r || !r.ticket) return null;
   const s = r.ticket.tienda;
   return { minutos: r.caminata ? r.caminata.minutos : null, costo: r.ticket.total, tienda: `${s.bandera} ${s.sucursal}`,
-    minutos_tienda: s.minutos, fuente: s.fuente_tiempo };
+    minutos_tienda: s.minutos, fuente: s.fuente_tiempo, metas: metasHogar(r) };
 }
 
 function siguienteCaminata() {
@@ -564,6 +876,7 @@ async function calcularCaminata(minutos) {
   if (hecho) {
     estado.anterior = previo;
     estado.resultado = hecho.resultado;
+    estado.pedido = hecho.pedido;
     estado.ultimaRuta = hecho.rutas;
     if (hecho.resultado.ticket) mostrar(hecho.resultado); else mostrarSinResultado(hecho.resultado);
     return;
@@ -599,7 +912,8 @@ async function armar(e, anterior = null) {
   $("#armar").classList.add("calculando");
   cargando("Preparando el cálculo…", 0.03);
   try {
-    const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos };
+    const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos,
+      agua: estado.agua, promos: estado.promos };
     let rutas = null;
     if (CON_RUTAS) {
       cargando(`Buscando supermercados a menos de ${estado.caminata} minutos caminando…`, 0.03);
@@ -610,9 +924,10 @@ async function armar(e, anterior = null) {
       (a) => cargando(a.hechas ? `Sucursales resueltas: ${a.hechas} de ${a.total} (la última, ${a.sucursal})`
         : `Resolviendo la canasta en ${a.total} sucursales ${CON_RUTAS ? "a tu alcance" : "cercanas"}…`, 0.08 + 0.92 * a.hechas / a.total));
     estado.resultado = resultado;
+    estado.pedido = pedido;
     estado.ultimaRuta = rutas;
     estado.vista = 0;
-    if (resultado.caminata) estado.escalera.set(resultado.caminata.minutos, { resumen: resumenOpcion(resultado), resultado, rutas });
+    if (resultado.caminata) estado.escalera.set(resultado.caminata.minutos, { resumen: resumenOpcion(resultado), resultado, rutas, pedido });
     if (resultado.error && !resultado.ticket) {
       mostrarSinResultado(resultado);
     } else {
@@ -644,31 +959,98 @@ function textoCaminata(x, corto = false) {
   return `${min} caminando${extra}`;
 }
 
+// El agua se calcula en gramos (≈ ml) y se muestra en litros.
+const enLitros = (c) => (c.unidad !== "ml" ? c : { ...c, unidad: "L", valor: c.valor == null ? null : c.valor / 1000,
+  minimo: c.minimo == null ? null : c.minimo / 1000, maximo: c.maximo == null ? null : c.maximo / 1000 });
+
+// Con agua de la canilla: cuánta tomar por día además de la que traen los alimentos de la compra (en litros).
+const aguaCanilla = (p) => {
+  const c = p.cobertura.find((x) => x.clave === "agua");
+  return c && c.estado === "informativa" ? { falta: Math.max(0, c.minimo - c.valor) / 1000, alimentos: c.valor / 1000, meta: c.minimo / 1000 } : null;
+};
+
 function metasCubiertas(p) {
   const exigidas = p.cobertura.concat(p.reglas).filter((c) => c.estado !== "informativa" && c.estado !== "no_aplica");
   return { cumple: exigidas.filter((c) => c.estado === "cumple").length, total: exigidas.length };
 }
 
-function ticketHTML(d) {
-  const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
-  const fecha = t.fecha_precios.split("-").reverse().join("/");
+// Las metas de todo el hogar: cuántas se le exigen a la compra (sin las informativas ni las que no aplican) y cuántas cumple.
+const metasHogar = (d) => d.personas.map(metasCubiertas)
+  .reduce((a, b) => ({ cumple: a.cumple + b.cumple, total: a.total + b.total }), { cumple: 0, total: 0 });
+
+// "Leche, yogur y queso: 3 porciones por día (...)" se nombra "Leche, yogur y queso".
+const nombreCorto = (c) => c.nombre.split(":")[0];
+
+// Cuánto cubre una meta que no se cumple: el porcentaje del mínimo o, si se pasa, del máximo.
+function coberturaFalta(c) {
+  if (c.estado === "excede" && c.maximo) {
+    const pct = c.valor / c.maximo * 100;
+    return { pct, texto: `se pasa: llega al ${fmt(pct, 0)} % del máximo` };
+  }
+  const pct = c.porcentaje ?? 0;
+  return { pct, texto: c.valor === 0 && /no vende/.test(c.nota || "") ? "0 %: no vende ninguno apto" : `cubre el ${fmt(Math.min(pct, 99), 0)} %` };
+}
+
+// La promoción de un renglón: aplicada, como la línea de descuento de la caja (con lo que se paga); no aplicada, con
+// el motivo. Una base anterior a la etapa 5 solo trae el precio de promoción, sin condiciones.
+function promoHTML(it) {
+  const p = it.promo;
+  if (p && p.aplicada) {
+    return `<p class="t-linea t-descuento"><span>${esc(p.resumen)} <small>pagás ${pesos(it.subtotal)}</small></span>`
+      + `<span>−${fmt(it.descuento, 2)}</span></p>`;
+  }
+  if (p) return `<p class="t-promo">Promo ${esc(p.resumen)}, no aplicada (${esc(p.motivo)})</p>`;
+  return it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : "";
+}
+
+// Las líneas del total cuando hubo promociones: subtotal a precio de lista y el ahorro (antes del TOTAL).
+const ahorroHTML = (t) => (t.ahorro_promociones > 0
+  ? `<p class="t-linea"><span>Subtotal a precio de lista</span><span>${pesos(t.total_lista)}</span></p>
+    <p class="t-linea t-ahorro"><span>Ahorro por promociones</span><span>−${pesos(t.ahorro_promociones)}</span></p>` : "");
+
+// La fecha de los precios de una sucursal (aaaa-mm-dd → dd/mm/aaaa) y, si es de un día anterior al más reciente de
+// la base (su cadena no publicó el día: entra con su último archivo, hasta 15 días), "precios de hace N días".
+const fechaTexto = (f) => (f || "").split("-").reverse().join("/");
+const haceTexto = (s) => (s && s.dias_precios > 0
+  ? `precios de hace ${s.dias_precios} día${s.dias_precios === 1 ? "" : "s"}` : "");
+const preciosDe = (s) => `Precios SEPA del ${fechaTexto(s.fecha_precios)}${haceTexto(s) ? ` (hace ${s.dias_precios} día${s.dias_precios === 1 ? "" : "s"})` : ""}`;
+
+// La nota del pie: qué precios lleva el total.
+function notaPrecios(d, t) {
+  if (t.ahorro_promociones > 0) return "Con las promociones que no piden<br>banco ni tarjeta.";
+  if (d.opciones.promos_en_base && !d.opciones.promos) return "Precios de lista: desactivaste<br>las promociones.";
+  if (d.opciones.promos) return "Precios de lista: ninguna promoción<br>sin condiciones baja esta compra.";
+  return "Precios de lista. Las promociones<br>no se aplican al total.";
+}
+
+// Los renglones del ticket (agrupados por grupo de alimentos), con quién come cada cosa si son varios. El importe de
+// cada renglón es a precio de lista; si tiene una promoción aplicada, la línea de descuento va debajo.
+function renglonesHTML(d, lista) {
+  const varias = d.personas.length > 1;
   let grupoActual = "";
-  const items = t.items.map((it) => {
+  return lista.map((it) => {
     const cabeza = it.grupo !== grupoActual ? `<p class="t-grupo">${esc(it.grupo)}</p>` : "";
     grupoActual = it.grupo;
     const quien = varias
-      ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} g</span>` : "")).join("") + "por día"
+      ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} ${it.agua ? "ml" : "g"}</span>` : "")).join("") + "por día"
       : `${esc(it.consumo_dia_texto)} por día`;
     return `${cabeza}<div class="t-item">
-      <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal, 2)}</span></p>
+      <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal_lista ?? it.subtotal, 2)}</span></p>
       <p class="t-cantidad">${esc(it.cantidad)} &times; ${esc(it.precio_unidad_texto)}</p>
       <p class="t-detalle">${quien}${it.sobrante_texto ? ` · sobran ${esc(it.sobrante_texto)}` : ""}</p>
-      ${it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : ""}
+      ${promoHTML(it)}
     </div>`;
   }).join("");
-  const para = d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
+}
+
+const paraQuien = (d) => d.personas.map((p) => `${esc(p.datos.nombre)} (${p.datos.sexo === "F" ? "mujer" : "varón"}, ${p.datos.edad})`).join(", ");
+
+function ticketHTML(d) {
+  const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
+  const items = renglonesHTML(d, t.items);
+  const para = paraQuien(d);
   const energia = d.personas.reduce((sum, p) => sum + ((p.cobertura.find((c) => c.clave === "energia_kcal") || {}).valor || 0), 0);
-  const metas = d.personas.map(metasCubiertas).reduce((a, b) => ({ cumple: a.cumple + b.cumple, total: a.total + b.total }), { cumple: 0, total: 0 });
+  const metas = metasHogar(d);
   const caminata = textoCaminata(s);
   return `<div class="ticket" role="document" aria-label="Ticket de la compra">
     <p class="t-marca">${esc(s.bandera)}</p>
@@ -680,12 +1062,13 @@ function ticketHTML(d) {
     <p>Canasta saludable para ${esc(d.periodo)}</p>
     <p>Para: ${para}</p>
     ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
-    <p>Precios SEPA del ${fecha}</p>
+    <p>${esc(preciosDe(s))}</p>
     <hr>
     <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
     ${items}
     <hr>
     <p class="t-linea"><span>${t.items.length} artículos</span><span></span></p>
+    ${ahorroHTML(t)}
     <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
     <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
     ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
@@ -695,7 +1078,66 @@ function ticketHTML(d) {
     <p class="t-linea"><span>Meta del hogar</span><span>${fmt(d.hogar.energia_kcal)} kcal</span></p>
     <p class="t-linea"><span>Metas cubiertas</span><span>${metas.cumple} de ${metas.total}</span></p>
     <hr>
-    <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
+    <p class="t-centro">${notaPrecios(d, t)}</p>
+    <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
+  </div>`;
+}
+
+// "≈ 3 min" o "6 min" (los estimados, con ≈).
+const minutosTexto = (minutos, fuente) => textoCaminata({ minutos, fuente_tiempo: fuente }, true);
+const nombreTienda = (s) => `${s.bandera} ${s.sucursal}`;
+
+// La compra en dos súper en un solo ticket: un tramo por sucursal (encabezado, renglones y subtotal) separados por la
+// línea de corte, y al pie el total de las dos y la comparación con comprar todo en la primera.
+function ticketDivididoHTML(d, ds) {
+  const t = ds.ticket, varias = d.personas.length > 1;
+  // Cada súper con la fecha de sus precios; arriba, una sola si las dos son del mismo día.
+  const unaFecha = t.sucursales.every((x) => x.tienda.fecha_precios === t.sucursales[0].tienda.fecha_precios);
+  const articulos = t.sucursales.reduce((n, x) => n + x.items.length, 0);
+  const tramos = t.sucursales.map((x, k) => {
+    const s = x.tienda;
+    const llegar = k === 0 ? textoCaminata(s)
+      : `${minutosTexto(ds.b.minutos_desde_a, "estimado")} caminando desde ${nombreTienda(ds.a)} (estimado)`;
+    return `${k ? '<p class="t-corte" aria-hidden="true"><span>✂</span></p>' : ""}
+    <p class="t-centro t-paso">Súper ${k + 1} de ${t.sucursales.length}</p>
+    <p class="t-marca">${esc(s.bandera)}</p>
+    <p class="t-centro">${esc(s.comercio)}${s.cuit ? `<br>CUIT ${esc(cuit(s.cuit))}` : ""}</p>
+    <p class="t-centro">Suc. ${esc(s.sucursal)}<br>${esc(s.direccion)}${s.localidad ? `<br>${esc(s.localidad)}` : ""}</p>
+    ${llegar ? `<p class="t-centro t-destacado">A ${esc(llegar)}</p>` : ""}
+    <p class="t-centro">Horario de hoy (${esc(s.hoy.dia)}): ${esc(s.hoy.horario)}</p>
+    <p class="t-centro">${esc(preciosDe(s))}</p>
+    <hr>
+    <p class="t-linea t-columnas"><span>Descripción</span><span>Importe</span></p>
+    ${renglonesHTML(d, x.items)}
+    <hr>
+    <p class="t-linea t-subtotal"><span>Subtotal ${esc(s.bandera)} (${x.items.length} art.)</span><span>${pesos(x.subtotal)}</span></p>`;
+  }).join("");
+  const m = ds.metas_despues, circuito = ds.minutos;
+  return `<div class="ticket ticket-dividido" role="document" aria-label="Ticket de la compra en dos supermercados">
+    <p class="t-marca">CANASTA SALUDABLE</p>
+    <p class="t-centro t-destacado">Compra en dos supermercados</p>
+    <hr>
+    <p>Canasta saludable para ${esc(d.periodo)}</p>
+    <p>Para: ${paraQuien(d)}</p>
+    ${d.opciones.listos ? "<p>Solo alimentos listos para comer</p>" : ""}
+    ${unaFecha ? `<p>${esc(preciosDe(t.sucursales[0].tienda))}</p>` : "<p>Precios SEPA: los de cada súper</p>"}
+    <hr>
+    ${tramos}
+    <hr class="t-doble">
+    ${t.sucursales.map((x, k) => `<p class="t-linea"><span>${k + 1}. ${esc(nombreTienda(x.tienda))}</span><span>${pesos(x.subtotal)}</span></p>`).join("")}
+    <p class="t-linea"><span>${articulos} artículos</span><span></span></p>
+    ${ahorroHTML(t)}
+    <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
+    <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
+    ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
+    <hr>
+    <p class="t-linea"><span>Todo en ${esc(ds.a.bandera)}</span><span>${pesos(ds.costo_a)}</span></p>
+    <p class="t-linea t-destacado"><span>${ds.ahorro >= 0 ? "Ahorrás" : "Pagás de más"}</span><span>${pesos(Math.abs(ds.ahorro))}</span></p>
+    <p class="t-linea"><span>Metas cubiertas</span><span>${m.cumple} de ${m.total}</span></p>
+    <p class="t-linea"><span>Caminata ida y vuelta</span><span>${minutosTexto(circuito.circuito, circuito.fuente)}</span></p>
+    ${circuito.fuente === "estimado" ? '<p class="t-centro t-nota">Minutos estimados: el tramo entre<br>los dos súper va en línea recta.</p>' : ""}
+    <hr>
+    <p class="t-centro">${notaPrecios(d, t)}</p>
     <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
   </div>`;
 }
@@ -736,7 +1178,8 @@ function graficoBalas(titulo, lista) {
 }
 
 // Dona de calorías por grupo de alimentos, con las kcal del día en el centro.
-function dona(grupos, kcal) {
+function dona(todos, kcal) {
+  const grupos = todos.filter((g) => g.kcal_dia > 0);          // el agua no aporta calorías: no va en la dona
   const r = 54, C = 2 * Math.PI * r;
   let acum = 0;
   const arcos = grupos.map((g, k) => {
@@ -773,8 +1216,9 @@ function bloquePersona(d, i) {
   const energia = p.cobertura.find((c) => c.clave === "energia_kcal");
   const listos = d.opciones.listos ? [{ clave: "listos", nombre: estado.P.LISTOS_NOMBRE, criterio: d.opciones.listos_criterio }] : [];
   const datos = `${p.datos.sexo === "F" ? "mujer" : "varón"} de ${p.datos.edad} años, ${fmt(p.datos.peso_kg, 1)} kg, actividad ${p.datos.actividad.toLowerCase()}`;
-  const macro = p.cobertura.filter((c) => c.tipo === "energia" || c.tipo === "macro");
-  const micro = p.cobertura.filter((c) => c.tipo !== "energia" && c.tipo !== "macro");
+  const macro = p.cobertura.filter((c) => c.tipo === "energia" || c.tipo === "macro" || c.clave === "agua").map(enLitros);
+  const micro = p.cobertura.filter((c) => c.tipo !== "energia" && c.tipo !== "macro" && c.clave !== "agua");
+  const canilla = aguaCanilla(p);
   const problemas = p.cobertura.concat(p.reglas).filter((c) => c.estado === "falta" || c.estado === "excede");
   const m = metasCubiertas(p);
   const restricciones = r.criterios.concat(listos);
@@ -797,12 +1241,14 @@ function bloquePersona(d, i) {
 
     <h3 class="subtitulo">Lo que come por día</h3>
     ${problemas.length
-      ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Para revisar: ${problemas.map((c) => `<b>${esc(c.nombre)}</b>`).join(", ")}.</span></p>`
+      ? `<p class="estado-metas con-faltas"><i aria-hidden="true">!</i><span>Cubre ${m.cumple} de ${m.total} metas. No llega a: ${problemas.map((c) => `<b>${esc(nombreCorto(c))}</b> (${esc(coberturaFalta(c).texto)})`).join(", ")}. Es lo máximo que se puede con lo que vende esta sucursal.</span></p>`
       : `<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Cubre todas las metas que se le exigen a la compra.</span></p>`}
+    ${canilla ? `<p class="estado-metas info"><i aria-hidden="true">i</i><span>Agua de la canilla: unos <b>${fmt(canilla.falta, 1)} L por día</b>.
+      Los alimentos de esta compra aportan ${fmt(canilla.alimentos, 1)} L de los ${fmt(canilla.meta, 1)} L de agua del día.</span></p>` : ""}
     ${dona(p.grupos, energia && energia.valor)}
     <p class="leyenda-balas"><span class="lb-rango"></span>la meta <span class="lb-punto"></span>lo que come</p>
     <div class="balas-grid">
-      ${graficoBalas("Energía y macronutrientes", macro)}
+      ${graficoBalas("Energía, macronutrientes y agua", macro)}
       ${graficoBalas("Vitaminas y minerales", micro)}
     </div>
 
@@ -814,7 +1260,8 @@ function bloquePersona(d, i) {
     <p class="ayuda"><b>${fmt(r.productos_aptos)}</b> de los ${fmt(d.catalogo.productos_canasta)} productos de la canasta son aptos. Un producto sin datos que lo confirmen no se considera apto.</p>
     ${restricciones.length ? `<ul class="restricciones-lista">${restricciones.map((c) => {
       const ef = r.efecto.find((x) => x.clave === c.clave);
-      return `<li><details><summary><span>${esc(c.nombre)}</span>${ef ? `<small>deja afuera ${fmt(ef.excluye)} productos</small>` : ""}</summary>
+      const condicion = estado.P.CONDICIONES.includes(c.clave);
+      return `<li><details><summary><span>${esc(c.nombre)}</span>${ef ? `<small>deja afuera ${fmt(ef.excluye)} productos</small>` : condicion ? "<small>cambia metas</small>" : ""}</summary>
         <p>${esc(c.criterio)}</p></details></li>`;
     }).join("")}</ul>` : '<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Sin restricciones: puede comer cualquier producto de la canasta.</span></p>'}`;
 }
@@ -841,6 +1288,9 @@ function comparacionHTML(d) {
       Antes: ${pesos(a.costo, 0)} en ${dondeAntes}.`;
   } else {
     texto = `Con hasta ${ahora.minutos} min la compra elegida cubre mejor las metas, pero cuesta ${pesos(-dif, 0)} más que ${dondeAntes} (${pesos(a.costo, 0)}).`;
+  }
+  if (a.metas && ahora.metas && a.metas.cumple !== ahora.metas.cumple) {
+    texto += ` Logra ${ahora.metas.cumple} de ${ahora.metas.total} metas (antes, ${a.metas.cumple}).`;
   }
   return `<p class="comparacion" role="status">${texto}</p>`;
 }
@@ -873,7 +1323,8 @@ function escaleraHTML(d) {
         <span class="p-barra vacia"></span><span class="p-costo">Sin súper</span></button></li>`;
     }
     const ancho = 30 + 70 * (r.costo / max);
-    const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}`;
+    const metas = r.metas && r.metas.cumple < r.metas.total ? ` · ${r.metas.cumple}/${r.metas.total} metas` : "";
+    const donde = `${esc(r.tienda)}${r.minutos_tienda != null ? `, a ${textoCaminata({ minutos: r.minutos_tienda, fuente_tiempo: r.fuente }, true)}` : ""}${metas}`;
     return `<li class="peldano ${actual ? "actual" : ""} ${m === mejorMin ? "mejor" : ""}">
       <button type="button" class="peldano-boton" data-caminata="${m}" ${actual ? 'aria-current="true"' : ""}>${etiqueta}
         <span class="p-barra"><i style="--ancho:${ancho}%"></i></span><span class="p-costo">${pesos(r.costo, 0)}</span>
@@ -881,6 +1332,332 @@ function escaleraHTML(d) {
   }).join("");
   return `<div class="escalera"><p class="escalera-titulo">¿Conviene caminar más?</p>
     <p class="escalera-ayuda">La compra más barata con cada tiempo máximo. Tocá uno para calcularlo o verlo.</p><ol>${filas}</ol></div>`;
+}
+
+// ============================================================
+// ¿Conviene sumar un segundo súper? Se calcula a pedido (MotorCanasta.dosSuper) sobre el resultado que se está viendo
+// y se guarda con ese resultado: cada límite de caminata tiene el suyo y armar de nuevo lo descarta.
+// ============================================================
+
+const TITULO_DOS = '<p class="escalera-titulo">¿Conviene sumar un segundo súper?</p>';
+
+// La compra en dos súper que se propone (la que conviene), o null.
+function dosQueConviene(d) {
+  const c = d && estado.dos.get(d);
+  return c && c.ds && c.ds.estado === "conviene" && c.ds.ticket ? c.ds : null;
+}
+
+const conEstimado = (t) => `${minutosTexto(t.minutos, t.fuente)}${t.fuente === "estimado" ? " <small>estimado</small>" : ""}`;
+
+// "caminando ≈ 5 min más (estimado)". No se le pone precio al minuto: se dice cuánto más y la persona decide.
+function caminandoMas(ds) {
+  const m = ds.minutos, est = m.fuente === "estimado", nota = est ? " <small>(estimado)</small>" : "";
+  return m.extra >= 1 ? `caminando ${est ? "≈ " : ""}${fmt(Math.round(m.extra))} min más${nota}` : `casi sin caminar de más${nota}`;
+}
+
+function decisionDosHTML(d, ds) {
+  if (ds.estado === "conviene" && ds.motivo === "ahorro") {
+    return `<p class="dos-decision">Conviene: ahorrás <mark>${pesos(ds.ahorro, 0)}</mark> (${fmt(ds.ahorro_pct, 1)} %) ${caminandoMas(ds)}.</p>`;
+  }
+  if (ds.estado === "conviene") {
+    const a = ds.metas_antes, b = ds.metas_despues;
+    const logro = b.cumple > a.cumple ? `llegás a <mark>${b.cumple} de ${b.total}</mark> metas` : "cubrís mejor las metas que faltan";
+    const plata = ds.ahorro > 0 ? `Además ahorrás ${pesos(ds.ahorro, 0)}`
+      : ds.ahorro < 0 ? `Cuesta ${pesos(-ds.ahorro, 0)} más (${fmt(-ds.ahorro_pct, 1)} %)` : "Cuesta lo mismo";
+    return `<p class="dos-decision">Con un segundo súper ${logro}.</p><p class="dos-texto">${plata}, ${caminandoMas(ds)}.</p>`;
+  }
+  if (ds.estado === "sin_vecinas") {
+    return `<p class="dos-decision no">No hay otro súper cerca con otros precios.</p>
+      <p class="dos-texto">Buscamos a menos de ${ds.minutos_entre_max} min caminando de ${esc(nombreTienda(ds.a))}${d.caminata ? ", dentro de tu límite de caminata" : ""}: la compra queda en uno solo.</p>`;
+  }
+  const texto = ds.mensaje.replace(/^No conviene dividir la compra:\s*/, "");
+  return `<p class="dos-decision no">No conviene dividir la compra.</p>
+    <p class="dos-texto">${esc(texto.charAt(0).toUpperCase() + texto.slice(1))}</p>`;
+}
+
+// Un súper contra dos, lado a lado: costo, metas y caminata de ida y vuelta.
+function compararDosHTML(ds) {
+  const m = ds.minutos, metas = (x) => `${x.cumple} de ${x.total}`;
+  const mejor = (a, b, menor = true) => (a === b ? ["", ""] : (menor ? b < a : b > a) ? ["", ' class="dc-mejor"'] : [' class="dc-mejor"', ""]);
+  const [c1, c2] = mejor(Math.round(ds.costo_a), Math.round(ds.costo_combinado));
+  const [m1, m2] = mejor(ds.metas_antes.cumple, ds.metas_despues.cumple, false);
+  return `<table class="dos-comparar">
+    <thead><tr><td></td><th scope="col">Un súper</th><th scope="col">Dos súper <span class="marca-elegida">conviene</span></th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Costo</th><td${c1}>${pesos(ds.costo_a, 0)}</td><td${c2}>${pesos(ds.costo_combinado, 0)}</td></tr>
+      <tr><th scope="row">Metas cubiertas</th><td${m1}>${metas(ds.metas_antes)}</td><td${m2}>${metas(ds.metas_despues)}</td></tr>
+      <tr><th scope="row">Caminata ida y vuelta</th><td>${minutosTexto(m.solo_a, m.tramos[0].fuente)}</td><td>${minutosTexto(m.circuito, m.fuente)}</td></tr>
+    </tbody></table>`;
+}
+
+// Con motivo "metas": cómo queda cada meta que faltaba con un súper.
+function metasDosHTML(ds) {
+  if (ds.motivo !== "metas") return "";
+  const pct = (f) => (f.estado === "excede" ? `se pasa (${fmt(f.porcentaje, 0)} % del máx.)` : `${fmt(Math.min(f.porcentaje, 99), 0)} %`);
+  const clave = (f) => `${f.persona}|${f.clave}`;
+  const antes = new Map(ds.metas_antes.faltan.map((f) => [clave(f), f]));
+  const despues = new Map(ds.metas_despues.faltan.map((f) => [clave(f), f]));
+  // Solo las que cambian (una que no vende nadie sigue en 0 % con dos súper: no suma nada mostrarla).
+  const claves = [...new Set([...antes.keys(), ...despues.keys()])].filter((k) => {
+    const a = antes.get(k), b = despues.get(k);
+    return !(a && b && a.estado === b.estado && pct(a) === pct(b));
+  });
+  if (!claves.length) return "";
+  const filas = claves.map((k) => {
+    const a = antes.get(k), b = despues.get(k), f = a || b;
+    return `<li><span>${f.persona ? `<small>${esc(f.persona)}</small> ` : ""}${esc(f.nombre)}</span>
+      <span class="dm-dato">${a ? pct(a) : "cumple"} <i aria-hidden="true">→</i><span class="sr-only">ahora</span> <b>${b ? pct(b) : "cumple"}</b></span></li>`;
+  }).join("");
+  return `<div><p class="dr-titulo">Las metas que faltaban, con un súper y con dos</p><ul class="dos-metas">${filas}</ul></div>`;
+}
+
+const numeroSuper = (n) => `<span class="n-super" aria-hidden="true">${n}</span>`;
+
+// Qué se compra en cada sucursal.
+function paradasHTML(ds) {
+  const [sa, sb] = ds.ticket.sucursales;
+  const productos = (n) => (n === 1 ? "1 producto" : `${n} productos`);
+  const cuales = ds.productos_b.slice(0, 5).join("; ") + (ds.productos_b.length > 5 ? ` y ${ds.productos_b.length - 5} más` : "");
+  return `<ol class="dos-paradas">
+    <li>${numeroSuper(1)}<span><b>${esc(nombreTienda(ds.a))}</b> <small>${esc(ds.a.direccion)}${haceTexto(ds.a) ? ` · ${esc(haceTexto(ds.a))}` : ""}</small>
+      <span class="dp-que">El resto de la compra: ${productos(sa.items.length)}, <span class="dp-plata">${pesos(sa.subtotal, 0)}</span></span></span></li>
+    <li>${numeroSuper(2)}<span><b>${esc(nombreTienda(ds.b))}</b> <small>${esc(ds.b.direccion)}${haceTexto(ds.b) ? ` · ${esc(haceTexto(ds.b))}` : ""}</small>
+      <span class="dp-que">${esc(cuales)}: ${productos(sb.items.length)}, <span class="dp-plata">${pesos(sb.subtotal, 0)}</span></span></span></li>
+  </ol>`;
+}
+
+// La ruta real entre los dos súper (si la página tiene clave), al lado del estimado que usa el cálculo.
+function porCalleHTML(r) {
+  if (!r || r.minutos == null) return "";
+  const metros = r.metros == null ? "" : r.metros >= 1000 ? `, ${fmt(r.metros / 1000, 1)} km` : `, ${fmt(Math.round(r.metros))} m`;
+  return `Por la calle: ${fmt(Math.max(1, Math.round(r.minutos)))} min${metros} (OpenRouteService). Las cuentas usan el estimado.`;
+}
+
+// Casa → 1 → 2 → casa, con los minutos de cada tramo como los da el motor (los estimados, marcados).
+function recorridoDosHTML(ds, c) {
+  const [t1, t2, t3] = ds.minutos.tramos;
+  const calle = c.recorridos ? porCalleHTML(c.recorridos.ab) : c.rutas ? "Buscando la ruta por la calle…" : "";
+  return `<div class="dos-recorrido"><p class="dr-titulo">El recorrido</p><ol>
+    <li><span class="dr-tramo">Vos <i aria-hidden="true">→</i> ${numeroSuper(1)} ${esc(ds.a.bandera)}</span><span class="dr-min">${conEstimado(t1)}</span></li>
+    <li><span class="dr-tramo">${numeroSuper(1)} <i aria-hidden="true">→</i> ${numeroSuper(2)} ${esc(ds.b.bandera)}</span><span class="dr-min">${conEstimado(t2)}</span>
+      <small class="dr-calle" id="dos-por-calle">${calle}</small></li>
+    <li><span class="dr-tramo">${numeroSuper(2)} <i aria-hidden="true">→</i> Vos</span><span class="dr-min">${conEstimado(t3)}</span></li>
+    <li class="dr-total"><span class="dr-tramo">En total</span><span class="dr-min">${conEstimado({ minutos: ds.minutos.circuito, fuente: ds.minutos.fuente })}</span></li>
+  </ol></div>`;
+}
+
+// Las vecinas que se probaron, para verificar la decisión.
+function vecinasHTML(ds) {
+  if (!ds.vecinas.length) return "";
+  const propuesta = ds.estado === "conviene" && ds.b ? ds.b.id : null;
+  const filas = ds.vecinas.map((v) => {
+    const costo = v.costo == null ? "sin compra posible" : !v.compra_en_b ? "no suma nada" : `entre los dos, ${pesos(v.costo, 0)}`;
+    return `<li><span>${esc(v.bandera)} ${esc(v.sucursal)}${v.id === propuesta ? ' <span class="marca-elegida">elegido</span>' : ""}
+      <small>a ${minutosTexto(v.minutos_desde_a, "estimado")} de ${esc(ds.a.bandera)}</small></span><span class="dv-costo">${costo}</span></li>`;
+  }).join("");
+  const P = estado.P;
+  return `<details class="dos-vecinas"><summary>Qué súper probamos (${ds.vecinas.length})</summary><ul>${filas}</ul>
+    <p class="ayuda">Comprando todo en ${esc(nombreTienda(ds.a))} sale ${pesos(ds.costo_a, 0)}. Proponemos dividir la compra si cubre más
+      metas o si ahorra al menos ${pesos(ds.ahorro_minimo, 0)} (el ${fmt(P.DOS_SUPER_AHORRO_MINIMO_PCT, 0)} % de la compra, con un piso
+      de ${pesos(P.DOS_SUPER_AHORRO_MINIMO_PESOS, 0)}). No le ponemos precio a tus minutos: decidís vos.</p></details>`;
+}
+
+function dosInterior(d) {
+  const c = estado.dos.get(d);
+  if (!c || c.error) {
+    return `${TITULO_DOS}
+      <p class="escalera-ayuda">Probamos repartir la compra entre ${esc(nombreTienda(d.ticket.tienda))} y otro súper a menos de
+        ${estado.P.DOS_SUPER_MINUTOS_ENTRE} min caminando de ahí. Te lo proponemos si sale más barato o cubre más metas.</p>
+      ${c ? `<p class="mensaje">No se pudo calcular: ${esc(c.error)}</p>` : ""}
+      <button type="button" class="boton-secundario" data-dos>${c ? "Probar de nuevo" : "Probar con un segundo súper"}</button>`;
+  }
+  const ds = c.ds;
+  if (ds.estado !== "conviene") return `${TITULO_DOS}<div class="dos-resultado no">${decisionDosHTML(d, ds)}${vecinasHTML(ds)}</div>`;
+  const viendo = estado.vistaDos;
+  return `${TITULO_DOS}<div class="dos-resultado">
+    ${decisionDosHTML(d, ds)}
+    ${compararDosHTML(ds)}
+    ${metasDosHTML(ds)}
+    ${paradasHTML(ds)}
+    ${recorridoDosHTML(ds, c)}
+    <button type="button" class="boton-secundario" data-vista="${viendo ? "uno" : "dos"}">${viendo
+      ? "Volver a la compra en un solo súper" : "Ver el ticket en dos súper"}</button>
+    ${vecinasHTML(ds)}
+  </div>`;
+}
+
+function pintarDos(d) {
+  const caja = $("#dos");
+  if (caja) caja.innerHTML = dosInterior(d);
+}
+
+// Mientras calcula: la barra y el texto de avance, sin tocar el resto del resultado.
+function dosCargando(texto, fraccion) {
+  const caja = $("#dos");
+  if (!caja) return;
+  if (!$(".dos-cargando", caja)) {
+    caja.innerHTML = `${TITULO_DOS}<div class="dos-cargando">
+      <div class="progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la compra en dos súper"><i></i></div>
+      <p class="cargando-texto" aria-live="polite"></p></div>`;
+  }
+  const pct = Math.round(fraccion * 100), barra = $(".progreso", caja);
+  barra.setAttribute("aria-valuenow", pct);
+  barra.firstElementChild.style.width = `${pct}%`;
+  $(".cargando-texto", caja).textContent = texto;
+}
+
+const bloquearResultado = (si) => $$("#resultado [data-caminata], #resultado [data-ampliar], #resultado [data-dos], #resultado [data-vista]")
+  .forEach((b) => { b.disabled = si; });
+
+async function calcularDos(desdeEnlace = false) {
+  const d = estado.resultado, pedido = estado.pedido;
+  if (!d || !d.ticket || !pedido || estado.ocupado || !$("#dos")) return;
+  const previo = estado.dos.get(d);
+  if (previo && !previo.error) { pintarDos(d); return; }
+  const nombreA = nombreTienda(d.ticket.tienda);
+  estado.ocupado = true;
+  $("#armar").disabled = true;
+  bloquearResultado(true);
+  dosCargando(`Buscando súper a menos de ${estado.P.DOS_SUPER_MINUTOS_ENTRE} min caminando de ${nombreA}…`, 0.04);
+  let c;
+  try {
+    // pedido: el mismo con el que se armó d (dosSuper lee las personas y los tiempos caminando de ahí).
+    const { dos_super: ds } = await motor.pedir("dos_super", { pedido, resultado: d }, (a) => dosCargando(a.hechas
+      ? `Combinaciones resueltas: ${a.hechas} de ${a.total} (la última, con ${a.sucursal})`
+      : `Probando ${a.total === 1 ? "un súper" : `${a.total} súper`} junto con ${nombreA}…`, a.total ? 0.1 + 0.9 * a.hechas / a.total : 0.9));
+    c = { ds, rutas: null, recorridos: null };
+  } catch (err) {
+    c = { error: err.message };
+  } finally {
+    estado.ocupado = false;
+    marcarPasos();
+  }
+  estado.dos.set(d, c);
+  if (estado.resultado !== d) return;
+  if (dosQueConviene(d) && Rutas.tieneClave()) buscarRecorridosDos(d, c);
+  pintarDos(d);
+  bloquearResultado(false);
+  if (dosQueConviene(d) && !$(".vista-ticket")) $(".columna-ticket").insertAdjacentHTML("afterbegin", selectorVistaHTML());
+  dibujarDosEnMapa(d);
+  if (desdeEnlace) $("#dos").scrollIntoView({ behavior: SIN_MOVIMIENTO.matches ? "auto" : "smooth", block: "center" });
+}
+
+// Con clave de OpenRouteService: la ruta a pie de verdad entre los dos súper y de vuelta a casa (para el mapa y para
+// decir cuánto se tarda por la calle). Sin clave o si falla, no hay línea y los minutos quedan como estimados.
+function buscarRecorridosDos(d, c) {
+  const { a, b } = c.ds;
+  c.rutas = Promise.all([Rutas.recorrido(estado.P, a, b), Rutas.recorrido(estado.P, b, d.ubicacion)]).then(([ab, bc]) => {
+    c.recorridos = { ab, bc };
+    const el = $("#dos-por-calle");
+    if (el && estado.resultado === d) el.innerHTML = porCalleHTML(ab);
+    return c.recorridos;
+  });
+}
+
+// Un súper o dos: el ticket, el total y las cifras de arriba cambian juntos.
+function cambiarVista(dos, boton) {
+  const d = estado.resultado;
+  if (!d || estado.ocupado || (dos && !dosQueConviene(d)) || dos === estado.vistaDos) return;
+  estado.vistaDos = dos;
+  pintarCompra(d);
+  pintarDos(d);
+  if (boton && boton.closest("#dos")) {
+    $("#dos [data-vista]").focus({ preventScroll: true });
+    const col = $(".columna-ticket"), r = col.getBoundingClientRect();
+    if (r.top < 0 || r.top > innerHeight * 0.5) col.scrollIntoView({ behavior: SIN_MOVIMIENTO.matches ? "auto" : "smooth", block: "start" });
+  } else {
+    const nuevo = $(`.vista-ticket [data-vista="${dos ? "dos" : "uno"}"]`);
+    if (nuevo) nuevo.focus({ preventScroll: true });
+  }
+}
+
+function selectorVistaHTML() {
+  const dos = estado.vistaDos;
+  return `<div class="vista-ticket" role="group" aria-label="Qué compra ver">
+    <button type="button" data-vista="uno" aria-pressed="${!dos}">Un súper</button>
+    <button type="button" data-vista="dos" aria-pressed="${dos}">Dos súper</button></div>`;
+}
+
+function columnaTicketHTML(d) {
+  const ds = dosQueConviene(d), dos = Boolean(ds && estado.vistaDos);
+  return `${ds ? selectorVistaHTML() : ""}<div class="impresora"><div class="ranura"></div>${dos ? ticketDivididoHTML(d, ds) : ticketHTML(d)}</div>
+    <button type="button" class="boton-texto con-icono" id="imprimir">${ICONO.imprimir}Imprimir o guardar el ticket</button>`;
+}
+
+// Las cifras de arriba del resumen, de la compra en uno o en dos súper.
+function cifrasCompra(d, ds) {
+  const varias = d.personas.length > 1, t = ds ? ds.ticket : d.ticket;
+  const productos = ds ? t.sucursales.reduce((n, x) => n + x.items.length, 0) : t.items.length;
+  const m = ds ? ds.metas_despues : metasHogar(d);
+  return {
+    total: t.total,
+    donde: ds ? `en <b>${esc(nombreTienda(ds.a))}</b> y <b>${esc(nombreTienda(ds.b))}</b>` : `en <b>${esc(nombreTienda(t.tienda))}</b>`,
+    datos: `<li><span>${pesos(t.costo_diario, 0)}</span>por día${varias ? ` · ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</li>
+      <li><span>${productos}</span>productos</li>
+      <li><span>${m.cumple}/${m.total}</span>metas cubiertas</li>`,
+  };
+}
+
+function animarTicket() {
+  const tk = $(".columna-ticket .ticket");
+  if (!tk) return;
+  [...tk.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 60)));
+  tk.classList.add("imprimiendo");
+}
+
+function pintarCompra(d) {
+  $(".columna-ticket").innerHTML = columnaTicketHTML(d);
+  animarTicket();
+  const k = cifrasCompra(d, estado.vistaDos ? dosQueConviene(d) : null);
+  const total = $("#resumen-total");
+  total.dataset.valor = k.total;
+  contar(total);
+  $("#resumen-donde").innerHTML = k.donde;
+  $("#datos-compra").innerHTML = k.datos;
+}
+
+// Los súper de la compra en dos en el mapa: el segundo resaltado y las vecinas probadas, atenuadas. Las líneas, solo
+// si vinieron de OpenRouteService (nunca se dibuja un recorrido inventado).
+function dibujarDosEnMapa(d) {
+  if (estado.capaDos) { estado.capaDos.remove(); estado.capaDos = null; }
+  const mapa = estado.mapaResultado, c = estado.dos.get(d), leyenda = $("#mapa-leyenda-dos");
+  if (leyenda) leyenda.textContent = "";
+  if (!mapa || !c || !c.ds || !leyenda) return;
+  const ds = c.ds, capa = L.layerGroup().addTo(mapa), propuesta = dosQueConviene(d);
+  estado.capaDos = capa;
+  const yaEstan = new Set(d.sucursales.map((x) => x.id));
+  for (const v of ds.vecinas) {
+    if ((propuesta && v.id === propuesta.b.id) || yaEstan.has(v.id)) continue;
+    L.circleMarker([v.lat, v.lon], { radius: 5, color: color("--tinta-suave"), weight: 1.5, dashArray: "2 3", fillOpacity: 0.15 })
+      .addTo(capa).bindTooltip(`Probado para dividir la compra: ${v.bandera} ${v.sucursal}`);
+  }
+  if (!propuesta) return;
+  const a = propuesta.a, b = propuesta.b, nombreA = nombreTienda(a), nombreB = nombreTienda(b);
+  L.circleMarker([b.lat, b.lon], { radius: 9, color: color("--tinta"), fillColor: color("--acento"), weight: 3, fillOpacity: 0.85 })
+    .addTo(capa).bindTooltip(`2.º súper: ${b.bandera}`, { permanent: true, direction: "right", offset: [8, 0] });
+  if (estado.puntosMapa) {
+    estado.puntosMapa.push([b.lat, b.lon]);
+    mapa.fitBounds(estado.puntosMapa, { padding: [30, 30], maxZoom: 16 });
+  }
+  if (!c.rutas) {
+    leyenda.textContent = `Sin recorrido entre los dos súper: de ${nombreA} a ${nombreB} son ${minutosTexto(b.minutos_desde_a, "estimado")} estimados en línea recta.`;
+    return;
+  }
+  leyenda.textContent = "Buscando el recorrido a pie con los dos súper…";
+  c.rutas.then(({ ab, bc }) => {
+    if (estado.mapaResultado !== mapa || estado.capaDos !== capa) return;     // ya se armó otra canasta
+    mapa.attributionControl.addAttribution('Rutas &copy; <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT');
+    const partes = [[ab, nombreA, nombreB], [bc, nombreB, "vos"]].map(([r, desde, hasta]) => {
+      if (!r) return `de ${desde} a ${hasta}, sin ruta (tiempo estimado)`;
+      const linea = L.polyline(r.puntos, { color: color("--ruta"), weight: 4, opacity: 0.7, className: "ruta-animada ruta-dos",
+        lineCap: "round", lineJoin: "round" }).addTo(capa);
+      const trazo = linea.getElement();
+      if (trazo) trazo.setAttribute("pathLength", "1");
+      return `de ${desde} a ${hasta}, ${textoCaminata({ minutos: r.minutos, metros: r.metros ? Math.round(r.metros) : null, fuente_tiempo: "ruta" })}`;
+    });
+    leyenda.textContent = ab || bc ? `Con dos súper (rutas de OpenRouteService): ${partes.join("; ")}.`
+      : `No se pudo trazar el recorrido entre los dos súper: de ${nombreA} a ${nombreB} son ${minutosTexto(b.minutos_desde_a, "estimado")} estimados.`;
+  });
 }
 
 function botonAmpliar(texto = null) {
@@ -901,6 +1678,62 @@ function avisoTiempos(d) {
   return d.caminata && d.caminata.aviso ? `<p class="aviso">${esc(d.caminata.aviso)}</p>` : "";
 }
 
+// Ninguna sucursal logra todas las metas: no es un error, es lo máximo que se puede con lo que venden. Se dice cuántas
+// logra la mejor, cuánto cubre de cada una que falta y qué se puede probar (caminar más o quitar una restricción).
+function avisoMetasHTML(d) {
+  const elegida = d.sucursales.find((x) => x.elegida);
+  if (!elegida || !elegida.faltantes.length) return "";
+  const varias = d.personas.length > 1, m = metasHogar(d);
+  const evaluadas = d.sucursales.filter((x) => x.costo != null).length;
+  const donde = d.caminata ? `a ${d.caminata.minutos} min caminando` : "cercana";
+  const titulo = evaluadas > 1
+    ? `Ninguna sucursal ${donde} logra las ${m.total} metas${varias ? " del hogar" : ""}`
+    : `La única sucursal ${donde} no logra las ${m.total} metas${varias ? " del hogar" : ""}`;
+  const conFaltas = d.personas.filter((p) => metasCubiertas(p).cumple < metasCubiertas(p).total);
+  const faltan = conFaltas.flatMap((p) => p.cobertura.concat(p.reglas)
+    .filter((c) => c.estado === "falta" || c.estado === "excede")
+    .map((c) => ({ c, quien: varias ? p.datos.nombre : "", ...coberturaFalta(c) })));
+  const lista = faltan.map((f) => `<li class="${f.c.estado}">
+      <span class="am-nombre">${f.quien ? `<small>${esc(f.quien)}</small> ` : ""}${esc(nombreCorto(f.c))}</span>
+      <span class="am-pista" aria-hidden="true"><i style="--x:${Math.max(0, Math.min(100, f.pct))}%"></i></span>
+      <span class="am-dato">${esc(f.texto)}</span></li>`).join("");
+
+  // Qué probar: caminar más (con lo ya calculado en "¿Conviene caminar más?" o calculándolo) y quitar una restricción.
+  const probar = [];
+  if (d.caminata && CON_RUTAS) {
+    const otros = [...estado.escalera.values()].map((v) => v.resumen)
+      .filter((r) => r && r.costo != null && r.metas && r.minutos !== d.caminata.minutos);
+    const completa = otros.filter((r) => r.metas.cumple === r.metas.total).sort((a, b) => a.minutos - b.minutos)[0];
+    const mayores = otros.filter((r) => r.minutos > d.caminata.minutos).sort((a, b) => a.minutos - b.minutos);
+    const sinCalcular = estado.P.CAMINATA_OPCIONES.find((x) => x > d.caminata.minutos && !estado.escalera.has(x));
+    if (completa) {
+      probar.push(`<li>Caminando hasta ${completa.minutos} min sí se logran todas: ${pesos(completa.costo, 0)} en ${esc(completa.tienda)}.
+        <button type="button" class="boton-secundario" data-caminata="${completa.minutos}">Ver esa compra</button></li>`);
+    } else {
+      const ultima = mayores[mayores.length - 1];
+      const hecho = ultima ? `Hasta ${ultima.minutos} min tampoco: la mejor logra ${ultima.metas.cumple} de ${ultima.metas.total}. ` : "";
+      probar.push(sinCalcular != null
+        ? `<li>${hecho}Caminar más suma sucursales que quizá vendan lo que falta.
+            <button type="button" class="boton-secundario" data-caminata="${sinCalcular}">Probar hasta ${sinCalcular} min caminando</button></li>`
+        : hecho ? `<li>${hecho}</li>` : "");
+    }
+  }
+  const restricciones = conFaltas.flatMap((p) => p.datos.restricciones.map((r) => r[0].toLowerCase() + r.slice(1))
+    .concat(d.opciones.listos ? ["solo listos para comer"] : []));
+  const unicas = [...new Set(restricciones)];
+  if (unicas.length) {
+    const quien = varias ? ` de ${conFaltas.map((p) => esc(p.datos.nombre)).join(" y ")}` : "";
+    probar.push(`<li>Quitar alguna restricción${quien} y volver a armar la canasta: ${esc(unicas.join(", "))}.</li>`);
+  }
+  return `<div class="aviso-metas" role="status">
+    <p class="am-titulo"><i aria-hidden="true">${m.cumple}/${m.total}</i><span>${titulo}</span></p>
+    <p>La que más se acerca logra <b>${m.cumple} de ${m.total}</b>. Es lo máximo que se puede cubrir con lo que venden estas
+      sucursales${unicas.length ? " con estas restricciones" : ""}: la compra es válida, solo que no completa.</p>
+    <ul class="am-faltan">${lista}</ul>
+    ${probar.filter(Boolean).length ? `<p class="am-probar-titulo">Qué podés probar</p><ul class="am-probar">${probar.join("")}</ul>` : ""}
+  </div>`;
+}
+
 function mostrarSinResultado(d) {
   const sig = siguienteCaminata();
   $("#resultado").innerHTML = `<div class="vacio">
@@ -913,6 +1746,20 @@ function mostrarSinResultado(d) {
   enlazarAmpliar();
 }
 
+// Aviso discreto si la sucursal elegida tiene precios de un día anterior al más reciente de la base.
+function avisoFechaHTML(s, d) {
+  if (!haceTexto(s)) return "";
+  return `<p class="aviso-fecha"><i aria-hidden="true">i</i><span>${esc(nombreTienda(s))} tiene ${esc(haceTexto(s))}
+    (SEPA del ${esc(fechaTexto(s.fecha_precios))}): su cadena no publicó los del ${esc(fechaTexto(d.fecha_precios))}.</span></p>`;
+}
+
+// La fecha de los precios en la tabla de sucursales: la de todas o, si alguna es de un día anterior, cuál.
+function fechasTablaTexto(d) {
+  const viejas = d.sucursales.filter((x) => x.dias_precios > 0).length;
+  return viejas ? `Precios SEPA del ${esc(fechaTexto(d.fecha_precios))}, salvo ${viejas === 1 ? "la que dice" : "las que dicen"} otra fecha (su cadena no publicó ese día y se usan sus últimos precios, de hasta 15 días).`
+    : `Precios SEPA del ${esc(fechaTexto(d.fecha_precios))}.`;
+}
+
 function mostrar(d) {
   const t = d.ticket, s = t.tienda, varias = d.personas.length > 1;
   const elegida = d.sucursales.find((x) => x.elegida);
@@ -920,6 +1767,7 @@ function mostrar(d) {
   const masBarataOtra = otras.length ? otras.reduce((m, x) => (x.costo < m.costo ? x : m)) : null;
   const avisos = d.personas.flatMap((p) => p.requerimientos.avisos.map((a) => (varias ? `${p.datos.nombre}: ${a}` : a)));
   const metas = d.personas.map(metasCubiertas);
+  const totalMetas = metasHogar(d).total;
   const porTiempo = Boolean(d.caminata);
   const pestanas = varias ? `<div class="pestanas" role="tablist" aria-label="Persona">${d.personas.map((p, i) =>
     `<button type="button" role="tab" aria-selected="${i === estado.vista}" aria-controls="por-persona" data-vista="${i}" style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</button>`).join("")}</div>` : "";
@@ -927,26 +1775,28 @@ function mostrar(d) {
   const cubre = metas.length === 1
     ? `cubre ${metas[0].cumple} de sus ${metas[0].total} metas`
     : `cubre ${metas.map((m, i) => `${m.cumple} de ${m.total} metas de ${esc(d.personas[i].datos.nombre)}`).join(", ")}`;
+  const canillas = d.personas.map(aguaCanilla).filter(Boolean);
+  const agua = canillas.length
+    ? `<p class="ayuda">Agua de la canilla: ${varias ? "entre todos, " : ""}unos <b>${fmt(canillas.reduce((s, c) => s + c.falta, 0), 1)} L por día</b>, además de la que traen los alimentos.</p>`
+    : "";
   const motivo = elegida && elegida.faltantes.length
-    ? `Ninguna sucursal a tu alcance cubre todo; esta es la que más se acerca y, entre las que cubren igual, la más barata.`
+    ? `Es la que más se acerca a todas las metas y, entre las que cubren igual, la más barata.`
     : `Es la más barata entre las que cubren todas las metas${varias ? " de todos" : ""}.`;
+  estado.vistaDos = false;
+  const cifras = cifrasCompra(d, null);
 
   $("#resultado").innerHTML = `
   <div class="encabezado-resultado">
-    <div class="columna-ticket">
-      <div class="impresora"><div class="ranura"></div>${ticketHTML(d)}</div>
-      <button type="button" class="boton-texto con-icono" id="imprimir">${ICONO.imprimir}Imprimir o guardar el ticket</button>
-    </div>
+    <div class="columna-ticket">${columnaTicketHTML(d)}</div>
     <div class="resumen">
       <p class="resumen-etiqueta">Tu compra para ${esc(d.periodo)}</p>
-      <p class="resumen-total"><b data-valor="${t.total}">${pesos(t.total, 0)}</b></p>
-      <p class="resumen-donde">en <b>${esc(s.bandera)} ${esc(s.sucursal)}</b></p>
-      <ul class="datos-compra">
-        <li><span>${pesos(t.costo_diario, 0)}</span>por día${varias ? ` · ${pesos(t.costo_diario / d.personas.length, 0)} por persona` : ""}</li>
-        <li><span>${t.items.length}</span>productos</li>
-        <li><span>${metas.reduce((a, m) => a + m.cumple, 0)}/${metas.reduce((a, m) => a + m.total, 0)}</span>metas cubiertas</li>
-      </ul>
+      <p class="resumen-total"><b id="resumen-total" data-valor="${cifras.total}">${pesos(cifras.total, 0)}</b></p>
+      <p class="resumen-donde" id="resumen-donde">${cifras.donde}</p>
+      <ul class="datos-compra" id="datos-compra">${cifras.datos}</ul>
+      ${avisoFechaHTML(s, d)}
       <p class="sr-only">${cubre}</p>
+      ${avisoMetasHTML(d)}
+      ${agua}
       <div class="llegar">
         <p class="llegar-tiempo">${ICONO.caminar}<span>${caminata ? esc(caminata) : `${fmt(s.distancia_km, 1)} km en línea recta`}</span></p>
         <p class="llegar-dato">${ICONO.pin}<span>${esc(s.direccion)}${s.localidad ? `, ${esc(s.localidad)}` : ""}</span></p>
@@ -958,6 +1808,7 @@ function mostrar(d) {
         : masBarataOtra ? ` La siguiente opción cuesta ${pesos(masBarataOtra.costo, 0)}.` : ""}</p>
       ${comparacionHTML(d)}
       ${escaleraHTML(d)}
+      <div class="dos" id="dos">${dosInterior(d)}</div>
       ${varias ? `<div class="comensales">${d.personas.map((p, i) => `<span style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</span>`).join("")}</div>` : ""}
       <div class="avisos">${avisoTiempos(d)}${avisos.map((a) => `<p class="aviso">${esc(a)}</p>`).join("")}</div>
     </div>
@@ -966,17 +1817,20 @@ function mostrar(d) {
   <section class="bloque" id="donde-comprar"><h2>Dónde comprar</h2>
     <p class="ayuda">${porTiempo
       ? `Supermercados a menos de ${d.caminata.minutos} min caminando${d.caminata.fuente === "ruta" ? " por la calle (rutas peatonales de OpenRouteService)" : " (tiempo estimado por distancia)"}: la más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios.`
-      : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}</p>
+      : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}
+      ${fechasTablaTexto(d)}</p>
     <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
     <p class="ayuda" id="mapa-leyenda"></p>
+    <p class="ayuda" id="mapa-leyenda-dos"></p>
     <div class="tabla-envoltorio"><table class="tabla-sucursales">
       <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
       <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
-        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}</div></td>
+        <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}${haceTexto(x) ? ` · <span class="ts-fecha">${esc(`precios del ${fechaTexto(x.fecha_precios)}, ${haceTexto(x).replace("precios de ", "")}`)}</span>` : ""}</div></td>
         <td class="num" data-etiqueta="${porTiempo ? "Caminando" : "Distancia"}">${porTiempo ? esc(textoCaminata(x, true)) : `${fmt(x.distancia_km, 1)} km`}</td>
         <td class="num" data-etiqueta="Costo">${x.costo != null ? pesos(x.costo, 0) : "—"}</td>
         <td class="num" data-etiqueta="Diferencia">${x.costo != null && !x.elegida ? `${x.costo >= t.total ? "+" : "−"}${pesos(Math.abs(x.costo - t.total), 0)}` : "—"}</td>
-        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length ? esc(x.faltantes.join("; ")) : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
+        <td class="ts-falta">${x.costo == null ? esc(x.mensaje) : x.faltantes.length
+          ? `<span class="ts-metas">${totalMetas - x.faltantes.length}/${totalMetas} metas</span> ${esc(x.faltantes.join("; "))}` : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
   </section>
 
   <section class="bloque"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>
@@ -1005,7 +1859,7 @@ function mostrar(d) {
       <li><b>${fmt(d.catalogo.productos_canasta)}</b><span>de ${fmt(d.catalogo.productos_total)} productos de SEPA sirven para una canasta</span></li>
     </ul>
     <details class="detalle-largo"><summary>Más detalle del modelo</summary>
-      <p>Cada persona come solo lo que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad. Lo que
+      <p>Cada persona come solo lo que es apto para ella y ningún alimento pasa de dos porciones por día, para que haya variedad${d.opciones.agua === "canilla" ? "" : " (el agua y la soda, hasta la meta de agua del día)"}. Lo que
         sobra de un envase queda para después, pero se paga. En cada sucursal se usan los productos más baratos de cada tipo para cada persona.</p>
       <p>Siempre quedan afuera: ${esc(d.catalogo.excluidos_siempre)}</p>
     </details>
@@ -1016,14 +1870,12 @@ function mostrar(d) {
     $$(".pestanas button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
     $("#por-persona").innerHTML = bloquePersona(d, estado.vista);
   }));
-  $("#imprimir").addEventListener("click", () => window.print());
   enlazarAmpliar();
   // El ticket sale de la impresora renglón por renglón; el total cuenta hasta su valor.
-  const tk = $(".columna-ticket .ticket");
-  [...tk.children].forEach((el, i) => el.style.setProperty("--i", Math.min(i, 60)));
-  tk.classList.add("imprimiendo");
-  contar($(".resumen-total b"));
+  animarTicket();
+  contar($("#resumen-total"));
   dibujarMapa(d);
+  dibujarDosEnMapa(d);
   const suave = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#resultado").scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
 }
@@ -1032,12 +1884,15 @@ const color = (variable) => getComputedStyle(document.documentElement).getProper
 
 function dibujarMapa(d) {
   if (estado.mapaResultado) { estado.mapaResultado.remove(); estado.mapaResultado = null; }
+  estado.capaDos = null;
+  estado.puntosMapa = null;
   if (typeof L === "undefined") { $("#mapa").hidden = true; return; }
   const mapa = L.map("mapa", { scrollWheelZoom: false });
   estado.mapaResultado = mapa;
   capaBase().addTo(mapa);
   const origen = [d.ubicacion.lat, d.ubicacion.lon];
   const puntos = [origen];
+  estado.puntosMapa = puntos;      // la compra en dos súper suma el segundo (y el recorrido encuadra todo)
   const comparadas = new Set(d.sucursales.map((x) => x.id));
   // Las que se consultaron pero quedan fuera del límite: atenuadas, para ver qué hay un poco más lejos.
   const r = estado.ultimaRuta;
@@ -1058,7 +1913,9 @@ function dibujarMapa(d) {
   }
   L.circleMarker(origen, { radius: 8, color: color("--foco"), fillOpacity: 0.9 }).addTo(mapa).bindTooltip("Vos");
   mapa.fitBounds(puntos, { padding: [30, 30], maxZoom: 16 });
-  if (window.ResizeObserver) new ResizeObserver(() => mapa.invalidateSize()).observe($("#mapa"));
+  // Solo mientras sea el mapa vigente: al cambiar de resultado, el contenedor viejo se achica a cero después de que el
+  // mapa ya se quitó, e invalidateSize sobre un mapa quitado rompe Leaflet.
+  if (window.ResizeObserver) new ResizeObserver(() => { if (estado.mapaResultado === mapa) mapa.invalidateSize(); }).observe($("#mapa"));
 
   // Recorrido a pie hasta la elegida, solo con rutas reales (nunca se dibuja una ruta inventada).
   const s = d.ticket.tienda, leyenda = $("#mapa-leyenda");
@@ -1084,19 +1941,22 @@ function dibujarMapa(d) {
 // Inicio
 // ============================================================
 
-// Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1 arma esa canasta directamente.
+// Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1&agua=compra arma esa canasta
+// directamente (agua: compra, bebidas o canilla, la predeterminada); con &dos=1, también la compra en dos súper;
+// &promos=0 la arma sin promociones (&promos=1, con ellas, si la base trae alguna).
 function desdeEnlace() {
   const q = PARAMETROS;
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
   const perfiles = ids.map((id) => estado.perfiles.find((f) => f.id === id)).filter(Boolean);
   if (perfiles.length) {
-    estado.hogar = perfiles.slice(0, estado.P.PERSONAS_MAXIMAS).map((f) => ({ ...PERSONA_NUEVA, nombre: f.nombre, sexo: f.sexo,
-      edad: f.edad, peso_kg: f.peso_kg, altura_cm: f.altura_cm, actividad: f.actividad, objetivo: f.objetivo, etapa: f.etapa,
-      trimestre: f.trimestre || 2, restricciones: [...f.restricciones] }));
+    estado.hogar = perfiles.slice(0, estado.P.PERSONAS_MAXIMAS).map((f) => ({ ...PERSONA_NUEVA, nombre: f.nombre,
+      ...datosDePerfil(f), perfil: f.id }));
     estado.actual = 0;
   }
   if (q.get("dias") && q.get("dias") in estado.P.DIAS_PERIODO) estado.dias = Number(q.get("dias"));
   if (q.has("listos")) estado.listos = q.get("listos") === "1";
+  if (q.get("agua") in estado.P.AGUA_MODOS) estado.agua = q.get("agua");
+  if (q.has("promos")) estado.promos = estado.promosEnBase > 0 && q.get("promos") === "1";
   const lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon"));
   const conLugar = Number.isFinite(lat) && Number.isFinite(lon);
   if (conLugar) estado.lugar = { lat, lon, nombre: `${fmt(lat, 4)}, ${fmt(lon, 4)}`, precision: "punto" };
@@ -1121,7 +1981,12 @@ async function iniciar() {
   }
   estado.P = resumen.parametros;
   estado.perfiles = resumen.perfiles;
+  estado.criterios = resumen.criterios;
+  estado.condiciones = resumen.condiciones;
   estado.caminata = estado.P.CAMINATA_MINUTOS;
+  estado.agua = estado.P.AGUA_MODO_PREDETERMINADO;
+  estado.promosEnBase = resumen.promosAplicables || 0;
+  estado.promos = estado.promosEnBase > 0;           // por defecto, si la base trae alguna aplicable
   estado.listo = true;
   aviso.innerHTML = `<span><b>${esc(resumen.fecha.split("-").reverse().join("/"))}</b>precios oficiales (SEPA)</span>
     <span><b>${fmt(resumen.productos)}</b>alimentos</span><span><b>${fmt(resumen.tiendas)}</b>supermercados</span>`;
@@ -1133,7 +1998,8 @@ async function iniciar() {
     <p class="t-linea"><span>Alimentos con nutrientes</span><span>${fmt(resumen.productos)}</span></p>
     <p class="t-linea"><span>Supermercados</span><span>${fmt(resumen.tiendas)}</span></p>
     <p class="t-linea"><span>Nutrientes por alimento</span><span>33</span></p>
-    <p class="t-linea"><span>Restricciones</span><span>${Object.keys(estado.P.RESTRICCIONES).length}</span></p><hr>
+    <p class="t-linea"><span>Restricciones</span><span>${Object.keys(estado.P.RESTRICCIONES).length - estado.P.CONDICIONES.length}</span></p>
+    <p class="t-linea"><span>Condiciones médicas</span><span>${estado.P.CONDICIONES.length}</span></p><hr>
     <p class="t-total"><span>TOTAL</span><span>EL MÁS BAJO</span></p>
     <p class="t-centro t-gracias">*** a pocos minutos ***</p>`;
   [...tc.children].forEach((el, i) => el.style.setProperty("--i", i));
@@ -1149,7 +2015,7 @@ async function iniciar() {
     });
     cab.addEventListener("pointerleave", () => { imp.style.setProperty("--ry", "0deg"); imp.style.setProperty("--rx", "0deg"); });
   }
-  recuperar();
+  const guardado = CON_CASO ? null : leerGuardado();
   const pedida = Number(PARAMETROS.get("caminata"));
   if (estado.P.CAMINATA_OPCIONES.includes(pedida)) estado.caminata = pedida;
   $("#campo-caminata").hidden = !CON_RUTAS;
@@ -1157,11 +2023,22 @@ async function iniciar() {
   prepararHogar();
   prepararUbicacion();
   prepararCompra();
+  prepararTextoLibre();
   prepararPasos();
   cargarEditor();
   dibujarPersonas();
+  if (guardado) avisoRetomar(guardado);
   $("#formulario").addEventListener("submit", armar);
-  if (automatico) armar();
+  // Los botones del resultado que no se rehacen con cada vista: imprimir, la compra en dos súper y el selector del ticket.
+  $("#resultado").addEventListener("click", (e) => {
+    const b = e.target.closest("#imprimir, [data-dos], [data-vista]");
+    if (!b || b.disabled) return;
+    if (b.id === "imprimir") window.print();
+    else if (b.hasAttribute("data-dos")) calcularDos();
+    else cambiarVista(b.dataset.vista === "dos", b);
+  });
+  // ?dos=1: después de armar la canasta, calcula también la compra en dos súper (para mostrarla de una).
+  if (automatico) armar().then(() => { if (PARAMETROS.get("dos") === "1") calcularDos(true); });
 }
 
 iniciar();
