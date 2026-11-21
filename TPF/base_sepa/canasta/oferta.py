@@ -5,7 +5,8 @@ Qué se puede comprar y dónde: lee las tablas del modelo estrella una sola vez 
     explicado para mostrarlo;
   - qué sucursales tiene cerca (la más cercana de cada cadena primero, para comparar cadenas), por distancia o por
     tiempo caminando (con los tiempos de canasta/rutas.py);
-  - qué productos aptos vende cada sucursal y a qué precio, con lo que aporta cada gramo.
+  - qué productos aptos vende cada sucursal y a qué precio, con lo que aporta cada gramo y, si la base las trae
+    (tabla promocion, desde la etapa 5), su promoción: cómo entra al modelo si se aplica y, si no, por qué.
 
 Las restricciones son estrictas: "desconocido" no es apto. Para un celíaco o un alérgico, un producto sin rótulo
 que lo confirme no se ofrece.
@@ -15,7 +16,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -55,6 +57,11 @@ NOMBRE_ALERGENO = {"leche": "leche", "huevo": "huevo", "mani": "maní", "frutos_
                    "soja": "soja", "pescado": "pescado", "mariscos": "mariscos", "sesamo": "sésamo", "gluten": "gluten"}
 # Kosher: mariscos y el surimi (mezcla de pescados, a veces con extracto de cangrejo) no se pueden verificar.
 ALIMENTOS_MAR_NO_KOSHER = {"calamar", "langostinos", "surimi"}
+# Promociones (tabla promocion de sepa/precio/promociones.py): las columnas que se leen y cómo entra cada una al modelo.
+COLUMNAS_PROMOCION = ["id_producto", "id_tienda", "orden", "aplicable", "motivo", "resumen", "forma", "unidades",
+                      "precio_unitario", "tope"]
+FORMA_PROMO = {"": 0, "precio": 1, "grupo": 2}     # 0: no entra; 1: precio por unidad desde n; 2: grupos de n
+COLUMNAS_SPEC = ["forma", "unidades", "tope", "aplicable", "motivo", "resumen"]
 ALIMENTOS_AZUCAR_LIBRE = {"azucar", "azucar_mascabo", "miel", "jugo", "mermelada", "dulce_de_leche",
                           "leche_condensada", "dulce_membrillo", "caramelos"}
 
@@ -67,6 +74,21 @@ class Datos:
     rangos: dict[str, tuple[int, int]]   # id_tienda -> [desde, hasta) en precios
     fecha: str
     total_productos: int
+    # Promociones, una por precio (las filas de precios que tienen): promo_filas (posiciones en precios, ordenadas),
+    # promo_spec (fila de promociones: forma, unidades, tope, aplicable, motivo y resumen, que se repiten) y
+    # promo_precio (precio por unidad con la promoción, $ por envase o por kg a granel). Vacías con una base anterior a
+    # la etapa 5.
+    promociones: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=COLUMNAS_SPEC))
+    promo_filas: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    promo_spec: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int32))
+    promo_precio: np.ndarray = field(default_factory=lambda: np.zeros(0))
+
+    @property
+    def promos_aplicables(self) -> int:
+        """Precios con una promoción que se puede aplicar (si es 0, la opción "Aplicar promociones" no cambia nada)."""
+        if not len(self.promo_spec):
+            return 0
+        return int(self.promociones["aplicable"].to_numpy(bool)[self.promo_spec].sum())
 
 
 _DATOS: Datos | None = None
@@ -101,6 +123,54 @@ def _religion(p: pd.DataFrame) -> pd.DataFrame:
     if faltan:
         p[faltan] = religion.derivar(p)[faltan]
     return p
+
+
+def _promociones(p: pd.DataFrame, f: pd.DataFrame, tienda: np.ndarray, nombres: pd.Index
+                 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+    """Las promociones de la tabla promocion (si la base la trae) llevadas a las filas de f (ordenadas por tienda y
+    producto; tienda: código de la tienda de cada fila, nombres: su id). Una por fila: la aplicable de menor precio por
+    unidad o, si ninguna se aplica, la primera (para decir por qué no). A granel solo se aplica un precio por unidad sin
+    mínimo (un porcentaje, un precio por kilo): las de grupos o de "llevando n" son por unidades."""
+    vacias = (pd.DataFrame(columns=COLUMNAS_SPEC), np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int32),
+              np.zeros(0))
+    if not cfg.RUTA_PROMOCION.exists():
+        return vacias
+    pr = pd.read_parquet(cfg.RUTA_PROMOCION, columns=COLUMNAS_PROMOCION)
+    prod = p.index.get_indexer(pr["id_producto"].astype(str))
+    tie = pd.Index(nombres).get_indexer(pr["id_tienda"].astype(str))
+    n = len(p)
+    clave_f = tienda.astype(np.int64) * n + f["prod"].to_numpy(np.int64)        # creciente: f va por tienda y producto
+    clave = tie.astype(np.int64) * n + prod
+    if not len(clave_f):
+        return vacias
+    pos = np.clip(np.searchsorted(clave_f, clave), 0, len(clave_f) - 1)
+    esta = (prod >= 0) & (tie >= 0) & (clave_f[pos] == clave)
+    pr, pos = pr[esta].reset_index(drop=True), pos[esta]
+    if pr.empty:
+        return vacias
+    forma = pr["forma"].astype(str).map(FORMA_PROMO).fillna(0).astype(int).to_numpy()
+    unidades = pr["unidades"].fillna(0).astype(int).to_numpy()
+    precio_u = pr["precio_unitario"].to_numpy(float)
+    aplicable = pr["aplicable"].to_numpy(bool) & (forma > 0)
+    motivo = pr["motivo"].astype(str).to_numpy(object)
+    granel = p["forma_venta"].str.startswith("Granel").to_numpy()[f["prod"].to_numpy()[pos]]
+    por_unidades = aplicable & granel & ((forma == FORMA_PROMO["grupo"]) | (unidades > 1))
+    lista = f["precio"].to_numpy(float)[pos]
+    dudoso = aplicable & ~por_unidades & ~((precio_u > 0) & (precio_u < lista))
+    motivo = np.where(por_unidades, "se vende por peso y la promoción es por unidades", motivo)
+    motivo = np.where(dudoso, "el precio con la promoción no es menor al de lista", motivo)
+    aplicable &= ~por_unidades & ~dudoso
+    t = pd.DataFrame({"fila": pos, "aplicable": aplicable, "forma": np.where(aplicable, forma, 0),
+                      "unidades": np.where(aplicable, unidades, 0), "precio": np.where(aplicable, precio_u, np.nan),
+                      "tope": np.where(aplicable, pr["tope"].astype(float).fillna(np.inf).to_numpy(), np.inf),
+                      "motivo": np.where(aplicable, "", motivo), "resumen": pr["resumen"].astype(str).to_numpy(),
+                      "orden": pr["orden"].to_numpy()})
+    t = t.sort_values(["fila", "aplicable", "precio", "orden"], ascending=[True, False, True, True], kind="stable",
+                      na_position="last").drop_duplicates("fila")
+    spec = t.groupby(COLUMNAS_SPEC, sort=True, dropna=False).ngroup().to_numpy(np.int32)
+    tabla = t[COLUMNAS_SPEC].assign(spec=spec).drop_duplicates("spec").sort_values("spec").drop(columns="spec")
+    return (tabla.reset_index(drop=True), t["fila"].to_numpy(np.int64), spec,
+            np.round(t["precio"].to_numpy(float), 2))
 
 
 def cargar() -> Datos:
@@ -145,9 +215,62 @@ def cargar() -> Datos:
         desde, hasta = np.r_[0, cortes], np.r_[cortes, len(f)]
         nombres = cat_tienda.cat.categories.astype(str)
         rangos = {nombres[tienda[a]]: (int(a), int(b)) for a, b in zip(desde, hasta)}
-        _DATOS = Datos(p, t, f, rangos, fecha, len(todos))
-        logger.info("Datos: %d productos de la canasta, %d tiendas, %d precios (%s)", len(p), len(t), len(f), fecha)
+        promociones, promo_filas, promo_spec, promo_precio = _promociones(p, f, tienda, nombres)
+        _DATOS = Datos(p, t, f, rangos, fecha, len(todos), promociones, promo_filas, promo_spec, promo_precio)
+        logger.info("Datos: %d productos de la canasta, %d tiendas, %d precios (%s), %d con promoción (%d aplicables)",
+                    len(p), len(t), len(f), fecha, len(promo_filas), _DATOS.promos_aplicables)
         return _DATOS
+
+
+def con_promociones(d: Datos, promos: pd.DataFrame) -> Datos:
+    """Una copia de d con estas promociones en lugar de las que tuvieran esos precios. promos: id_producto, id_tienda,
+    forma ("precio" o "grupo"), unidades, precio_unitario ($ por envase o por kg), resumen y, si hacen falta, tope,
+    aplicable y motivo. Sirve para probar las promociones con una base que todavía no las trae (tests y la paridad de
+    la página: ver promociones_de_prueba); los precios de lista no cambian."""
+    nuevas = []
+    filas, specs, precios = list(d.promo_filas), list(d.promo_spec), list(d.promo_precio)
+    prod_f = d.precios["prod"].to_numpy()
+    for r in promos.to_dict("records"):
+        a, b = d.rangos[r["id_tienda"]]
+        prod = d.productos.index.get_loc(r["id_producto"])
+        k = a + int(np.searchsorted(prod_f[a:b], prod))
+        if k >= b or prod_f[k] != prod:
+            raise ValueError(f"{r['id_producto']} no tiene precio en {r['id_tienda']}")
+        dato = lambda c, defecto: defecto if pd.isna(r.get(c, np.nan)) else r[c]  # noqa: E731
+        aplicable = bool(dato("aplicable", True))
+        nuevas.append({"forma": FORMA_PROMO[r["forma"]] if aplicable else 0,
+                       "unidades": int(r["unidades"]) if aplicable else 0,
+                       "tope": float(dato("tope", np.inf)) if aplicable else np.inf, "aplicable": aplicable,
+                       "motivo": "" if aplicable else str(dato("motivo", "")), "resumen": str(r["resumen"])})
+        if k in filas:
+            i = filas.index(k)
+            del filas[i], specs[i], precios[i]
+        filas.append(k)
+        specs.append(len(d.promociones) + len(nuevas) - 1)
+        precios.append(round(float(r["precio_unitario"]), 2) if aplicable else np.nan)
+    orden = np.argsort(filas, kind="stable")
+    tabla = pd.DataFrame(nuevas, columns=COLUMNAS_SPEC)
+    if len(d.promociones):
+        tabla = pd.concat([d.promociones, tabla], ignore_index=True)
+    tabla = tabla.astype({"forma": int, "unidades": int, "tope": float, "aplicable": bool})
+    return Datos(d.productos, d.tiendas, d.precios, d.rangos, d.fecha, d.total_productos, tabla,
+                 np.asarray(filas, dtype=np.int64)[orden], np.asarray(specs, dtype=np.int32)[orden],
+                 np.asarray(precios, dtype=float)[orden])
+
+
+@contextmanager
+def promociones_de_prueba(promos: pd.DataFrame):
+    """Mientras dura el bloque, cargar() devuelve los datos con estas promociones (con_promociones); al salir, los de
+    siempre. Para los tests: armar(), dos_super() y la exportación de la página las ven igual."""
+    global _DATOS
+    original = cargar()
+    with _CANDADO:
+        _DATOS = con_promociones(original, promos)
+    try:
+        yield _DATOS
+    finally:
+        with _CANDADO:
+            _DATOS = original
 
 
 # ------------------------------------------------------------
@@ -368,24 +491,61 @@ def elegir_vecinas(v: pd.DataFrame, bandera_a: str, n: int) -> pd.DataFrame:
 
 
 def _podar(o: pd.DataFrame) -> np.ndarray:
-    """En cada subcategoría, los más baratos cada 100 g comestibles y el envase más barato (posiciones en o)."""
+    """En cada subcategoría, los más baratos cada 100 g comestibles (con la promoción, si se aplica: al precio por
+    unidad con la promoción) y el envase más barato (posiciones en o)."""
     pos = np.arange(len(o))
     sub = o["subcategoria"].to_numpy()
-    orden = np.lexsort((pos, o["precio_100g_comestible"].to_numpy()))
+    orden = np.lexsort((pos, o["precio_100g_efectivo"].to_numpy()))
     barato = pd.Series(pos[orden]).groupby(sub[orden], sort=False).head(cfg.PRODUCTOS_POR_SUBCATEGORIA)
     orden = np.lexsort((pos, o["precio_compra"].to_numpy()))
     chico = pd.Series(pos[orden]).groupby(sub[orden], sort=False).head(1)
     return np.union1d(barato.to_numpy(), chico.to_numpy())
 
 
-def oferta_tienda(d: Datos, id_tienda: str, aptos: list[np.ndarray]) -> tuple[pd.DataFrame, list[np.ndarray]]:
+def _promos_de(d: Datos, filas: np.ndarray, granel: np.ndarray, aplicar: bool) -> dict[str, np.ndarray]:
+    """Las columnas de promoción de esas filas de precios (granel: si cada una se vende a granel):
+
+      promo_resumen, promo_aplicable, promo_motivo   para el ticket (también si no se aplica; None sin promoción)
+      promo_forma      0 (no se aplica), 1 (cada unidad a promo_precio_compra desde promo_unidades) o 2 (cada grupo de
+                       promo_unidades a promo_unidades × promo_precio_compra); 0 en todas si no se aplican (aplicar)
+      promo_unidades, promo_tope (unidades máximas con la promoción; inf sin tope), promo_precio_compra (por unidad de
+                       compra: el envase o, a granel, los 100 g)"""
+    n = len(filas)
+    salida = {"promo_resumen": np.full(n, None, dtype=object), "promo_aplicable": np.zeros(n, dtype=bool),
+              "promo_motivo": np.full(n, "", dtype=object), "promo_forma": np.zeros(n, dtype=np.int64),
+              "promo_unidades": np.zeros(n, dtype=np.int64), "promo_tope": np.full(n, np.inf),
+              "promo_precio_compra": np.full(n, np.nan)}
+    if not len(d.promo_filas) or not n:
+        return salida
+    pos = np.clip(np.searchsorted(d.promo_filas, filas), 0, len(d.promo_filas) - 1)
+    hay = d.promo_filas[pos] == filas
+    spec = d.promociones.iloc[d.promo_spec[pos[hay]]]
+    aplicable = spec["aplicable"].to_numpy(bool)
+    salida["promo_resumen"][hay] = spec["resumen"].to_numpy(object)
+    salida["promo_aplicable"][hay] = aplicable
+    salida["promo_motivo"][hay] = spec["motivo"].to_numpy(object)
+    if aplicar:
+        precio = d.promo_precio[pos[hay]]
+        salida["promo_forma"][hay] = np.where(aplicable, spec["forma"].to_numpy(np.int64), 0)
+        salida["promo_unidades"][hay] = np.where(aplicable, spec["unidades"].to_numpy(np.int64), 0)
+        salida["promo_tope"][hay] = np.where(aplicable, spec["tope"].to_numpy(float), np.inf)
+        salida["promo_precio_compra"][hay] = np.where(
+            aplicable, np.where(granel[hay], precio * cfg.PASO_GRANEL_G / 1000, precio), np.nan)
+    return salida
+
+
+def oferta_tienda(d: Datos, id_tienda: str, aptos: list[np.ndarray], promos: bool = False
+                  ) -> tuple[pd.DataFrame, list[np.ndarray]]:
     """Productos de la sucursal que le sirven a alguien del hogar, con el precio y lo que compra cada unidad de
     compra (envase o 100 g), y para cada persona qué filas son aptas para ella. La poda se hace por persona (los más
-    baratos entre lo que ella puede comer) y se unen: un celíaco y un vegano tienen cada uno sus mejores opciones."""
+    baratos entre lo que ella puede comer) y se unen: un celíaco y un vegano tienen cada uno sus mejores opciones.
+    promos: aplicar las promociones aplicables (columnas de _promos_de); sin ellas, todo es como antes de la etapa 5."""
     a, b = d.rangos[id_tienda]
     f = d.precios.iloc[a:b]
     alguno = np.logical_or.reduce(aptos)
-    f = f[alguno[f["prod"].to_numpy()]]
+    queda = alguno[f["prod"].to_numpy()]
+    filas = np.arange(a, b)[queda]
+    f = f[queda]
     o = d.productos.iloc[f["prod"].to_numpy()].copy()
     o["precio"] = f["precio"].to_numpy()
     o["precio_promocion"] = f["precio_promocion"].to_numpy()
@@ -395,8 +555,13 @@ def oferta_tienda(d: Datos, id_tienda: str, aptos: list[np.ndarray]) -> tuple[pd
     o["gramos_compra"] = paso                                     # gramos que compra una unidad de compra
     o["precio_compra"] = np.where(granel, o["precio"] * cfg.PASO_GRANEL_G / 1000, o["precio"])
     o["gramos_comestibles_compra"] = o["gramos_compra"] * o["parte_comestible"]
+    for c, v in _promos_de(d, filas, granel, promos).items():
+        o[c] = v
     o = o[(o["gramos_comestibles_compra"] > 0) & (o["precio_compra"] > 0)]
     o["precio_100g_comestible"] = o["precio_compra"] / o["gramos_comestibles_compra"] * 100
+    efectivo = np.where(o["promo_forma"].to_numpy() > 0, o["promo_precio_compra"].to_numpy(),
+                        o["precio_compra"].to_numpy())
+    o["precio_100g_efectivo"] = efectivo / o["gramos_comestibles_compra"].to_numpy() * 100
     o = o[o["precio_100g_comestible"] >= cfg.FRACCION_PRECIO_MINIMO * o["precio_referencia_100g"]]
     filas = d.productos.index.get_indexer(o.index)
     por_persona = [apto[filas] for apto in aptos]

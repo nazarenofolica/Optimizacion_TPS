@@ -4,8 +4,9 @@ Exporta la canasta a un solo archivo HTML que funciona sin servidor: la página,
 
 Los datos son los mismos que usa el motor de Python (canasta/oferta.py): los productos de la canasta con sus
 nutrientes y sus aptitudes ya evaluadas (sin TACC, vegano, cada alérgeno...), las sucursales que se pueden evaluar y
-todos sus precios, más los parámetros de canasta/config.py y las tablas de referencia/. Así la lógica de las
-restricciones y todos los números discutibles viven en un solo lugar.
+todos sus precios con sus promociones (si la base las trae: cómo entra cada una al modelo, o por qué no se aplica), más
+los parámetros de canasta/config.py y las tablas de referencia/. Así la lógica de las restricciones y todos los números
+discutibles viven en un solo lugar.
 
     python -m canasta              # exporta datos/sepa/canasta_local.html (con la clave de rutas) y lo sirve
     python -m canasta --exportar   # solo exporta datos/sepa/canasta.html (la versionada, sin clave)
@@ -140,6 +141,21 @@ def paquete() -> tuple[dict, bytes]:
     binario.agregar("precios.tienda", tienda.astype(np.uint16))
     binario.agregar("precios.centavos", precio)
     binario.agregar("precios.promocion", promo)
+    # Promociones, solo las filas que tienen (en el orden de los precios de arriba): la promoción (fila de
+    # meta["promociones"]) y el precio por unidad con ella, en centavos (0 si no se aplica).
+    spec_fila = np.full(len(d.precios), -1, dtype=np.int64)
+    precio_fila = np.full(len(d.precios), np.nan)
+    spec_fila[d.promo_filas] = d.promo_spec
+    precio_fila[d.promo_filas] = d.promo_precio
+    spec_fila, precio_fila = spec_fila[quedan][orden], precio_fila[quedan][orden]
+    con_promo = np.flatnonzero(spec_fila >= 0)
+    binario.agregar("promos.fila", con_promo.astype(np.uint32))
+    binario.agregar("promos.spec", spec_fila[con_promo].astype(np.uint32))
+    binario.agregar("promos.centavos", np.where(np.isnan(precio_fila[con_promo]), 0,
+                                                np.round(precio_fila[con_promo] * 100)).astype(np.uint32))
+    promociones = [{"forma": int(r.forma), "unidades": int(r.unidades),
+                    "tope": None if not np.isfinite(r.tope) else float(r.tope), "aplicable": bool(r.aplicable),
+                    "motivo": str(r.motivo), "resumen": str(r.resumen)} for r in d.promociones.itertuples()]
 
     tiendas = {"id": t.index.tolist(), "lat": t["lat"].astype(float).tolist(), "lon": t["lon"].astype(float).tolist()}
     for c in COLUMNAS_TIENDA:
@@ -155,6 +171,7 @@ def paquete() -> tuple[dict, bytes]:
         "guias": rq.leer_tabla(cfg.RUTA_GUIAS).to_dict("records"), "perfiles": rq.perfiles(),
         "condiciones": rq.leer_tabla(cfg.RUTA_CONDICIONES).to_dict("records"),
         "criterios": {c["clave"]: c["criterio"] for c in oferta.criterios(list(cfg.RESTRICCIONES))},
+        "promociones": promociones, "promos_aplicables": d.promos_aplicables,
     }
     return meta, binario.bytes()
 

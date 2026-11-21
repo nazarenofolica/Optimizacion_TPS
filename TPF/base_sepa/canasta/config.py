@@ -20,6 +20,7 @@ RUTA_CONDICIONES = DIR_REFERENCIA / "condiciones.csv"
 RUTA_DIM_PRODUCTO = cfg_sepa.RUTA_DIM_PRODUCTO.with_suffix(".parquet")
 RUTA_DIM_TIENDA = cfg_sepa.RUTA_DIM_TIENDA.with_suffix(".parquet")
 RUTA_FACT_PRECIO = cfg_sepa.RUTA_FACT_PRECIO.with_suffix(".parquet")
+RUTA_PROMOCION = cfg_sepa.RUTA_PROMOCION.with_suffix(".parquet")        # desde la etapa 5; si no está, no hay promos
 URL_GEOREF = cfg_sepa.URL_GEOREF
 LAT_ARGENTINA, LON_ARGENTINA = cfg_sepa.LAT_ARGENTINA, cfg_sepa.LON_ARGENTINA
 
@@ -295,6 +296,13 @@ PRODUCTOS_POR_SUBCATEGORIA = 6
 
 # Lo que se vende a granel se compra de a 100 g.
 PASO_GRANEL_G = 100
+
+# Promociones (etapa 5): se aplican las que no piden banco, tarjeta, billetera ni programa de la cadena, ni un horario
+# o algunos días, y cuyo precio coincide con la leyenda (sepa/precio/promociones.py, columna aplicable). Si hay dos
+# para un mismo precio, se aplica una sola: la de menor precio por unidad (no se sabe si se suman). A granel, solo un
+# porcentaje o un precio por kilo: un 2×1 o un "llevando 3" son por unidades. La persona puede desactivarlas
+# ("Aplicar promociones", ?promos=0, --sin-promos); por defecto se aplican si la base trae alguna. Cómo entran al
+# modelo: docstring de canasta/modelo.py.
 
 # ============================================================
 # SUCURSALES

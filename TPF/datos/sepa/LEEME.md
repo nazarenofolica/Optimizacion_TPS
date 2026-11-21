@@ -108,6 +108,27 @@ Ejemplos: precio por kg de la banana en cada provincia → `fact_precio` (subcat
 | Formosa | 5 |
 | La Rioja | 4 |
 
+## Promociones (etapa 5)
+
+Esta base (del 2026-10-23) es anterior a la etapa 5: no trae la tabla `promocion` y `precio_promocion` no dice sus condiciones, así que la canasta no aplica ninguna promoción y sus resultados son los de siempre. **Las promociones se aplican desde la próxima actualización de la base**: el pipeline ahora guarda las dos promociones de cada precio con su leyenda y las clasifica (`sepa/precio/promociones.py`) en `promocion.parquet`. Así quedó la clasificación con el ZIP del 2026-11-20 (todas las filas con promoción, no solo las comestibles), que es lo que va a escribir la próxima corrida en esta sección:
+
+| Clasificación | Filas | % filas | Leyendas | % leyendas |
+|---|---:|---:|---:|---:|
+| aplicable | 1.473.850 | 83,5 % | 1.556 | 47,6 % |
+| desconocida | 269.705 | 15,3 % | 1.709 | 52,3 % |
+| no aplicable: otra condición | 21.350 | 1,2 % | 1 | 0,0 % |
+| no aplicable: precio | 9 | 0,0 % | 2 | 0,1 % |
+
+| Tipo | Filas |
+|---|---:|
+| porcentaje | 1.250.854 |
+| desconocida | 269.705 |
+| segunda_unidad | 163.659 |
+| nxm | 42.308 |
+| llevando_x | 37.419 |
+| precio_fijo | 969 |
+
+
 ## Verificación
 
 Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). Detalle en `calidad/verificacion.csv`.
@@ -319,3 +340,30 @@ Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). 
 | `unidad_normalizada` | texto | kg, l o unidad |
 | `precio_100g` | número | Precio cada 100 g tal como se compra; dividido por parte_comestible da el de la parte comestible, que es la base de los nutrientes |
 
+### promocion (desde la próxima corrida)
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id_producto` | texto | Producto (dim_producto) |
+| `id_tienda` | texto | Tienda (dim_tienda) |
+| `orden` | entero | 1 o 2: SEPA publica hasta dos promociones por producto y sucursal |
+| `leyenda` | texto | Leyenda de la promoción tal como la publica la cadena |
+| `precio_lista` | número | Precio de lista (el de fact_precio) |
+| `precio_promocion` | número | Precio unitario con la promoción que publica SEPA (en un 2×1, la mitad del de lista) |
+| `tipo` | texto | porcentaje, nxm (2×1, 3×2), segunda_unidad (2.ª al 70 %), precio_fijo, llevando_x (llevando n) o desconocida (la leyenda no dice qué promoción es) |
+| `n` | entero | nxm: unidades que se llevan; segunda_unidad: 2; llevando_x: unidades que hay que llevar |
+| `m` | entero | nxm: unidades que se pagan |
+| `porcentaje` | número | Descuento en %: porcentaje y segunda_unidad (sobre la segunda unidad) |
+| `precio_leyenda` | número | Precio que dice la leyenda: precio_fijo y 'c/u $P' por unidad; 'n x $P', por las n |
+| `cada_unidad` | booleano | llevando_x: el precio vale para cada unidad desde la n-ésima (verdadero) o por grupo de n |
+| `tope` | entero | Unidades máximas con la promoción, si la leyenda lo dice (stock declarado, máximo por compra) |
+| `condicion_pago` | texto | tarjeta, banco, billetera, fidelidad o efectivo si la leyenda exige un medio de pago o un programa de la cadena (no se aplican: fuera de alcance) |
+| `condicion` | texto | Otra condición que la canasta no puede asegurar: un horario, algunos días, jubilados, online |
+| `vigencia_desde` | fecha | Desde cuándo vale, si la leyenda lo dice |
+| `vigencia_hasta` | fecha | Hasta cuándo vale |
+| `aplicable` | booleano | Se puede aplicar a la compra: tipo entendido, sin condiciones de pago ni de otro tipo y con un precio coherente |
+| `motivo` | texto | Por qué no se aplica (vacío si se aplica) |
+| `resumen` | texto | La promoción en pocas letras, para el ticket: 2×1, 2.ª al 70 %, 25 % de descuento |
+| `forma` | texto | Cómo entra al modelo de la canasta: precio (cada unidad a precio_unitario desde 'unidades' unidades) o grupo (cada grupo de 'unidades' unidades a unidades × precio_unitario) |
+| `unidades` | entero | Unidades de la forma: desde cuántas (precio) o de a cuántas (grupo) |
+| `precio_unitario` | número | Precio por unidad con la promoción que usa la canasta (el publicado si coincide con la leyenda; si no lo hay, el de la leyenda) |

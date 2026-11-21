@@ -1,6 +1,6 @@
 """
 Escritura de las salidas: las tres tablas del modelo estrella (parquet y CSV),
-los reportes de calidad y salida/LEEME.md con el diccionario de datos y el
+la tabla chica de promociones con sus condiciones, los reportes de calidad y salida/LEEME.md con el diccionario de datos y el
 resumen de la corrida (generado a partir de las tablas, así nunca se
 desactualiza).
 
@@ -19,6 +19,7 @@ from datetime import datetime
 import pandas as pd
 
 from sepa import config as cfg
+from sepa.precio import promociones
 from sepa.producto.nutrientes import NUTRIENTES
 from sepa.producto.religion import COLUMNAS as RELIGION
 
@@ -149,6 +150,35 @@ COLUMNAS_FACT = {
                    "comestible, que es la base de los nutrientes",
 }
 
+COLUMNAS_PROMOCION = {
+    "id_producto": "Producto (dim_producto)", "id_tienda": "Tienda (dim_tienda)",
+    "orden": "1 o 2: SEPA publica hasta dos promociones por producto y sucursal",
+    "leyenda": "Leyenda de la promoción tal como la publica la cadena",
+    "precio_lista": "Precio de lista (el de fact_precio)",
+    "precio_promocion": "Precio unitario con la promoción que publica SEPA (en un 2×1, la mitad del de lista)",
+    "tipo": "porcentaje, nxm (2×1, 3×2), segunda_unidad (2.ª al 70 %), precio_fijo, llevando_x (llevando n) o "
+            "desconocida (la leyenda no dice qué promoción es)",
+    "n": "nxm: unidades que se llevan; segunda_unidad: 2; llevando_x: unidades que hay que llevar",
+    "m": "nxm: unidades que se pagan",
+    "porcentaje": "Descuento en %: porcentaje y segunda_unidad (sobre la segunda unidad)",
+    "precio_leyenda": "Precio que dice la leyenda: precio_fijo y 'c/u $P' por unidad; 'n x $P', por las n",
+    "cada_unidad": "llevando_x: el precio vale para cada unidad desde la n-ésima (verdadero) o por grupo de n",
+    "tope": "Unidades máximas con la promoción, si la leyenda lo dice (stock declarado, máximo por compra)",
+    "condicion_pago": "tarjeta, banco, billetera, fidelidad o efectivo si la leyenda exige un medio de pago o un "
+                      "programa de la cadena (no se aplican: fuera de alcance)",
+    "condicion": "Otra condición que la canasta no puede asegurar: un horario, algunos días, jubilados, online",
+    "vigencia_desde": "Desde cuándo vale, si la leyenda lo dice", "vigencia_hasta": "Hasta cuándo vale",
+    "aplicable": "Se puede aplicar a la compra: tipo entendido, sin condiciones de pago ni de otro tipo y con un "
+                 "precio coherente",
+    "motivo": "Por qué no se aplica (vacío si se aplica)",
+    "resumen": "La promoción en pocas letras, para el ticket: 2×1, 2.ª al 70 %, 25 % de descuento",
+    "forma": "Cómo entra al modelo de la canasta: precio (cada unidad a precio_unitario desde 'unidades' unidades) "
+             "o grupo (cada grupo de 'unidades' unidades a unidades × precio_unitario)",
+    "unidades": "Unidades de la forma: desde cuántas (precio) o de a cuántas (grupo)",
+    "precio_unitario": "Precio por unidad con la promoción que usa la canasta (el publicado si coincide con la "
+                       "leyenda; si no lo hay, el de la leyenda)",
+}
+
 
 def _csv(df: pd.DataFrame, ruta, **kw) -> None:
     df.to_csv(ruta, sep=";", decimal=",", index=False, encoding="utf-8-sig", **kw)
@@ -171,14 +201,30 @@ def _tabla_md(serie: pd.Series, titulo: str, que: str) -> str:
 def _diccionario(columnas: dict, df: pd.DataFrame) -> str:
     filas = []
     for c in df.columns:
-        tipo = str(df[c].dtype).replace("object", "texto").replace("category", "texto").replace("float64", "número") \
-            .replace("int64", "entero").replace("Int64", "entero").replace("bool", "booleano") \
-            .replace("datetime64[ns]", "fecha").replace("float32", "número").replace("int32", "entero")
+        tipo = str(df[c].dtype).replace("boolean", "bool").replace("object", "texto").replace("category", "texto") \
+            .replace("float64", "número").replace("int64", "entero").replace("Int64", "entero").replace("bool", "booleano") \
+            .replace("datetime64[ns]", "fecha").replace("float32", "número").replace("int32", "entero") \
+            .replace("int8", "entero")
         filas.append(f"| `{c}` | {tipo} | {columnas.get(c, '')} |")
     return "| Columna | Tipo | Descripción |\n|---|---|---|\n" + "\n".join(filas) + "\n"
 
 
-def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame, stats: dict) -> str:
+def _promociones_md(pr: pd.DataFrame) -> list[str]:
+    """Resumen de las promociones: cobertura del clasificador y tipos."""
+    cob = promociones.cobertura(pr)
+    num = lambda x, d=0: f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
+    filas = [f"| {g} | {num(r.filas)} | {num(r.pct_filas, 1)} % | {num(r.leyendas)} | {num(r.pct_leyendas, 1)} % |"
+             for g, r in cob.iterrows()]
+    return ["## Promociones", "",
+            "Cada leyenda de SEPA se clasifica en `sepa/precio/promociones.py` (tipo, parámetros, condiciones). La "
+            "canasta aplica solo las aplicables: sin banco, tarjeta, billetera ni programa de la cadena (fuera de "
+            "alcance), sin horario ni días y con un precio que coincide con la leyenda.", "",
+            "| Clasificación | Filas | % filas | Leyendas | % leyendas |", "|---|---:|---:|---:|---:|", *filas, "",
+            _tabla_md(pr["tipo"].value_counts(), "Tipo", "Filas")]
+
+
+def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame, stats: dict,
+          promocion: pd.DataFrame | None = None) -> str:
     fecha = pd.Timestamp(f["fecha"].iloc[0]).date() if len(f) else ""
     ubic = t["ubicacion_precision"].value_counts()
     partes = [
@@ -197,6 +243,8 @@ def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame
         f"{len(t):,} |".replace(",", "."),
         f"| `fact_precio.parquet` / `.csv.gz` | Precio de cada producto en cada tienda, normalizado | "
         f"{len(f):,} |".replace(",", "."),
+        *([f"| `promocion.parquet` / `.csv.gz` | Promociones vigentes de cada precio, con sus condiciones y si la "
+            f"canasta las aplica | {len(promocion):,} |".replace(",", ".")] if promocion is not None else []),
         "| `calidad/` | Lo excluido y por qué, precios descartados, ubicaciones corregidas, verificación | |",
         "",
         "Relaciones: `fact_precio.id_producto` → `dim_producto.id_producto` y `fact_precio.id_tienda` → "
@@ -216,11 +264,14 @@ def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame
         f"ubicación {ubic.get('sin_ubicacion', 0)}".replace(",", "."),
         f"- Precios: {len(f):,} (con promoción vigente: {f['precio_promocion'].notna().sum():,}); descartados por "
         f"anormales: {sum(stats['precio']['precios_descartados'].values()):,}".replace(",", "."),
+        *([f"- Promociones: {len(promocion):,} vigentes, {int(promocion['aplicable'].sum()):,} aplicables a la "
+           f"canasta".replace(",", ".")] if promocion is not None else []),
         "",
         _tabla_md(p["categoria"].value_counts(), "Categoría", "Productos"),
         _tabla_md(p["grupo_alimentario"].value_counts(), "Grupo alimentario", "Productos"),
         _tabla_md(p["fuente_nutrientes"].value_counts(), "Fuente de los nutrientes", "Productos"),
         _tabla_md(t["provincia"].fillna("(sin ubicación)").value_counts(), "Provincia", "Tiendas"),
+        *(_promociones_md(promocion) if promocion is not None and len(promocion) else []),
         "## Verificación",
         "",
         "Todos los controles críticos pasan (si alguno fallara, la corrida se detiene). Detalle en "
@@ -233,11 +284,13 @@ def leeme(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, verif: pd.DataFrame
     partes += ["", "## Diccionario de datos", "", "### dim_producto", "", _diccionario(COLUMNAS_PRODUCTO, p),
                "### dim_tienda", "", _diccionario(COLUMNAS_TIENDA, t), "### fact_precio", "",
                _diccionario(COLUMNAS_FACT, f)]
+    if promocion is not None:
+        partes += ["### promocion", "", _diccionario(COLUMNAS_PROMOCION, promocion)]
     return "\n".join(partes) + "\n"
 
 
 def escribir(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, calidad: dict[str, pd.DataFrame],
-             verif: pd.DataFrame, stats: dict) -> None:
+             verif: pd.DataFrame, stats: dict, promocion: pd.DataFrame | None = None) -> None:
     if cfg.DIR_SALIDA.exists():
         shutil.rmtree(cfg.DIR_SALIDA)          # una sola corrida: no quedan restos de la anterior
     cfg.DIR_CALIDAD.mkdir(parents=True, exist_ok=True)
@@ -246,8 +299,11 @@ def escribir(p: pd.DataFrame, t: pd.DataFrame, f: pd.DataFrame, calidad: dict[st
         _csv(df, ruta.with_suffix(".csv"))
     f.to_parquet(cfg.RUTA_FACT_PRECIO.with_suffix(".parquet"), index=False)
     _csv(f, cfg.RUTA_FACT_PRECIO.with_suffix(".csv.gz"), compression="gzip")
+    if promocion is not None:
+        promocion.to_parquet(cfg.RUTA_PROMOCION.with_suffix(".parquet"), index=False)
+        _csv(promocion, cfg.RUTA_PROMOCION.with_suffix(".csv.gz"), compression="gzip")
     for nombre, df in calidad.items():
         _csv(df, cfg.DIR_CALIDAD / f"{nombre}.csv")
     _csv(verif, cfg.DIR_CALIDAD / "verificacion.csv")
-    (cfg.DIR_SALIDA / "LEEME.md").write_text(leeme(p, t, f, verif, stats), encoding="utf-8")
+    (cfg.DIR_SALIDA / "LEEME.md").write_text(leeme(p, t, f, verif, stats, promocion), encoding="utf-8")
     logger.info("Salidas en %s", cfg.DIR_SALIDA)

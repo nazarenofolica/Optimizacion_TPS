@@ -11,11 +11,13 @@ precios del modelo estrella de SEPA 2.0 (../datos/sepa/).
     python -m canasta --perfil oficinista --lat -34.6037 --lon -58.3816 --caminata 15 --agua compra
     python -m canasta --perfil restricciones_extremas --lat -31.4167 --lon -64.1833 --caminata 15 --listos
     python -m canasta --perfil oficinista --lat -34.60386 --lon -58.38419 --caminata 15 --dos-super
+    python -m canasta --perfil oficinista --lat -34.60386 --lon -58.38419 --sin-promos
 
 Con --perfil, la canasta la arma en la consola el motor de Python (la referencia del que corre en la página). Con
 --caminata, solo se evalúan las sucursales a las que se llega caminando en esos minutos (rutas de OpenRouteService:
 ORS_API_KEY en base_sepa/.env). Con --dos-super, después del resultado se ve si conviene sumar un segundo
-supermercado cerca de la elegida (resultado.dos_super).
+supermercado cerca de la elegida (resultado.dos_super). Las promociones que no piden banco ni tarjeta se aplican si
+la base las trae (desde la etapa 5); --sin-promos las deja afuera.
 """
 
 from __future__ import annotations
@@ -62,6 +64,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--dos-super", action="store_true",
                    help="Con --perfil: después del resultado, ver si conviene sumar un segundo supermercado cerca de "
                         "la sucursal elegida.")
+    p.add_argument("--sin-promos", action="store_true",
+                   help="Con --perfil: no aplicar las promociones (por defecto se aplican las que no piden banco, "
+                        "tarjeta ni el programa de la cadena, si la base las trae).")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -102,8 +107,20 @@ def _imprimir_dos_super(ds: dict) -> None:
         print(f"\n{t['bandera']} — {t['sucursal']} ({t['direccion']})")
         for it in bloque["items"]:
             print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
+            _imprimir_promo(it)
         print(f"{'subtotal':>52} ${num(bloque['subtotal'], 2):>11}")
+    if ds["ticket"]["ahorro_promociones"]:
+        print(f"{'ahorro por promociones':>52} -${num(ds['ticket']['ahorro_promociones'], 2):>10}")
     print(f"{'-' * 64}\n{'TOTAL':>52} ${num(ds['ticket']['total'], 2):>11}")
+
+
+def _imprimir_promo(it: dict) -> None:
+    """La promoción de un renglón del ticket: aplicada (con el descuento) o no aplicada (con el motivo)."""
+    pr = it.get("promo")
+    if pr and pr["aplicada"]:
+        print(f"{'':>18}{pr['resumen']}: -${_num(it['descuento'], 2)} (lista ${_num(it['subtotal_lista'], 2)})")
+    elif pr:
+        print(f"{'':>18}Promo {pr['resumen']}, no aplicada ({pr['motivo']})")
 
 
 def _imprimir(r: dict) -> None:
@@ -137,6 +154,10 @@ def _imprimir(r: dict) -> None:
           f"\nPrecios del {t['fecha_precios']} · compra para {r['periodo']}\n{'-' * 64}")
     for it in t["items"]:
         print(f"{it['cantidad']:>16}  {it['nombre'][:34]:<34} ${num(it['subtotal'], 2):>11}")
+        _imprimir_promo(it)
+    if t["ahorro_promociones"]:
+        print(f"{'-' * 64}\n{'subtotal a precio de lista':>52} ${num(t['total_lista'], 2):>11}")
+        print(f"{'ahorro por promociones':>52} -${num(t['ahorro_promociones'], 2):>10}")
     print(f"{'-' * 64}\n{'TOTAL':>52} ${num(t['total'], 2):>11}\n{'por día':>52} ${num(t['costo_diario'], 2):>11}")
     print(f"\nAgua ({r['opciones']['agua_nombre'].lower()}):")
     for persona in r["personas"]:
@@ -219,7 +240,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.caminata:
         tiempos, aviso = rutas.tiempos_caminando(lat, lon, args.caminata)
         extra = {"tiempos": tiempos, "caminata_minutos": args.caminata, "aviso_tiempos": aviso}
-    r = resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, agua=args.agua, **extra)
+    r = resultado.armar(hogar, lat, lon, args.dias, listos=args.listos, agua=args.agua,
+                        promos=False if args.sin_promos else None, **extra)
     _imprimir(r)
     if args.dos_super and "ticket" in r:
         _imprimir_dos_super(resultado.dos_super(hogar, r, tiempos))

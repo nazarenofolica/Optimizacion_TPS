@@ -1,8 +1,10 @@
 """Paridad entre el motor de la página (canasta/web/motor.js, en Chrome headless) y el de Python.
 
 Necesita Chrome o Edge, internet (la página baja HiGHS de jsDelivr) y las tablas de ../datos/sepa/; tarda varios
-minutos. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave) y la compra
-en dos supermercados (MotorCanasta.dosSuper contra resultado.dos_super). Por eso es opcional:
+minutos. También compara la búsqueda por tiempo caminando (con tiempos estimados: la página no lleva clave), la compra
+en dos supermercados (MotorCanasta.dosSuper contra resultado.dos_super) y las promociones (etapa 5: como la base todavía
+no las trae, se le agregan unas de prueba a la sucursal elegida, oferta.promociones_de_prueba, y se exporta otra
+página con ellas). Por eso es opcional:
 CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v
 """
 
@@ -18,8 +20,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 from canasta import config as cfg
-from canasta import exportar, resultado, rutas
+from canasta import exportar, oferta, resultado, rutas
 from canasta import requerimientos as rq
 
 NAVEGADORES = [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -101,6 +105,16 @@ class TestParidadPagina(unittest.TestCase):
         scripts.append(f"<script>\n{(exportar.DIR_WEB / 'rutas.js').read_text(encoding='utf-8')}</script>")
         cls.arnes = cls.dir / "dos_super.html"
         cls.arnes.write_text(ARNES_DOS_SUPER.replace("%(scripts)s", "\n".join(scripts)), encoding="utf-8")
+
+    @staticmethod
+    def _arnes(pagina: Path, destino: Path) -> Path:
+        """El arnés de dos súper con los datos y el motor de esa página."""
+        exportada = pagina.read_text(encoding="utf-8")
+        scripts = [re.search(rf'<script id="{i}"[^>]*>.*?</script>', exportada, re.S).group(0)
+                   for i in ("datos-meta", "datos-binario", "motor-codigo", "config-rutas")]
+        scripts.append(f"<script>\n{(exportar.DIR_WEB / 'rutas.js').read_text(encoding='utf-8')}</script>")
+        destino.write_text(ARNES_DOS_SUPER.replace("%(scripts)s", "\n".join(scripts)), encoding="utf-8")
+        return destino
 
     @classmethod
     def tearDownClass(cls):
@@ -213,6 +227,77 @@ class TestParidadPagina(unittest.TestCase):
                     self.assertEqual(set(a["productos_b"]), set(b["productos_b"]))
                     if a["minutos"]["extra"] == b["minutos"]["extra"]:
                         self.assertEqual(a["mensaje"], b["mensaje"])
+
+    def test_promociones(self):
+        # Promociones de prueba en la sucursal elegida del oficinista en el Microcentro (la base de hoy no trae): un
+        # 2×1 y la 2.ª al 70 % en lo que más pesa del ticket, un "llevando 3, c/u" y una que pide un banco. Las dos
+        # páginas (la de una sucursal y el arnés de dos súper) se exportan con ellas y se comparan con Python.
+        ids, (lat, lon) = ["oficinista"], (-34.60386, -58.38419)
+        personas = [rq.persona_desde(self.perfiles[i]) for i in ids]
+        base = resultado.armar(personas, lat, lon, 7)
+        elegida = next(s for s in base["sucursales"] if s.get("elegida"))["id"]
+        items = sorted((it for it in base["ticket"]["items"] if not it["granel"]), key=lambda it: -it["subtotal"])
+        def promo(it, forma, unidades, factor, resumen, **extra):
+            return {"id_producto": it["id_producto"], "id_tienda": elegida, "forma": forma, "unidades": unidades,
+                    "precio_unitario": round(it["precio_unitario"] * factor, 2), "resumen": resumen, **extra}
+        promos = pd.DataFrame([promo(items[0], "grupo", 2, 0.5, "2×1"), promo(items[1], "grupo", 2, 0.65, "2.ª al 70 %"),
+                               promo(items[2], "precio", 3, 0.8, "Llevando 3: 20 % de descuento"),
+                               promo(items[3], "precio", 1, 0.5, "50 % de descuento", aplicable=False,
+                                     motivo="requiere un banco")])
+        with oferta.promociones_de_prueba(promos):
+            pagina = exportar.exportar(self.dir / "promos.html")
+            arnes = self._arnes(pagina, self.dir / "promos_dos.html")
+            py = resultado.armar(personas, lat, lon, 7)
+            minutos = 15
+            tiempos, aviso = rutas.tiempos_caminando(lat, lon, minutos, clave="")
+            py15 = resultado.armar(personas, lat, lon, 7, tiempos=tiempos, caminata_minutos=minutos, aviso_tiempos=aviso)
+            ds_py = resultado.dos_super(personas, py15, tiempos)
+        js = self._correr(pagina, f"perfiles=oficinista&lat={lat}&lon={lon}&dias=7&listos=0&agua=canilla&motor=pagina"
+                                  f"&rutas=0")
+        self.assertNotIn("error", js)
+        self.assertTrue(py["opciones"]["promos"] and js["opciones"]["promos"])
+        self.assertEqual(py["opciones"]["promos_en_base"], js["opciones"]["promos_en_base"])
+        self.assertEqual([s["id"] for s in py["sucursales"]], [s["id"] for s in js["sucursales"]])
+        for a, b in zip(py["sucursales"], js["sucursales"]):
+            if a["costo"] is not None:
+                self.assertLessEqual(abs(a["costo"] - b["costo"]) / a["costo"], TOLERANCIA_COSTO, a["bandera"])
+        tp, tj = py["ticket"], js["ticket"]
+        self.assertLessEqual(abs(tp["total"] - tj["total"]) / tp["total"], TOLERANCIA_COSTO)
+        for t in (tp, tj):                                                  # las cuentas de cada motor
+            self.assertAlmostEqual(t["total"], sum(it["subtotal"] for it in t["items"]), delta=0.05)
+            self.assertAlmostEqual(t["total_lista"] - t["total"], t["ahorro_promociones"], delta=0.05)
+            for it in t["items"]:
+                self.assertAlmostEqual(it["subtotal_lista"] - it["subtotal"], it["descuento"], delta=0.011)
+        if tp["tienda"]["id"] == tj["tienda"]["id"] == elegida:
+            # La misma promoción en cada renglón que las dos compran, con el mismo estado (aplicada o por qué no).
+            pp = {it["id_producto"]: it for it in tp["items"]}
+            pj = {it["id_producto"]: it for it in tj["items"]}
+            for k in set(pp) & set(pj):
+                self.assertEqual(pp[k]["promo"] is None, pj[k]["promo"] is None, k)
+                if pp[k]["promo"] and pp[k]["unidades_compra"] == pj[k]["unidades_compra"]:
+                    self.assertEqual(pp[k]["promo"], pj[k]["promo"], k)
+                    self.assertAlmostEqual(pp[k]["subtotal"], pj[k]["subtotal"], places=2)
+            self.assertGreater(tp["ahorro_promociones"], 0)
+            self.assertGreater(tj["ahorro_promociones"], 0)
+            banco = items[3]["id_producto"]
+            for t in (pp, pj):
+                if banco in t:
+                    self.assertEqual(t[banco]["promo"]["motivo"], "requiere un banco")
+        # Dos súper: cada sucursal del par aplica las suyas, igual en los dos motores.
+        ds_js = self._correr(arnes, f"perfiles=oficinista&lat={lat}&lon={lon}&dias=7&listos=0&agua=canilla"
+                                    f"&caminata={minutos}")["dos_super"]
+        self.assertEqual(ds_py["a"]["id"], ds_js["a"]["id"])
+        self.assertLessEqual(abs(ds_py["costo_a"] - ds_js["costo_a"]) / ds_py["costo_a"], TOLERANCIA_COSTO)
+        self.assertEqual([v["id"] for v in ds_py["vecinas"]], [v["id"] for v in ds_js["vecinas"]])
+        for va, vb in zip(ds_py["vecinas"], ds_js["vecinas"]):
+            if va["costo"] is not None:
+                self.assertLessEqual(abs(va["costo"] - vb["costo"]) / va["costo"], TOLERANCIA_COSTO, va["id"])
+        self.assertEqual(ds_py["b"] is None, ds_js["b"] is None)
+        for ds in (ds_py, ds_js):
+            if ds["ticket"]:
+                t = ds["ticket"]
+                self.assertAlmostEqual(t["total"], ds["costo_combinado"], delta=0.05)
+                self.assertAlmostEqual(t["total_lista"] - t["total"], t["ahorro_promociones"], delta=0.05)
 
     def test_los_dos_motores_dan_lo_mismo(self):
         for ids, (lat, lon), dias, listos, agua in CASOS:

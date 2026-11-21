@@ -121,10 +121,25 @@ GitHub.
       lácteos kosher o halal; separar carne y leche por comida (hoy la canasta es por día).
 - [ ] Pescetariano y exclusión de ingredientes puntuales.
 
-## Etapa 5 · Promociones con condiciones
+## Etapa 5 (21/11/2026) · Promociones con condiciones
 
-- [ ] Fuente de promociones con sus condiciones (catálogos web de las cadenas).
-- [ ] 2×1, 2.ª unidad y porcentaje en el modelo; el ticket muestra precio de lista, descuento y precio efectivo.
+- [x] Fuente: las leyendas de SEPA (promo 1 y 2), que el pipeline ahora guarda (`sepa/fuentes/sepa.py`).
+- [x] Clasificador de leyendas (`sepa/precio/promociones.py`): porcentaje, n×m, 2.ª unidad, precio fijo, llevando n;
+      condiciones de pago (no se aplican), horario y días, vigencia, tope. Con el ZIP del 20/11/2026: 83,5 % de las
+      filas con promoción aplicables, 15,3 % desconocidas (la leyenda no dice qué promoción es), 1,2 % con horario,
+      ninguna con banco o tarjeta.
+- [x] Tabla nueva `promocion` en la base, con sus controles en `verificacion.py` y su diccionario en el LEEME.
+- [x] En el modelo (los dos motores): precio efectivo, tope, binaria de "llevando n" y grupos enteros para n×m y la
+      2.ª unidad; solo en la etapa 2 (las metas no cambian). Opción "Aplicar promociones" (paso 3, `?promos=`,
+      `--sin-promos`); dos súper con las promociones de cada sucursal.
+- [x] Ticket: renglón a precio de lista, línea de descuento, "Ahorro por promociones" y por qué no se aplicó cada una.
+- [x] 193 tests de Python (32 nuevos) y un caso más de paridad con promociones inyectadas (2×1, 2.ª al 70 %, llevando
+      3 y una bancaria; una sucursal y dos súper).
+- [x] Presentación: etapa 5 en "Hecho".
+- [ ] Rearmar la base con el pipeline nuevo: **las promociones se aplican desde la próxima actualización** (la base de
+      hoy, del 23/10/2026, no guarda las leyendas).
+- [ ] Las desconocidas (Carrefour, Coto, Cooperativa Obrera): cruzar con los catálogos web; promociones por día de la
+      semana.
 
 ## Etapa 6 · LLM con Groq
 

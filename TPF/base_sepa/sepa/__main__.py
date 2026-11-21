@@ -9,7 +9,7 @@ SEPA 2.0: de un ZIP diario de SEPA a un modelo estrella listo para usar.
     python -m sepa --diario           # sin intervención (ETL diario): --descargar y, si faltan, los catálogos web
     python -m sepa --ultima-fecha     # solo informa la fecha del último ZIP publicado, sin bajarlo
 
-Salidas en salida/: dim_producto, dim_tienda, fact_precio, calidad/ y LEEME.md.
+Salidas en salida/: dim_producto, dim_tienda, fact_precio, promocion, calidad/ y LEEME.md.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from sepa import config as cfg
 from sepa import salida, verificacion
 from sepa.fuentes import catalogos_web, openfoodfacts
 from sepa.fuentes import sepa as fuente_sepa
-from sepa.precio import hecho
+from sepa.precio import hecho, promociones
 from sepa.producto import dimension as dim_producto
 from sepa.tienda import dimension as dim_tienda
 
@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     del precios
     cfg.RUTA_PRECIOS_DEL_DIA.unlink(missing_ok=True)
     st_precio["precios_leidos"] = n_precios
+    promocion, st_promo = promociones.armar(datos, fact)
     excluidos = pd.concat([excluidos, excl_precio], ignore_index=True)
     productos = productos[productos["id_producto"].isin(fact["id_producto"].unique())].copy()
     corregido = productos["producto"].isin(correcciones.index)
@@ -113,12 +114,12 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("== 5/5 Verificación y salida")
     p, t = salida.tablas_finales(productos, tiendas)
     try:
-        verif = verificacion.verificar(p, t, fact)
+        verif = verificacion.verificar(p, t, fact, promocion)
     except verificacion.Fallo:
         # salida/ queda como estaba; las tablas que no pasaron quedan para revisarlas.
         revisar = cfg.DIR_CACHE / "corrida_fallida"
         revisar.mkdir(parents=True, exist_ok=True)
-        for nombre, tabla in (("dim_producto", p), ("dim_tienda", t), ("fact_precio", fact)):
+        for nombre, tabla in (("dim_producto", p), ("dim_tienda", t), ("fact_precio", fact), ("promocion", promocion)):
             tabla.to_parquet(revisar / f"{nombre}.parquet", index=False)
         logger.error("Las tablas de esta corrida quedaron en %s para revisar", revisar)
         raise
@@ -135,8 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         "lectura_comercios": datos.archivos,
     }
     stats = {"archivo": ruta.name, "minutos": (time.time() - inicio) / 60, "tienda": st_tienda,
-             "producto": st_producto, "precio": st_precio}
-    salida.escribir(p, t, fact, calidad, verif, stats)
+             "producto": st_producto, "precio": st_precio, "promocion": st_promo}
+    salida.escribir(p, t, fact, calidad, verif, stats, promocion)
     shutil.rmtree(cfg.DIR_CACHE / "corrida_fallida", ignore_errors=True)
     logger.info("Listo en %.1f min: %d productos, %d tiendas, %d precios", (time.time() - inicio) / 60, len(p),
                 len(t), len(fact))

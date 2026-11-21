@@ -41,6 +41,8 @@ def _zip(carpeta: Path) -> Path:
         "2|1|2|7790580660000|1|ARROZ LARGO FINO 1 KG|1|kg|GALLO|1100.00|1100|1|KG|900|DEL 01/10/2026 AL 05/10/2026||",
         "2|1|2|7790580660000|1|ARROZ LARGO FINO 1 KG|1|kg|GALLO|1100.00|1100|1|KG||||",   # repetido
         "2|1|1|2490110000000|1|BANANA X KG|1|kg||900.00|900|1|KG||||",                    # código de balanza
+        "2|1|1|7790000000010|1|YOGUR 1 KG|1|kg|SER|2000.00|2000|1|KG|1500|25% de descuento|1300|"
+        "35% de descuento. 2DO AL 70% YOG POTE - Vigencia: Desde el 18/10/2026 hasta el 25/10/2026",
         "2|1|1|7790580660000|1|SIN PRECIO|1|kg|GALLO|||||||",
     ]
     ruta = carpeta / "sepa_viernes_2026-10-23.zip"
@@ -90,8 +92,8 @@ class TestLectura(unittest.TestCase):
     def test_claves_y_repetidos(self):
         d = self.datos
         claves = set(d.productos["clave_producto"])
-        self.assertEqual(claves, {"7790580660000", "cadena2-2490110000000"})   # el 47 no deja rastros
-        self.assertEqual(len(d.precios), 3)                                    # el repetido cuenta una vez
+        self.assertEqual(claves, {"7790580660000", "cadena2-2490110000000", "7790000000010"})   # el 47 no deja rastros
+        self.assertEqual(len(d.precios), 4)                                    # el repetido cuenta una vez
         self.assertEqual(set(d.tiendas["id_tienda"]), {"2-1-1", "2-1-2"})
 
     def test_promocion_solo_si_esta_vigente(self):
@@ -101,6 +103,19 @@ class TestLectura(unittest.TestCase):
         p = d.precios[d.precios["producto"].eq(arroz)].set_index("tienda")["precio_promocion"]
         self.assertEqual(p[tienda["2-1-1"]], 800)
         self.assertTrue(np.isnan(p[tienda["2-1-2"]]))   # promoción vencida el 05/10
+
+    def test_promociones_1_y_2_con_su_leyenda(self):
+        # Las dos promociones tal como vienen (las clasifica después precio/promociones.py), también la vencida; del
+        # comercio desactualizado (47) no queda ninguna.
+        d = self.datos
+        clave = dict(zip(d.productos["producto"], d.productos["clave_producto"]))
+        pr = d.promociones.assign(clave=d.promociones["producto"].map(clave))
+        yogur = pr[pr["clave"] == "7790000000010"].sort_values("orden")
+        self.assertEqual(yogur["orden"].tolist(), [1, 2])
+        self.assertEqual(yogur["precio_promocion"].tolist(), [1500.0, 1300.0])
+        self.assertTrue(yogur["leyenda"].iloc[1].startswith("35% de descuento. 2DO AL 70%"))
+        self.assertEqual(len(pr[pr["clave"] == "7790580660000"]), 2)          # la vigente y la vencida
+        self.assertEqual(set(d.tiendas.set_index("tienda").loc[pr["tienda"].unique(), "id_tienda"]), {"2-1-1", "2-1-2"})
 
 
 if __name__ == "__main__":

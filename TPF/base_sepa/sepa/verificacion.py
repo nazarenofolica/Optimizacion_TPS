@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from sepa import config as cfg
+from sepa.precio.promociones import TIPOS as TIPOS_PROMOCION
 from sepa.producto.nutrientes import NUTRIENTES
 from sepa.producto.religion import COLUMNAS as RELIGION
 
@@ -43,7 +44,37 @@ def _control(resultados: list, nombre: str, mascara: pd.Series | np.ndarray | in
     resultados.append({"control": nombre, "filas_que_fallan": n, "critico": critico, "ejemplos": muestra})
 
 
-def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.DataFrame) -> pd.DataFrame:
+def _promocion(r: list, f: pd.DataFrame, pr: pd.DataFrame) -> None:
+    """Controles de la tabla promocion: cada promoción es de un precio publicado, con un tipo conocido y, si se
+    aplica, con un precio menor al de lista y sin condiciones; una con condición de pago nunca se aplica."""
+    clave = pr["id_producto"].astype(str) + "|" + pr["id_tienda"].astype(str)
+    # Con los códigos de las categorías de fact_precio (8 millones de claves como texto no entran en memoria).
+    cp, ct = (f[c].astype("category") for c in ("id_producto", "id_tienda"))
+    nt = len(ct.cat.categories) + 1
+    en_fact = cp.cat.codes.to_numpy(np.int64) * nt + ct.cat.codes.to_numpy(np.int64)
+    codigo = lambda col, cat: pd.Categorical(pr[col].astype(str), categories=cat.cat.categories).codes  # noqa: E731
+    p_cod, t_cod = codigo("id_producto", cp).astype(np.int64), codigo("id_tienda", ct).astype(np.int64)
+    es_de_fact = (p_cod >= 0) & (t_cod >= 0) & np.isin(p_cod * nt + t_cod, en_fact)
+    _control(r, "promoción: es de un precio de fact_precio", ~es_de_fact, True, clave)
+    _control(r, "promoción: una por producto, tienda y orden", pr.duplicated(["id_producto", "id_tienda", "orden"]),
+             True, clave)
+    _control(r, "promoción: tipo conocido", ~pr["tipo"].isin(TIPOS_PROMOCION), True, clave)
+    aplicable = pr["aplicable"].astype(bool)
+    pu, lista = pr["precio_unitario"], pr["precio_lista"]
+    _control(r, "promoción: la aplicable tiene un precio menor al de lista",
+             aplicable & ~((pu > 0) & (pu < lista)), True, clave)
+    _control(r, "promoción: la aplicable tiene forma (precio o grupo) y unidades",
+             aplicable & ~(pr["forma"].isin(["precio", "grupo"]) & (pr["unidades"] >= 1)), True, clave)
+    _control(r, "promoción: la aplicable no tiene motivo y la otra sí",
+             aplicable.ne(pr["motivo"].astype(str).eq("")), True, clave)
+    _control(r, "promoción: con condición de pago no se aplica", aplicable & pr["condicion_pago"].notna(), True, clave)
+    _control(r, "promoción: desconocida (la leyenda no dice qué promoción es)", pr["tipo"].eq("desconocida"), False,
+             pr["leyenda"].astype(str))
+
+
+def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.DataFrame,
+              promocion: pd.DataFrame | None = None) -> pd.DataFrame:
+    """promocion: la tabla de precio/promociones.py (una base anterior a la etapa 5 no la tiene)."""
     r: list = []
     p, t, f = dim_producto, dim_tienda, fact
     ids = p["id_producto"]
@@ -117,6 +148,8 @@ def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.Dat
     _control(r, "producto: tiene al menos un precio en fact_precio", sin_precio, True, ids)
     sin_hechos = ~tid.isin(f["id_tienda"].unique())
     _control(r, "tienda: tiene al menos un precio en fact_precio", sin_hechos, False, tid)
+    if promocion is not None:
+        _promocion(r, f, promocion)
 
     res = pd.DataFrame(r)
     criticos = res[res["critico"] & res["filas_que_fallan"].gt(0)]

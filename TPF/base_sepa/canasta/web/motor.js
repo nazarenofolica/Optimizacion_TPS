@@ -71,7 +71,7 @@
       return [c, { supervision: f.requiere_supervision === "si", aviso: f.aviso }];
     }));
     return { fecha: D.fecha, perfiles: D.perfiles, parametros: P, productos: D.productos.n, tiendas: D.tiendas.id.length,
-      productosTotal: D.productosTotal, criterios: D.criterios, condiciones };
+      productosTotal: D.productosTotal, criterios: D.criterios, condiciones, promosAplicables: D.promosAplicables };
   }
 
   function cargarDatos(meta, buffer) {
@@ -107,6 +107,18 @@
     const filaProd = new Int32Array(tienda.length);
     const filaPrecio = new Float64Array(tienda.length);
     const filaPromo = new Float64Array(tienda.length);
+    // Promociones (etapa 5), dispersas: solo las filas que tienen, con su promoción y el precio por unidad con ella.
+    const specPorJ = new Int32Array(tienda.length).fill(-1);
+    const precioPromoPorJ = new Float64Array(tienda.length).fill(NaN);
+    if (meta.binario["promos.fila"]) {
+      const fila = seccion("promos.fila"), spec = seccion("promos.spec"), cent = seccion("promos.centavos");
+      for (let k = 0; k < fila.length; k++) {
+        specPorJ[fila[k]] = spec[k];
+        precioPromoPorJ[fila[k]] = cent[k] ? cent[k] / 100 : NaN;
+      }
+    }
+    const filaSpec = new Int32Array(tienda.length);
+    const filaPrecioPromo = new Float64Array(tienda.length);
     let j = 0;
     for (let p = 0; p < n; p++) {
       for (let k = 0; k < porProducto[p]; k++, j++) {
@@ -114,13 +126,16 @@
         filaProd[pos] = p;
         filaPrecio[pos] = centavos[j] / 100;
         filaPromo[pos] = promocion[j] ? promocion[j] / 100 : NaN;
+        filaSpec[pos] = specPorJ[j];
+        filaPrecioPromo[pos] = precioPromoPorJ[j];
       }
     }
+    const promociones = (meta.promociones || []).map((s) => ({ ...s, tope: s.tope === null ? Infinity : s.tope }));
     D = {
       fecha: meta.fecha_precios, productosTotal: meta.productos_total, productos, tiendas: meta.tiendas,
-      precios: { inicio, filaProd, filaPrecio, filaPromo }, nombres: meta.nombres,
+      precios: { inicio, filaProd, filaPrecio, filaPromo, filaSpec, filaPrecioPromo }, nombres: meta.nombres,
       requerimientos: meta.requerimientos, guias: meta.guias, perfiles: meta.perfiles, criterios: meta.criterios,
-      condiciones: meta.condiciones,
+      condiciones: meta.condiciones, promociones, promosAplicables: meta.promos_aplicables || 0,
     };
   }
 
@@ -660,8 +675,22 @@
     return quedan;
   }
 
+  // La promoción de la fila j de precios (oferta._promos_de): para el ticket (resumen, si se puede aplicar y por qué
+  // no) y, si se aplican (aplicar), cómo entra al modelo: forma 1 (cada unidad a promoPC desde promoUnidades) o 2
+  // (grupos de promoUnidades), con el tope de unidades y el precio por unidad de compra (envase o 100 g a granel).
+  function promoDe(j, granel, aplicar) {
+    const { filaSpec, filaPrecioPromo } = D.precios;
+    const s = filaSpec[j] >= 0 ? D.promociones[filaSpec[j]] : null;
+    const usa = aplicar && s !== null && s.aplicable;
+    const pu = filaPrecioPromo[j];
+    return { promoResumen: s ? s.resumen : null, promoAplicable: s ? s.aplicable : false, promoMotivo: s ? s.motivo : "",
+      promoForma: usa ? s.forma : 0, promoUnidades: usa ? s.unidades : 0, promoTope: usa ? s.tope : Infinity,
+      promoPC: usa ? (granel ? pu * P.PASO_GRANEL_G / 1000 : pu) : NaN };
+  }
+
   // Productos de la sucursal que le sirven a alguien del hogar y, para cada persona, cuáles son aptos para ella.
-  function ofertaTienda(t, aptosPersonas) {
+  // aplicar: aplicar las promociones aplicables (sin ellas, todo es como antes de la etapa 5).
+  function ofertaTienda(t, aptosPersonas, aplicar = false) {
     const pr = D.productos, { inicio, filaProd, filaPrecio, filaPromo } = D.precios;
     const filas = [];
     for (let j = inicio[t]; j < inicio[t + 1]; j++) {
@@ -675,12 +704,15 @@
       if (!(gc > 0 && precioCompra > 0)) continue;
       const p100 = precioCompra / gc * 100;
       if (!(p100 >= P.FRACCION_PRECIO_MINIMO * pr.precio_referencia_100g[p])) continue;
-      filas.push({ p, precio, promo: filaPromo[j], granel, gramosCompra, precioCompra, gc, p100 });
+      const promo = promoDe(j, granel, aplicar);
+      // Para la poda, el precio cada 100 g con la promoción (si se aplica).
+      const p100ef = (promo.promoForma > 0 ? promo.promoPC : precioCompra) / gc * 100;
+      filas.push({ p, precio, promo: filaPromo[j], granel, gramosCompra, precioCompra, gc, p100, p100ef, ...promo });
     }
     const quedan = new Uint8Array(filas.length);
     for (const apto of aptosPersonas) {
       const propias = [];
-      filas.forEach((f, pos) => { if (apto[f.p]) propias.push({ pos, sub: pr.subcategoria[f.p], p100: f.p100, pc: f.precioCompra }); });
+      filas.forEach((f, pos) => { if (apto[f.p]) propias.push({ pos, sub: pr.subcategoria[f.p], p100: f.p100ef, pc: f.precioCompra }); });
       for (const pos of podar(propias)) quedan[pos] = 1;
     }
     const oferta = filas.filter((_, pos) => quedan[pos]);
@@ -893,9 +925,25 @@
       subCol: columnas.map((pos) => subCodigos[pos]), topeVar: topeVariedad(req, porcionSub, aguaSub) };
   }
 
+  // Las promociones que se aplican en una oferta (modelo.Promos): simple = precio por unidad desde la primera y sin
+  // tope (basta con bajar el precio); especial = las que necesitan variables nuevas (grupos, tope o mínimo).
+  const esSimple = (f) => f.promoForma === 1 && f.promoUnidades <= 1 && f.promoTope === Infinity;
+  const esEspecial = (f) => f.promoForma > 0 && !esSimple(f);
+
+  // Lo que cobra la caja por x unidades de la fila f con su promoción (modelo.costo_caja): arma todos los grupos que
+  // puede (hasta el tope) y cobra a precio de promoción las unidades que entran (si llega al mínimo); el resto, de lista.
+  function costoCaja(f, x) {
+    if (!(f.promoForma > 0)) return f.precioCompra * x;
+    const n = Math.max(f.promoUnidades, 1);
+    const enPromo = f.promoForma === 1 ? (x >= n ? Math.min(x, f.promoTope) : 0)
+      : n * Math.min(Math.floor(x / n), Math.floor(f.promoTope / n));
+    return f.promoPC * enPromo + f.precioCompra * (x - enPromo);
+  }
+
   function sinSolucion(mensaje, oferta, bloques, inicio) {
     const n = oferta.length;
-    return { estado: "sin_solucion", mensaje, oferta, compra: new Float64Array(n), costo: NaN, segundos: (Date.now() - inicio) / 1000,
+    return { estado: "sin_solucion", mensaje, oferta, compra: new Float64Array(n), subtotales: new Float64Array(n),
+      costo: NaN, segundos: (Date.now() - inicio) / 1000,
       dietas: bloques.map((b) => ({ metas: b.metas.map(([m]) => m), valores: b.metas.map(() => 0), deficit: b.metas.map(() => 0),
         consumo: new Float64Array(n), reglasSinOferta: b.sinOferta })) };
   }
@@ -969,12 +1017,41 @@
     }
     const dEstrella = filas.map((_, r) => lp1.Columns[`d${r}`].Primal);
 
-    // --- Etapa 2: la compra más barata.
+    // --- Etapa 2: la compra más barata (con las promociones que se aplican: ver el docstring de modelo.py).
     const topeHogar = subs.map(() => 0);
     for (const b of bloques) b.topeVar.forEach((v, s) => { topeHogar[s] += v; });
-    const xMax = oferta.map((_, pos) => Math.ceil(dias * topeHogar[subCodigos[pos]] / gc[pos]) + 1);
+    const especial = oferta.map(esEspecial);
+    const xMax = oferta.map((f, pos) => {
+      const x = Math.ceil(dias * topeHogar[subCodigos[pos]] / gc[pos]) + 1;
+      return especial[pos] ? Math.max(x, f.promoUnidades) : x;             // se puede llevar el grupo aunque sobre
+    });
+    const precioEf = oferta.map((f, pos) => (esSimple(f) ? f.promoPC : precio[pos]));   // costo de x (sin variables nuevas)
     const topeDef = filas.map((f, r) => Math.min(dEstrella[r] + P.HOLGURA_DEFICIT, f.signo > 0 ? 1 : Infinity));
     const mediaPrecio = precio.reduce((s, v) => s + v, 0) / n;
+
+    // Variables de las promociones especiales de cols: u (unidades o grupos con la promoción) y z (llegó al mínimo).
+    const variablesPromo = (cols, entera) => {
+      const filasP = [], objetivo = [], cotas = [], enteras = [];
+      for (let pos = 0; pos < n; pos++) {
+        if (!cols[pos] || !especial[pos]) continue;
+        const f = oferta[pos];
+        const grupo = f.promoForma === 2;
+        const m = Math.max(f.promoUnidades, 1);
+        const tamano = grupo ? m : 1;
+        const tope = Math.min(f.promoTope, xMax[pos]);
+        cotas.push([`u${pos}`, 0, grupo ? Math.floor(tope / m) : tope]);
+        objetivo.push([`u${pos}`, -tamano * (precio[pos] - f.promoPC)]);
+        filasP.push({ terminos: [[`u${pos}`, tamano], [`x${pos}`, -1]], op: "<=", rhs: 0 });
+        if (grupo && entera) enteras.push(`u${pos}`);
+        if (!grupo && m >= 2) {                                        // llevando m, c/u $Q: binaria z
+          cotas.push([`z${pos}`, 0, 1]);
+          if (entera) enteras.push(`z${pos}`);
+          filasP.push({ terminos: [[`z${pos}`, m], [`u${pos}`, -1]], op: "<=", rhs: 0 },
+            { terminos: [[`u${pos}`, 1], [`z${pos}`, -tope]], op: "<=", rhs: 0 });
+        }
+      }
+      return { filasP, objetivo, cotas, enteras };
+    };
 
     const comprar = async (cols, entera) => {
       const cc = Uint8Array.from(producto, (pos) => cols[pos]);
@@ -990,10 +1067,13 @@
       for (const [pos, terminos] of porProducto) filas2.push({ terminos: terminos.concat([[`x${pos}`, -gc[pos]]]), op: "<=", rhs: 0 });
       const xs = [];
       for (let pos = 0; pos < n; pos++) if (cols[pos]) xs.push(pos);
-      const objetivo2 = xs.map((pos) => [`x${pos}`, precio[pos]]).concat(filas.map((f, r) => [`d${r}`, 1e-6 * mediaPrecio * f.peso]));
-      const cotas = xs.map((pos) => [`x${pos}`, 0, xMax[pos]]).concat(cotasD(topeDef));
+      const vp = variablesPromo(cols, entera);
+      filas2.push(...vp.filasP);
+      const objetivo2 = xs.map((pos) => [`x${pos}`, precioEf[pos]]).concat(filas.map((f, r) => [`d${r}`, 1e-6 * mediaPrecio * f.peso]))
+        .concat(vp.objetivo);
+      const cotas = xs.map((pos) => [`x${pos}`, 0, xMax[pos]]).concat(cotasD(topeDef), vp.cotas);
       const opciones = entera ? { mip_rel_gap: P.GAP_RELATIVO, time_limit: P.TIEMPO_MAXIMO_S } : {};
-      const sol = await resolverLP(textoLP(objetivo2, filas2, cotas, entera ? xs.map((pos) => `x${pos}`) : []), opciones);
+      const sol = await resolverLP(textoLP(objetivo2, filas2, cotas, entera ? xs.map((pos) => `x${pos}`).concat(vp.enteras) : []), opciones);
       const ok = sol.Status === "Optimal" || (sol.Status === "Time limit reached" && Number.isFinite(sol.ObjectiveValue));
       return { sol, ok, cc };
     };
@@ -1028,9 +1108,12 @@
       return { metas: b.metas.map(([m]) => m), valores, deficit: b.metas.map(([m], i) => deficitRelativo(m, valores[i])),
         consumo, reglasSinOferta: b.sinOferta };
     });
-    const costo = precio.reduce((s, v, pos) => s + v * compra[pos], 0);
+    // Lo que cobra la caja: de lista, menos lo que descuentan las promociones (sin promociones, como antes).
+    const subtotales = Float64Array.from(oferta, (f, pos) => costoCaja(f, compra[pos]));
+    const descuento = oferta.reduce((s, f, pos) => s + (f.promoForma > 0 ? precio[pos] * compra[pos] - subtotales[pos] : 0), 0);
+    const costo = precio.reduce((s, v, pos) => s + v * compra[pos], 0) - descuento;
     return { estado: res.sol.Status === "Optimal" ? "optima" : "factible", mensaje: res.sol.Status, oferta, compra,
-      dietas, costo, segundos: (Date.now() - inicio) / 1000 };
+      subtotales, dietas, costo, segundos: (Date.now() - inicio) / 1000 };
   }
 
   // ============================================================
@@ -1149,18 +1232,32 @@
     return consumo;
   }
 
-  // Un renglón del ticket: el producto j de la oferta, con lo que se compra y lo que come cada persona.
-  function renglon(sol, j, dias, consumo) {
+  // La promoción del renglón para el ticket (resultado._promo_renglon): {resumen, aplicada, motivo} o null.
+  function promoRenglon(f, descuento, aplicar) {
+    if (f.promoResumen === null || f.promoResumen === undefined) return null;
+    if (descuento > 0) return { resumen: f.promoResumen, aplicada: true, motivo: "" };
+    const motivo = !f.promoAplicable ? f.promoMotivo : !aplicar ? "desactivaste las promociones"
+      : "la compra no llega a las unidades que pide";
+    return { resumen: f.promoResumen, aplicada: false, motivo };
+  }
+
+  // Un renglón del ticket: el producto j de la oferta, con lo que se compra y lo que come cada persona. subtotal es lo
+  // que se paga (con la promoción, si se aplicó); subtotal_lista, a precio de lista; descuento, la diferencia.
+  function renglon(sol, j, dias, consumo, aplicar = false) {
     const pr = D.productos, f = sol.oferta[j], x = sol.compra[j];
     const comestible = x * f.gc;
     const sobra = comestible - consumo[j] * dias;
     const agua = pr.es_agua[f.p] === 1;
+    const lista = x * f.precioCompra;
+    const paga = sol.subtotales ? sol.subtotales[j] : lista;
+    const descuento = redondear(lista - paga, 2);
     return {
       id_producto: pr.id[f.p], nombre: pr.nombre[f.p], marca: pr.marca[f.p], subcategoria: pr.subcategoria[f.p],
       grupo: pr.grupo_alimentario[f.p], cantidad: cantidad(f, x), unidades_compra: x, granel: f.granel,
       precio_unitario: redondear(f.precio, 2),
       precio_unidad_texto: f.granel ? `$${fmt(f.precio, 2)} /kg` : `$${fmt(f.precio, 2)} c/u`,
-      subtotal: redondear(x * f.precioCompra, 2), promocion: Number.isNaN(f.promo) ? null : redondear(f.promo, 2),
+      subtotal: redondear(paga, 2), subtotal_lista: redondear(lista, 2), descuento, promo: promoRenglon(f, descuento, aplicar),
+      promocion: Number.isNaN(f.promo) ? null : redondear(f.promo, 2),
       gramos_dia: redondear(consumo[j], 1), consumo_dia_texto: gramosTexto(consumo[j], agua), agua,
       por_persona: sol.dietas.map((dt) => redondear(dt.consumo[j], 1)),
       sobrante_texto: sobra > Math.max(20, 0.05 * comestible) ? gramosTexto(sobra, agua) : "",
@@ -1184,11 +1281,19 @@
       tipo: T.tipo_sucursal[t] };
   }
 
-  function ticket(sol, t, distancia, dias, tiempo = {}) {
+  // Total a precio de lista, ahorro por promociones y cuántas se aplicaron (resultado._ahorro).
+  function ahorro(items) {
+    const totalLista = redondear(items.reduce((s, it) => s + it.subtotal_lista, 0), 2);
+    const total = redondear(items.reduce((s, it) => s + it.subtotal, 0), 2);
+    return { total_lista: totalLista, ahorro_promociones: redondear(totalLista - total, 2),
+      promociones_aplicadas: items.filter((it) => it.promo && it.promo.aplicada).length };
+  }
+
+  function ticket(sol, t, distancia, dias, tiempo = {}, aplicar = false) {
     const pr = D.productos;
     const consumo = consumoHogar(sol);
     const items = [];
-    sol.oferta.forEach((f, j) => { if (sol.compra[j] > 0) items.push(renglon(sol, j, dias, consumo)); });
+    sol.oferta.forEach((f, j) => { if (sol.compra[j] > 0) items.push(renglon(sol, j, dias, consumo, aplicar)); });
     ordenarItems(items);
     const total = redondear(items.reduce((s, it) => s + it.subtotal, 0), 2);
     const energia = sol.oferta.reduce((s, f, pos) => s + pr.energia_kcal[f.p] / 100 * consumo[pos], 0);
@@ -1196,7 +1301,8 @@
       tienda: datosTienda(t, distancia, tiempo),
       fecha_precios: D.fecha, dias, items, total, costo_diario: redondear(total / dias, 2),
       costo_1000_kcal: energia ? redondear(total / dias / energia * 1000, 2) : null,
-      promociones_disponibles: items.filter((it) => it.promocion).length,
+      promociones_disponibles: items.filter((it) => it.promocion || it.promo).length,
+      ...ahorro(items),
     };
   }
 
@@ -1262,8 +1368,11 @@
     return { aptosP, efectos, sinAptos };
   }
 
-  // Mismos productos con los mismos precios (al centavo) = misma firma: dan la misma canasta (resultado._firma).
-  const firma = (o) => o.oferta.map((f) => `${f.p}:${redondear(f.precioCompra, 2)}`).join("|");
+  // Mismos productos con los mismos precios (al centavo) y las mismas promociones = misma firma: dan la misma canasta
+  // (resultado._firma). Las promociones que no se aplican también cuentan (leyendas): el ticket dice por qué no.
+  const firma = (o, leyendas = true) => o.oferta.map((f) => `${f.p}:${redondear(f.precioCompra, 2)}`
+    + (f.promoForma > 0 ? `:${f.promoForma}:${f.promoUnidades}:${f.promoTope}:${redondear(f.promoPC, 2)}` : "")
+    + (leyendas && f.promoResumen ? `:${f.promoResumen}:${f.promoMotivo}` : "")).join("|");
 
   async function armar(pedido, avance = () => {}) {
     const inicio = Date.now();
@@ -1272,6 +1381,8 @@
     const dias = pedido.dias ?? P.DIAS_PREDETERMINADO;
     const listos = Boolean(pedido.listos);
     const agua = pedido.agua ?? P.AGUA_MODO_PREDETERMINADO;
+    // Promociones: las aplicables, si la base trae alguna (o lo que diga el pedido).
+    const aplicar = pedido.promos === undefined || pedido.promos === null ? D.promosAplicables > 0 : Boolean(pedido.promos);
     if (!(personas.length >= 1 && personas.length <= P.PERSONAS_MAXIMAS)) {
       throw new Error(`El hogar tiene que tener entre 1 y ${P.PERSONAS_MAXIMAS} personas.`);
     }
@@ -1295,7 +1406,8 @@
           productos_aptos: aptosP[i].reduce((s, v) => s + v, 0) },
       })),
       hogar: { personas: personas.length, energia_kcal: reqs.reduce((s, r) => s + r.energia_kcal, 0) },
-      opciones: { listos, listos_criterio: listos ? P.LISTOS_CRITERIO : null, agua, agua_nombre: P.AGUA_MODOS[agua].nombre },
+      opciones: { listos, listos_criterio: listos ? P.LISTOS_CRITERIO : null, agua, agua_nombre: P.AGUA_MODOS[agua].nombre,
+        promos: aplicar, promos_en_base: D.promosAplicables },
       catalogo: { productos_total: D.productosTotal,
         productos_canasta: compraAgua ? pr.n : pr.n - pr.es_agua.reduce((s, v) => s + v, 0), excluidos_siempre: P.EXCLUIDOS_SIEMPRE },
       ubicacion: { lat, lon }, dias, periodo: P.DIAS_PERIODO[String(dias)], fecha_precios: D.fecha,
@@ -1315,7 +1427,7 @@
       return base;
     }
     // Ofertas; las sucursales con la misma oferta y los mismos precios se resuelven una vez.
-    const ofertas = cercanas.map((x) => ofertaTienda(x.i, aptosP));
+    const ofertas = cercanas.map((x) => ofertaTienda(x.i, aptosP, aplicar));
     const firmas = new Map(), unica = [];
     ofertas.forEach((o, k) => {
       const f = firma(o);
@@ -1363,7 +1475,7 @@
     const metasModelo = sol.dietas.reduce((s, dt) => s + dt.metas.length, 0);
     Object.assign(base, {
       sucursales: comparacion,
-      ticket: ticket(sol, cercanas[ke].i, cercanas[ke].d, dias, cercanas[ke]),
+      ticket: ticket(sol, cercanas[ke].i, cercanas[ke].d, dias, cercanas[ke], aplicar),
       modelo: { estado: sol.estado, productos_considerados: sol.oferta.length,
         variables: sol.oferta.length * (1 + personas.length) + metasModelo, metas: metasModelo,
         segundos_sucursal: redondear(sol.segundos, 2), segundos_total: redondear((Date.now() - inicio) / 1000, 2),
@@ -1377,10 +1489,17 @@
   // ============================================================
 
   // Las ofertas de A y de B en una sola; cada fila lleva su sucursal (tienda). Una fila de B con el mismo producto que
-  // A vende al mismo precio o más barato se saca: nunca puede ser mejor y haría el modelo más lento.
+  // A vende al mismo precio o más barato se saca si su promoción tampoco es mejor (no tiene, o es la misma de A a un
+  // precio igual o mayor): nunca puede ser mejor y haría el modelo más lento.
   function union(oa, ob, ta, tb) {
-    const precioA = new Map(oa.oferta.map((f) => [f.p, f.precioCompra]));
-    const queda = ob.oferta.map((f) => !precioA.has(f.p) || f.precioCompra < precioA.get(f.p));
+    const deA = new Map(oa.oferta.map((f) => [f.p, f]));
+    const dominada = (f) => {
+      const a = deA.get(f.p);
+      if (!a || f.precioCompra < a.precioCompra) return false;
+      return !(f.promoForma > 0) || (f.promoForma === a.promoForma && f.promoUnidades === a.promoUnidades
+        && f.promoTope <= a.promoTope && f.promoPC >= a.promoPC);
+    };
+    const queda = ob.oferta.map((f) => !dominada(f));
     const oferta = oa.oferta.map((f) => ({ ...f, tienda: ta }))
       .concat(ob.oferta.filter((_, k) => queda[k]).map((f) => ({ ...f, tienda: tb })));
     return { oferta, porPersona: oa.porPersona.map((a, i) => a.concat(ob.porPersona[i].filter((_, k) => queda[k]))) };
@@ -1433,20 +1552,24 @@
         { desde: "b", hasta: "lugar", minutos: casaB, fuente: fuenteB }] };
   }
 
-  // El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal; cada renglón dice de qué
-  // sucursal es (id_tienda).
-  function ticketDividido(sol, sucursales, dias, fecha) {
+  // El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal (y su ahorro por promociones:
+  // cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda).
+  function ticketDividido(sol, sucursales, dias, fecha, aplicar = false) {
     const consumo = consumoHogar(sol);
     const bloques = sucursales.map((x) => {
       const items = [];
       sol.oferta.forEach((f, j) => {
-        if (sol.compra[j] > 0 && f.tienda === x.i) items.push({ ...renglon(sol, j, dias, consumo), id_tienda: D.tiendas.id[x.i] });
+        if (sol.compra[j] > 0 && f.tienda === x.i) items.push({ ...renglon(sol, j, dias, consumo, aplicar), id_tienda: D.tiendas.id[x.i] });
       });
       ordenarItems(items);
-      return { tienda: datosTienda(x.i, x.d, x), items, subtotal: redondear(items.reduce((s, it) => s + it.subtotal, 0), 2) };
+      return { tienda: datosTienda(x.i, x.d, x), items, subtotal: redondear(items.reduce((s, it) => s + it.subtotal, 0), 2),
+        ...ahorro(items) };
     });
     const total = redondear(bloques.reduce((s, b) => s + b.subtotal, 0), 2);
-    return { fecha_precios: fecha, dias, sucursales: bloques, total, costo_diario: redondear(total / dias, 2) };
+    const totalLista = redondear(bloques.reduce((s, b) => s + b.total_lista, 0), 2);
+    return { fecha_precios: fecha, dias, sucursales: bloques, total, costo_diario: redondear(total / dias, 2),
+      total_lista: totalLista, ahorro_promociones: redondear(totalLista - total, 2),
+      promociones_aplicadas: bloques.reduce((s, b) => s + b.promociones_aplicadas, 0) };
   }
 
   // Los nombres separados por punto y coma: a lo sumo n, y cuántos más.
@@ -1490,6 +1613,7 @@
     if (porTiempo && tiempos === null) throw new Error("El resultado se armó por tiempo caminando: hacen falta los mismos tiempos.");
     const { lat, lon } = r.ubicacion;
     const dias = r.dias, listos = r.opciones.listos, agua = r.opciones.agua;
+    const aplicar = Boolean(r.opciones.promos);                       // las mismas promociones que en r
     const personas = pedido.personas.map(personaDesde);
     const nombres = nombresHogar(personas);
     const reqs = personas.map((p) => calcular(p, agua));
@@ -1504,12 +1628,12 @@
     if (!a) throw new Error("La sucursal elegida no está entre las alcanzables: ¿son los mismos tiempos?");
     const cercanas = vecinasDe(pool, a, P.DOS_SUPER_MINUTOS_ENTRE);
     // Las que venden lo mismo al mismo precio que A (o que otra más cercana) no suman nada.
-    const ofertas = new Map([[a.i, ofertaTienda(a.i, aptosP)]]);
-    const vistas = new Set([firma(ofertas.get(a.i))]), distintas = [];
+    const ofertas = new Map([[a.i, ofertaTienda(a.i, aptosP, aplicar)]]);
+    const vistas = new Set([firma(ofertas.get(a.i), false)]), distintas = [];
     for (const x of cercanas) {
-      const o = ofertaTienda(x.i, aptosP);
+      const o = ofertaTienda(x.i, aptosP, aplicar);
       ofertas.set(x.i, o);
-      const f = firma(o);
+      const f = firma(o, false);
       if (!vistas.has(f)) { vistas.add(f); distintas.push(x); }
     }
     const vecinas = elegirVecinas(distintas, T.bandera[a.i], P.DOS_SUPER_VECINAS);
@@ -1557,7 +1681,7 @@
     const sol = soluciones[k], b = vecinas[k];
     const ahorro = redondear(costoA - mejor.costo, 2);
     const pct = redondear(ahorro / costoA * 100, 1);
-    const tk = ticketDividido(sol, [a, b], dias, r.fecha_precios);
+    const tk = ticketDividido(sol, [a, b], dias, r.fecha_precios, aplicar);
     const productosB = [...new Set(tk.sucursales[1].items.map((it) => it.subcategoria))];
     const personasC = sol.dietas.map((dieta, i) => {
       const [cob, reg] = cobertura(dieta, reqs[i], sinAptos[i]);

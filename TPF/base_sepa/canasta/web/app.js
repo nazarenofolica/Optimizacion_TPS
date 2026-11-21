@@ -38,6 +38,7 @@ const PERSONA_NUEVA = { nombre: "", sexo: "F", edad: 34, peso_kg: 63, altura_cm:
 
 const estado = {
   P: null, perfiles: [], criterios: {}, condiciones: {}, hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
+  promos: false, promosEnBase: 0,   // aplicar promociones (solo si la base trae alguna aplicable)
   caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
   mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
   escalera: new Map(),   // minutos -> {resumen, resultado, rutas, pedido}: la mejor compra con cada límite de caminata
@@ -50,7 +51,8 @@ const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
 const PARAMETROS = new URLSearchParams(location.search);
 // Un enlace con un caso (?perfiles=…&lat=…) arranca de los valores predeterminados más lo que trae: no mezcla nada
 // guardado de una sesión anterior.
-const CON_CASO = ["perfiles", "perfil", "lat", "lon", "dias", "listos", "agua", "caminata"].some((k) => PARAMETROS.has(k));
+const CON_CASO = ["perfiles", "perfil", "lat", "lon", "dias", "listos", "agua", "caminata", "promos"]
+  .some((k) => PARAMETROS.has(k));
 // ?rutas=0 busca como antes (la más cercana de cada cadena, en línea recta): lo usa el test de paridad con Python.
 const CON_RUTAS = PARAMETROS.get("rutas") !== "0";
 
@@ -114,7 +116,7 @@ let guardoEnEstaVisita = false;
 function guardar() {
   try {
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ hogar: estado.hogar, lugar: estado.lugar, dias: estado.dias,
-      listos: estado.listos, agua: estado.agua, caminata: estado.caminata }));
+      listos: estado.listos, agua: estado.agua, caminata: estado.caminata, promos: estado.promos }));
     guardoEnEstaVisita = true;
   } catch (err) { /* sin almacenamiento */ }
 }
@@ -133,7 +135,8 @@ function leerGuardado() {
     if (!lugar && hogar.length === 1 && comoNueva(hogar[0])) return null;
     return { hogar, lugar, dias: String(g.dias) in P.DIAS_PERIODO ? Number(g.dias) : 7, listos: Boolean(g.listos),
       agua: g.agua in P.AGUA_MODOS ? g.agua : P.AGUA_MODO_PREDETERMINADO,
-      caminata: P.CAMINATA_OPCIONES.includes(g.caminata) ? g.caminata : P.CAMINATA_MINUTOS };
+      caminata: P.CAMINATA_OPCIONES.includes(g.caminata) ? g.caminata : P.CAMINATA_MINUTOS,
+      promos: estado.promosEnBase > 0 && g.promos !== false };
   } catch (err) {
     return null;   // sin almacenamiento o con algo ilegible
   }
@@ -148,7 +151,7 @@ function avisoRetomar(g) {
   el.hidden = false;
   $("#retomar-si").addEventListener("click", () => {
     Object.assign(estado, { hogar: g.hogar, actual: 0, lugar: g.lugar, dias: g.dias, listos: g.listos, agua: g.agua,
-      caminata: g.caminata, anterior: null });
+      caminata: g.caminata, promos: g.promos, anterior: null });
     estado.escalera.clear();
     el.hidden = true;
     sincronizarControles();
@@ -170,6 +173,7 @@ function sincronizarControles() {
   $$('[name="dias"]').forEach((c) => { c.checked = Number(c.value) === estado.dias; });
   $$('[name="agua"]').forEach((c) => { c.checked = c.value === estado.agua; });
   $("#listos").checked = estado.listos;
+  $("#promos").checked = estado.promos;
   if (estado.lugar) elegirLugar(estado.lugar, true, false);
   cargarEditor();
   dibujarPersonas();
@@ -234,7 +238,7 @@ function marcarPasos() {
   $("#sub-ubicacion").textContent = estado.lugar
     ? `${estado.lugar.corto || estado.lugar.nombre}${CON_RUTAS && estado.caminata ? `, ${estado.caminata} min` : ""}` : "Falta elegir";
   $("#sub-compra").textContent = estado.P.DIAS_PERIODO[estado.dias] + (estado.listos ? ", listo para comer" : "")
-    + `, ${estado.P.AGUA_MODOS[estado.agua].corto}`;
+    + `, ${estado.P.AGUA_MODOS[estado.agua].corto}` + (estado.promosEnBase && !estado.promos ? ", sin promociones" : "");
 }
 
 const PASOS = ["hogar", "ubicacion", "compra"];
@@ -596,6 +600,15 @@ function prepararCompra() {
     `<label><input type="radio" name="agua" value="${clave}" ${clave === estado.agua ? "checked" : ""}>
       <span><b>${esc(m.nombre)}</b><small>${esc(m.descripcion)}</small></span></label>`).join("");
   $("#aguas").addEventListener("change", (e) => { estado.agua = e.target.value; dibujarPersonas(); guardar(); });
+  // Promociones: si la base de hoy no trae ninguna que se pueda aplicar, la casilla queda apagada y lo dice.
+  const promos = $("#promos");
+  promos.checked = estado.promos;
+  promos.disabled = !estado.promosEnBase;
+  if (!estado.promosEnBase) {
+    $("#promos-ayuda").textContent = "Los precios de hoy no traen promociones que se puedan aplicar sin banco ni "
+      + "tarjeta: el total va a precio de lista.";
+  }
+  promos.addEventListener("change", (e) => { estado.promos = e.target.checked; dibujarPersonas(); guardar(); });
 }
 
 // ============================================================
@@ -707,7 +720,7 @@ async function armar(e, anterior = null) {
   cargando("Preparando el cálculo…", 0.03);
   try {
     const pedido = { personas, lat: estado.lugar.lat, lon: estado.lugar.lon, dias: estado.dias, listos: estado.listos,
-      agua: estado.agua };
+      agua: estado.agua, promos: estado.promos };
     let rutas = null;
     if (CON_RUTAS) {
       cargando(`Buscando supermercados a menos de ${estado.caminata} minutos caminando…`, 0.03);
@@ -785,7 +798,33 @@ function coberturaFalta(c) {
   return { pct, texto: c.valor === 0 && /no vende/.test(c.nota || "") ? "0 %: no vende ninguno apto" : `cubre el ${fmt(Math.min(pct, 99), 0)} %` };
 }
 
-// Los renglones del ticket (agrupados por grupo de alimentos), con quién come cada cosa si son varios.
+// La promoción de un renglón: aplicada, como la línea de descuento de la caja (con lo que se paga); no aplicada, con
+// el motivo. Una base anterior a la etapa 5 solo trae el precio de promoción, sin condiciones.
+function promoHTML(it) {
+  const p = it.promo;
+  if (p && p.aplicada) {
+    return `<p class="t-linea t-descuento"><span>${esc(p.resumen)} <small>pagás ${pesos(it.subtotal)}</small></span>`
+      + `<span>−${fmt(it.descuento, 2)}</span></p>`;
+  }
+  if (p) return `<p class="t-promo">Promo ${esc(p.resumen)}, no aplicada (${esc(p.motivo)})</p>`;
+  return it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : "";
+}
+
+// Las líneas del total cuando hubo promociones: subtotal a precio de lista y el ahorro (antes del TOTAL).
+const ahorroHTML = (t) => (t.ahorro_promociones > 0
+  ? `<p class="t-linea"><span>Subtotal a precio de lista</span><span>${pesos(t.total_lista)}</span></p>
+    <p class="t-linea t-ahorro"><span>Ahorro por promociones</span><span>−${pesos(t.ahorro_promociones)}</span></p>` : "");
+
+// La nota del pie: qué precios lleva el total.
+function notaPrecios(d, t) {
+  if (t.ahorro_promociones > 0) return "Con las promociones que no piden<br>banco ni tarjeta.";
+  if (d.opciones.promos_en_base && !d.opciones.promos) return "Precios de lista: desactivaste<br>las promociones.";
+  if (d.opciones.promos) return "Precios de lista: ninguna promoción<br>sin condiciones baja esta compra.";
+  return "Precios de lista. Las promociones<br>no se aplican al total.";
+}
+
+// Los renglones del ticket (agrupados por grupo de alimentos), con quién come cada cosa si son varios. El importe de
+// cada renglón es a precio de lista; si tiene una promoción aplicada, la línea de descuento va debajo.
 function renglonesHTML(d, lista) {
   const varias = d.personas.length > 1;
   let grupoActual = "";
@@ -796,10 +835,10 @@ function renglonesHTML(d, lista) {
       ? it.por_persona.map((g, i) => (g > 0 ? `<span class="t-quien" style="--c:${colorDe(i)}">${esc(d.personas[i].datos.nombre)} ${fmt(g)} ${it.agua ? "ml" : "g"}</span>` : "")).join("") + "por día"
       : `${esc(it.consumo_dia_texto)} por día`;
     return `${cabeza}<div class="t-item">
-      <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal, 2)}</span></p>
+      <p class="t-linea t-nombre"><span>${esc(it.nombre)}</span><span>${fmt(it.subtotal_lista ?? it.subtotal, 2)}</span></p>
       <p class="t-cantidad">${esc(it.cantidad)} &times; ${esc(it.precio_unidad_texto)}</p>
       <p class="t-detalle">${quien}${it.sobrante_texto ? ` · sobran ${esc(it.sobrante_texto)}` : ""}</p>
-      ${it.promocion ? `<p class="t-promo">Promo ${pesos(it.promocion)} c/u: no aplicada (tiene condiciones)</p>` : ""}
+      ${promoHTML(it)}
     </div>`;
   }).join("");
 }
@@ -830,6 +869,7 @@ function ticketHTML(d) {
     ${items}
     <hr>
     <p class="t-linea"><span>${t.items.length} artículos</span><span></span></p>
+    ${ahorroHTML(t)}
     <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
     <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
     ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
@@ -839,7 +879,7 @@ function ticketHTML(d) {
     <p class="t-linea"><span>Meta del hogar</span><span>${fmt(d.hogar.energia_kcal)} kcal</span></p>
     <p class="t-linea"><span>Metas cubiertas</span><span>${metas.cumple} de ${metas.total}</span></p>
     <hr>
-    <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
+    <p class="t-centro">${notaPrecios(d, t)}</p>
     <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
   </div>`;
 }
@@ -885,6 +925,7 @@ function ticketDivididoHTML(d, ds) {
     <hr class="t-doble">
     ${t.sucursales.map((x, k) => `<p class="t-linea"><span>${k + 1}. ${esc(nombreTienda(x.tienda))}</span><span>${pesos(x.subtotal)}</span></p>`).join("")}
     <p class="t-linea"><span>${articulos} artículos</span><span></span></p>
+    ${ahorroHTML(t)}
     <p class="t-total"><span>TOTAL</span><span>${pesos(t.total)}</span></p>
     <p class="t-linea"><span>Por día</span><span>${pesos(t.costo_diario)}</span></p>
     ${varias ? `<p class="t-linea"><span>Por persona y día</span><span>${pesos(t.costo_diario / d.personas.length)}</span></p>` : ""}
@@ -895,7 +936,7 @@ function ticketDivididoHTML(d, ds) {
     <p class="t-linea"><span>Caminata ida y vuelta</span><span>${minutosTexto(circuito.circuito, circuito.fuente)}</span></p>
     ${circuito.fuente === "estimado" ? '<p class="t-centro t-nota">Minutos estimados: el tramo entre<br>los dos súper va en línea recta.</p>' : ""}
     <hr>
-    <p class="t-centro">Precios de lista. Las promociones<br>no se aplican al total.</p>
+    <p class="t-centro">${notaPrecios(d, t)}</p>
     <p class="t-centro t-gracias">*** Gracias por su compra ***</p>
   </div>`;
 }
@@ -1684,7 +1725,8 @@ function dibujarMapa(d) {
 // ============================================================
 
 // Un enlace como ?perfiles=celiaca,vegano&lat=-34.60&lon=-58.38&dias=14&listos=1&agua=compra arma esa canasta
-// directamente (agua: compra, bebidas o canilla, la predeterminada); con &dos=1, también la compra en dos súper.
+// directamente (agua: compra, bebidas o canilla, la predeterminada); con &dos=1, también la compra en dos súper;
+// &promos=0 la arma sin promociones (&promos=1, con ellas, si la base trae alguna).
 function desdeEnlace() {
   const q = PARAMETROS;
   const ids = (q.get("perfiles") || q.get("perfil") || "").split(",").filter(Boolean);
@@ -1697,6 +1739,7 @@ function desdeEnlace() {
   if (q.get("dias") && q.get("dias") in estado.P.DIAS_PERIODO) estado.dias = Number(q.get("dias"));
   if (q.has("listos")) estado.listos = q.get("listos") === "1";
   if (q.get("agua") in estado.P.AGUA_MODOS) estado.agua = q.get("agua");
+  if (q.has("promos")) estado.promos = estado.promosEnBase > 0 && q.get("promos") === "1";
   const lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon"));
   const conLugar = Number.isFinite(lat) && Number.isFinite(lon);
   if (conLugar) estado.lugar = { lat, lon, nombre: `${fmt(lat, 4)}, ${fmt(lon, 4)}`, precision: "punto" };
@@ -1725,6 +1768,8 @@ async function iniciar() {
   estado.condiciones = resumen.condiciones;
   estado.caminata = estado.P.CAMINATA_MINUTOS;
   estado.agua = estado.P.AGUA_MODO_PREDETERMINADO;
+  estado.promosEnBase = resumen.promosAplicables || 0;
+  estado.promos = estado.promosEnBase > 0;           // por defecto, si la base trae alguna aplicable
   estado.listo = true;
   aviso.innerHTML = `<span><b>${esc(resumen.fecha.split("-").reverse().join("/"))}</b>precios oficiales (SEPA)</span>
     <span><b>${fmt(resumen.productos)}</b>alimentos</span><span><b>${fmt(resumen.tiendas)}</b>supermercados</span>`;

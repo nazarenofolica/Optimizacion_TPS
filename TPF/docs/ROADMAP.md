@@ -161,6 +161,78 @@ Sin recargar la base entera (en esta máquina no están las cachés del pipeline
   el Microcentro y Córdoba, cada condición cambia lo que dice la tabla, ningún mínimo pasa un máximo) y un caso más de
   paridad (kosher, halal con colesterol alto y anemia en el Microcentro), que ahora compara también avisos y criterios.
 
+### Etapa 5 del MVP (21/11/2026): promociones con condiciones
+
+Las promociones que no piden banco, tarjeta, billetera ni el programa de la cadena se aplican a la compra, con sus
+condiciones (2×1, la 2.ª al 70 %, llevando 3). **Se aplican desde la próxima actualización de la base**: la de hoy
+(23/10/2026) no guarda las leyendas, así que con ella nada cambia (los costos de los perfiles dan lo mismo que antes).
+
+- **Fuente: SEPA mismo.** El ZIP diario trae, por producto y sucursal, `productos_precio_unitario_promo1` /
+  `productos_leyenda_promo1` y `..._promo2`: el precio por unidad con la promoción (en un 2×1, la mitad del de lista)
+  y una leyenda libre. El pipeline leía solo el precio de la promo 1; ahora guarda las dos con su leyenda
+  (`sepa/fuentes/sepa.py`). Con el ZIP del 20/11/2026 (14,6 millones de precios, 1.764.944 con promoción, 3.278
+  leyendas distintas) se calibró el clasificador.
+- **Clasificador** (`sepa/precio/promociones.py`): de cada leyenda, `tipo` (`porcentaje`, `nxm`, `segunda_unidad`,
+  `precio_fijo`, `llevando_x` o `desconocida`), sus parámetros (n, m, porcentaje, precio, tope de unidades),
+  `condicion_pago` (tarjeta, banco, billetera, fidelidad, efectivo), otra condición (un horario, algunos días,
+  jubilados, online), la vigencia y `aplicable` con su `motivo`. Las de DIA empiezan con el descuento promedio
+  ("35% de descuento.") y la promoción viene después ("2DO AL 70% YOG POTE"); la de La Anónima "Llevando 2 unidades"
+  no dice el precio y se usa el que publica SEPA. Lo que no dice qué promoción es (Carrefour: "Promo A valida desde
+  ..."; Coto: "DEL 16/11 AL 22/11"; la mayoría de la Cooperativa Obrera: solo la vigencia) es `desconocida` y no se
+  aplica. Si el precio que publica SEPA no coincide con el de la leyenda (más de 3 %), tampoco.
+
+  | Clasificación (ZIP del 20/11/2026, todas las filas con promoción) | Filas | % filas | Leyendas | % leyendas |
+  |---|---:|---:|---:|---:|
+  | Aplicable | 1.473.850 | 83,5 % | 1.556 | 47,6 % |
+  | Desconocida (no dice qué promoción es) | 269.705 | 15,3 % | 1.709 | 52,3 % |
+  | No aplicable: otra condición (DIA, "25% PANIF X TARDE") | 21.350 | 1,2 % | 1 | 0,0 % |
+  | No aplicable: el tope es menor que lo que pide | 9 | 0,0 % | 2 | 0,1 % |
+  | No aplicable: medio de pago | 0 | 0 % | 0 | 0 % |
+
+  Por tipo, las aplicables: porcentaje 1.229.504, segunda unidad 163.659, n×m 42.308, llevando n 37.410, precio fijo
+  969. Por cadena: DIA 1.384.125 aplicables (de 1.408.199), La Anónima 53.582 (de 53.584), Cooperativa Obrera 36.143
+  (de 110.658); Carrefour (182.776), Coto (8.096) y Toledo (1.601), todas desconocidas. Ese día ninguna leyenda
+  pide un banco o una tarjeta: las bancarias (que las cadenas anuncian aparte) no llegan a SEPA con su leyenda, o
+  quedan dentro de las desconocidas. Muestra completa de leyendas con su frecuencia por cadena: se arma con
+  `sepa/fuentes/sepa.leer_zip` y `promociones.cobertura`.
+- **Tabla nueva `promocion`** (y no columnas en `fact_precio`): hasta dos promociones por precio (orden 1 y 2), así que
+  no tiene el grano de `fact_precio`; tiene ~20 % de sus filas; y `fact_precio`, que lee la canasta (8 millones de
+  filas), no cambia. Columnas: leyenda, precio de lista y publicado, tipo y parámetros, condiciones, vigencia,
+  `aplicable`, `motivo`, `resumen` ("2×1", "2.ª al 70 %") y cómo entra al modelo (`forma` precio o grupo, `unidades`,
+  `precio_unitario`). Controles en `sepa/verificacion.py` (es de un precio publicado, tipo conocido, una aplicable
+  tiene precio menor al de lista y forma, ninguna con condición de pago se aplica) y documentación en `salida.py` y
+  el LEEME. Si la base no la trae (la de hoy), la canasta funciona igual que antes, sin promociones.
+- **En el modelo** (`canasta/modelo.py`, espejo en `motor.js`), solo en los productos con una promoción aplicable y
+  solo en la etapa 2 (la 1, las metas, no cambia: una promoción baja el costo, nunca cambia nutrición por plata). Con
+  precio de lista P, precio con la promoción Q < P, n unidades y tope T:
+  - porcentaje o precio fijo sin tope: el costo de x es Q·x (sin variables nuevas);
+  - con tope: u ≤ min(T, x_max) unidades con la promoción, u ≤ x, costo P·x − (P − Q)·u;
+  - llevando n, c/u $Q: además una binaria z con n·z ≤ u ≤ min(T, x_max)·z;
+  - n×m, 2.ª al q %, n por $P (grupos de n): k grupos enteros, n·k ≤ x, costo P·x − n·(P − Q)·k (cada grupo cuesta
+    n·Q: m·P en un n×m, (2 − q)·P en la 2.ª al q %). Es x = n·k + r con r ≥ 0 a precio de lista (la cota r ≤ n − 1
+    no hace falta: el óptimo la cumple).
+  x_max sube a n si era menor (se puede llevar el grupo aunque sobre). En la relajación de la etapa 2 cada promoción
+  vale Q, así que las subcategorías que pasan al modelo entero ya las tienen en cuenta; la poda de cada sucursal usa
+  el precio cada 100 g con la promoción. El costo informado es el de la caja para las unidades compradas (arma todos
+  los grupos que puede), que nunca es mayor que el del solver. Si un precio tiene dos promociones, se aplica la de
+  menor precio por unidad (no se sabe si se suman); a granel, solo un porcentaje o un precio por kilo.
+- **Ticket** (Python y página): el renglón a precio de lista y, debajo, la línea del descuento como en la caja
+  ("2.ª al 70 % pagás $1.233,70 −664,30"); antes del total, "Subtotal a precio de lista" y "Ahorro por promociones";
+  las que no se aplican dicen por qué ("requiere un banco", "solo en un horario", "la compra no llega a las unidades
+  que pide"). Al pie, "Con las promociones que no piden banco ni tarjeta" o "Precios de lista", según el caso.
+- **Opción "Aplicar promociones"** en el paso 3 (predeterminada si la base trae alguna aplicable; con la de hoy queda
+  apagada y lo dice), `?promos=0|1` en el enlace, `--sin-promos` en la consola. Desactivada, todo es exactamente como
+  antes. Dos súper: cada sucursal del par aplica las suyas (en la unión, una fila de B solo se saca si su promoción
+  tampoco es mejor que la de A).
+- **Con promociones de prueba** (la base no las trae: `oferta.promociones_de_prueba`), oficinista en el Microcentro,
+  Coto Mitre: la 2.ª al 70 % en el puré de tomate baja la semana de $23.406,20 a $22.741,90 (−$664,30), con las
+  mismas 37 metas; el 2×1 en el aceite empata (llevar 2 cuesta lo mismo que 1) y el "llevando 3 con 20 %" en los
+  porotos no conviene: los dos dicen que no se aplicaron y por qué. Los dos motores dan $22.741,90.
+- Tests: 193 en Python (32 nuevos: el clasificador con leyendas reales, la tabla y sus controles, la lectura de la
+  promo 2, el modelo con cada tipo en ofertas sintéticas, que una promoción nunca empeora las metas, la caja, el
+  ticket, dos súper y, con los datos, que la base sin promociones da lo mismo) y un caso más de paridad (2×1, 2.ª al
+  70 %, llevando 3 y una bancaria inyectados, con una sucursal y con dos súper).
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -199,7 +271,7 @@ el costo, se propone el segundo súper si cubre mejor las metas o si ahorra al m
 ahorro junto a los minutos de más para que la persona decida. Con más de dos visitas los pares dejan de alcanzar:
 haría falta el MILP con binarias (o enumerar tríos acotados) y, para el orden de las visitas, un problema de ruteo.
 
-## El camino al MVP: etapas 3 a 6 (la 3 y la 4, hechas)
+## El camino al MVP: etapas 3 a 6 (de la 3 a la 5, hechas)
 
 Cada etapa se planifica y se cierra por separado, con sus tests y la paridad entre los dos motores.
 
@@ -223,25 +295,17 @@ Lo que se había planeado (una tabla de ajustes por condición con fuente y "req
 con fuente; ningún mínimo por encima de un máximo tolerable; nunca diagnóstico ni suplementación) quedó así. Kosher y
 halal se ofrecen con la cobertura medida (0 rotulados en la canasta), por eso sin carnes.
 
-### Etapa 5 · Promociones con condiciones
+### Etapa 5 · Promociones con condiciones: hecha (21/11/2026)
 
-SEPA publica `precio_promocion` sin condiciones, y hoy las promociones se muestran como "no aplicadas" y quedan
-fuera del total. Hace falta otra fuente (catálogos web de las cadenas, que el pipeline ya recorre) y un modelo de
-datos:
+Ver "Etapa 5 del MVP" arriba. La fuente resultó ser SEPA mismo (las leyendas de las promociones 1 y 2), no los
+catálogos web. Lo que queda:
 
-| Campo | Ejemplo |
-|---|---|
-| tipo | `porcentaje`, `nxm` (2×1, 3×2), `segunda_unidad` (2.ª al 70 %), `precio_fijo`, `llevando_x` |
-| producto(s) | EAN o lista |
-| vigencia | desde / hasta, días de la semana |
-| condiciones | tope de unidades o de descuento, compra mínima |
-| precio habitual / precio efectivo | se guardan los dos |
-
-En el optimizador, cada promoción es lineal o entera: `nxm` con una variable entera de "packs" (`x_p = n·k + r`),
-`segunda_unidad` igual con pares, topes como cota superior, compra mínima con una binaria. **Una promoción solo se
-aplica si se cumplen todas sus condiciones**, y el ticket muestra precio de lista, descuento y precio efectivo por
-renglón. Las que dependen de un banco, una billetera o la tarjeta de la cadena quedan afuera (ver "Fuera de
-alcance") y se siguen mostrando como no aplicadas.
+- **Que la base las traiga**: la próxima corrida del pipeline (con el ZIP ya bajado en `base_sepa/datos/entrada/`)
+  arma la tabla `promocion`; desde ahí la página y la consola las aplican solas.
+- Las desconocidas (15 % de las filas: Carrefour, Coto, la mayoría de la Cooperativa Obrera): sus catálogos web dicen
+  qué promoción es cada una; cruzarlos por EAN y sucursal.
+- Los días de la semana ("los miércoles") hoy no se aplican; con el día de la compra, sí se podrían.
+- Si dos promociones del mismo precio se suman o no: hoy se aplica la mejor.
 
 ### Etapa 6 · LLM con Groq (API gratuita)
 

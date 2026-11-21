@@ -368,6 +368,9 @@ input:focus-visible, select:focus-visible { outline: none; }
 .interruptor input:focus-visible + .perilla { outline: 3px solid var(--foco); outline-offset: 2px; }
 .interruptor b { display: block; font-size: 0.95rem; font-weight: 600; }
 .interruptor small { display: block; }
+.interruptor input:disabled + .perilla { opacity: 0.45; }
+.interruptor:has(input:disabled) { cursor: default; }
+.interruptor:has(input:disabled) b { color: var(--tinta-suave); }
 
 /* Agua: opción única con una línea que explica cada una; la elegida, con borde en tinta y el punto lleno. */
 .campo-agua { grid-column: 1 / -1; }
@@ -702,6 +705,10 @@ input:focus-visible, select:focus-visible { outline: none; }
 .ticket .t-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 600; }
 .ticket .t-total span:last-child { background: var(--acento); padding: 0 4px; }
 .ticket .t-promo { color: #7a4f00; font-size: 12px; padding-left: 10px; }
+/* Promoción aplicada: el renglón va a precio de lista y debajo, como en la caja, la línea del descuento. */
+.ticket .t-descuento { padding-left: 10px; font-weight: 600; }
+.ticket .t-descuento small { font-weight: 400; color: #3d3d3d; font-size: 12px; }
+.ticket .t-ahorro { font-weight: 600; }
 .ticket .t-destacado { font-weight: 600; }
 .ticket .t-gracias { margin-top: 8px; letter-spacing: 0.04em; }
 .ticket .t-paso { font-size: 11px; letter-spacing: 0.08em; color: #5a5a5a; margin-bottom: 2px; }

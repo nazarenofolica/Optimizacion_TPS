@@ -20,7 +20,7 @@ Cada corrida, en un runner Ubuntu limpio:
    sin cambios**, con el aviso "Sin novedades" en el resumen. Si la API de SEPA no responde, la corrida falla (es un
    error real).
 3. Restaura de la caché de Actions las fuentes que no cambian a diario (ver "Modo diario").
-4. `python -m sepa --diario`: baja el ZIP del día (~330 MB) y rearma `TPF/datos/sepa/` con los 52 controles de
+4. `python -m sepa --diario`: baja el ZIP del día (~330 MB) y rearma `TPF/datos/sepa/` con los 60 controles de
    `sepa/verificacion.py`. **Si un control crítico falla, la corrida se detiene antes de escribir la base**, el job
    falla y la página publicada sigue siendo la del último día bueno. Las tablas que no pasaron quedan en el artefacto
    `corrida-fallida` (7 días) y el resumen de la corrida dice qué control falló.
@@ -113,7 +113,7 @@ ejemplo una vez por mes, porque aparecen productos nuevos).
 ## Ver qué pasó
 
 - **Actions → "TPF · ETL diario y página"**: cada corrida tiene un resumen (día publicado, "Sin novedades" o en qué
-  paso falló) y el log completo de cada paso; el de "Armar la base" es el de `python -m sepa`, con los 52 controles.
+  paso falló) y el log completo de cada paso; el de "Armar la base" es el de `python -m sepa`, con los 60 controles.
 - Si falló la verificación: artefacto `corrida-fallida` de esa corrida (las tres tablas en parquet).
 - **Issues**: "ETL diario de la canasta: falló la corrida", abierto mientras siga fallando.
 - Las cachés: **Actions → Caches** (se pueden borrar para obligar a rearmarlas).

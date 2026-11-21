@@ -22,6 +22,7 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | **MVP, etapa 2** (compra en dos supermercados: binarias de visita resueltas por pares, conviene si cubre mejor las metas o ahorra ≥ 3 % y ≥ $1.000) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 4 a 6 que siguen |
 | **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en el repo, falta activarla: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
 | **MVP, etapa 4** (sin cerdo, halal y kosher con lo verificable por ingredientes; seis condiciones médicas que cambian metas con su fuente y avisan si requieren supervisión) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| **MVP, etapa 5** (promociones con condiciones: las leyendas de SEPA clasificadas, 2×1, 2.ª al 70 %, llevando n y porcentajes en el modelo; nunca las que piden banco o tarjeta; ticket con el descuento y el ahorro) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md). Se aplican desde la próxima actualización de la base |
 | Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
 | Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
 | Consigna, resultados e informe | ⏳ Pendiente |

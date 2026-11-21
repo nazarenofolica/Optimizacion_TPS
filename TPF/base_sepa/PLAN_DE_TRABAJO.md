@@ -75,6 +75,20 @@ motores, sin pasar ningún máximo tolerable, y las que requieren supervisión l
 resultado. Canastas reales del oficinista a 15 min: Microcentro $23.406 sin cerdo, $24.491 halal o kosher, $27.770 con
 anemia; Córdoba $37.494 sin cerdo, halal o kosher. Tests: 161 en Python. Detalle en [../docs/ROADMAP.md](../docs/ROADMAP.md).
 
+**Etapa 5 del MVP (2026-11-21)**, promociones con condiciones. La fuente es SEPA mismo: el pipeline ahora guarda las
+dos promociones de cada precio con su leyenda (`productos_leyenda_promo1/2`, antes solo leía el precio de la 1) y
+`sepa/precio/promociones.py` clasifica cada leyenda (porcentaje, 2×1 o 3×2, la 2.ª al q %, precio fijo, llevando n o
+desconocida; condiciones de pago, horario y días, vigencia, tope) en una tabla nueva, `promocion`, con sus controles en
+`verificacion.py`. Calibrado con el ZIP del 20/11/2026 (bajado a `datos/entrada/`): 83,5 % de las filas con promoción
+aplicables, 15,3 % desconocidas (Carrefour, Coto y la mayoría de la Cooperativa Obrera solo dicen la vigencia), 1,2 %
+con horario, ninguna con banco o tarjeta. En el modelo, solo en la etapa del costo (las metas no cambian): precio
+efectivo, tope como cota, una binaria para "llevando n" y grupos enteros para el 2×1 y la 2.ª unidad, en los dos
+motores; el ticket muestra precio de lista, descuento y ahorro, y por qué no se aplicó cada una. Opción "Aplicar
+promociones" (paso 3, `?promos=`, `--sin-promos`). **Las promociones se aplican desde la próxima actualización de la
+base**: la de hoy (23/10/2026) no guarda las leyendas y con ella todo da lo mismo que antes. Con promociones de prueba,
+el oficinista en el Microcentro baja de $23.406 a $22.742 con la 2.ª al 70 % en el puré de tomate. Tests: 193 en
+Python y un caso más de paridad.
+
 ## Para revisar
 
 ### Datos (pipeline)
@@ -104,8 +118,10 @@ anemia; Córdoba $37.494 sin cerdo, halal o kosher. Tests: 161 en Python. Detall
 4. **No modelado todavía:** seguridad alimentaria en el embarazo (hígado, quesos sin pasteurizar), calidad de la
    proteína, sal y condimentos que se agregan al cocinar, menores de 4 años. (El agua ya se modela: de la canilla,
    comprada contando la de los alimentos, o 2 litros de bebida; ver `AGUA_MODOS`.)
-5. **Promociones**: se muestran pero no se aplican al total (muchas exigen condiciones). Las de la cadena (2×1,
-   2.ª unidad, porcentaje) son la etapa 5 del roadmap; las bancarias quedan fuera de alcance.
+5. **Promociones** (etapa 5): se aplican las que no piden banco ni tarjeta, desde la próxima actualización de la
+   base. Revisar con la base nueva: que "Precio Promocional Exclusivo DIA" no pida la app de la cadena (se tomó como
+   general), las desconocidas de Carrefour, Coto y la Cooperativa Obrera (cruzar con los catálogos web) y las de días
+   de la semana (hoy no se aplican). Las bancarias quedan fuera de alcance.
 
 ### Página
 

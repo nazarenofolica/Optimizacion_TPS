@@ -58,6 +58,7 @@ RUTA_PRECIOS_DEL_DIA = DIR_DATOS / "precios_del_dia.parquet"
 RUTA_DIM_PRODUCTO = DIR_SALIDA / "dim_producto"
 RUTA_DIM_TIENDA = DIR_SALIDA / "dim_tienda"
 RUTA_FACT_PRECIO = DIR_SALIDA / "fact_precio"
+RUTA_PROMOCION = DIR_SALIDA / "promocion"        # promociones con sus condiciones (precio/promociones.py)
 
 # ============================================================
 # SEPA
@@ -108,6 +109,10 @@ PRECIO_MAXIMO = 50_000_000.0     # ARS
 # Una promoción (promo 1: alcance general, sin tarjetas ni segmentos) vale si está vigente, es menor al
 # precio de lista y no menor a esta fracción de él (hay descuentos reales del 80 %; menos es un error).
 PROMO_FRACCION_MINIMA = 0.1
+# Promociones estructuradas (precio/promociones.py): si el precio unitario que publica SEPA y el que sale de la
+# leyenda (25 % de descuento sobre el de lista, 3×2, 2.ª al 70 %) difieren en más de esto, no se aplica: no se sabe
+# cuál es el verdadero. DIA redondea al peso (un 25 % queda entre 74,5 % y 75,5 % del de lista).
+PROMO_TOLERANCIA_LEYENDA = 0.03
 
 # Precio normalizado de un producto (mediana entre sucursales) frente a la distribución de su subcategoría (todos
 # sus precios: pesa lo que se vende en más tiendas). Por debajo de la quinta parte del percentil 10 o por encima

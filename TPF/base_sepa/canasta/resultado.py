@@ -9,6 +9,11 @@ mismo en el navegador.
 
 A pedido, después de ese resultado, dos_super() prueba partir la compra entre la elegida y una vecina (ver su
 docstring): no cambia ni hace más lento lo de arriba.
+
+Promociones (etapa 5): si se aplican (promos; por defecto, si la base trae alguna aplicable), cada sucursal se
+resuelve con las suyas (canasta/modelo.py) y el ticket muestra, por renglón, el precio de lista, el descuento y lo que
+se paga ("2×1: −$1.250"), y en el total el ahorro por promociones. Las que no se aplican dicen por qué. Sin promociones
+en la base, o desactivadas, todo da exactamente lo mismo que antes.
 """
 
 from __future__ import annotations
@@ -104,14 +109,22 @@ def _faltantes(sol: modelo.Solucion, sin_aptos: list[set[str]], nombres: list[st
     return salida
 
 
-def _firma(o: pd.DataFrame) -> int:
-    """Mismos productos con los mismos precios (al centavo) = misma firma: dan la misma canasta."""
-    return hash((tuple(o.index), tuple(np.round(o["precio_compra"].to_numpy(), 2))))
+def _firma(o: pd.DataFrame, leyendas: bool = True) -> int:
+    """Mismos productos con los mismos precios (al centavo) y las mismas promociones = misma firma: dan la misma
+    canasta. Las promociones que no se aplican también cuentan (leyendas): el ticket dice por qué no."""
+    pr = modelo.Promos.de(o)
+    con = pr.forma > 0
+    promos = tuple(zip(np.flatnonzero(con), pr.forma[con], pr.unidades[con], pr.tope[con], np.round(pr.precio[con], 2)))
+    textos = ()
+    if leyendas and "promo_resumen" in o:
+        hay = o["promo_resumen"].notna().to_numpy()
+        textos = tuple(zip(np.flatnonzero(hay), o["promo_resumen"].to_numpy()[hay], o["promo_motivo"].to_numpy()[hay]))
+    return hash((tuple(o.index), tuple(np.round(o["precio_compra"].to_numpy(), 2)), promos, textos))
 
 
 def _evaluar(reqs: list[Requerimientos], d: oferta.Datos, tiendas: pd.DataFrame, aptos: list[np.ndarray],
-             dias: int) -> dict:
-    ofertas = {i: oferta.oferta_tienda(d, i, aptos) for i in tiendas.index}
+             dias: int, promos: bool = False) -> dict:
+    ofertas = {i: oferta.oferta_tienda(d, i, aptos, promos) for i in tiendas.index}
     # Sucursales de una misma cadena con los mismos precios dan la misma canasta: se resuelve una vez.
     firmas, unicas = {}, {}
     for i, (o, _) in ofertas.items():
@@ -187,8 +200,26 @@ def _caminata(t: pd.Series) -> dict:
     return {"minutos": _limpio(t["minutos"]), "metros": _limpio(t["metros"]), "fuente_tiempo": t["fuente_tiempo"]}
 
 
-def _renglon(sol: modelo.Solucion, j: int, dias: int) -> dict:
-    """Un renglón del ticket: el producto j de la oferta, con lo que se compra y lo que come cada persona."""
+def _promo_renglon(fila: pd.Series, descuento: float, aplicar: bool) -> dict | None:
+    """La promoción del renglón para el ticket: {resumen, aplicada, motivo} o None si el producto no tiene (o la base es
+    anterior a la etapa 5: entonces solo queda precio_promocion, "no aplicada (tiene condiciones)")."""
+    resumen = fila.get("promo_resumen")
+    if resumen is None or (isinstance(resumen, float) and np.isnan(resumen)):
+        return None
+    if descuento > 0:
+        return {"resumen": resumen, "aplicada": True, "motivo": ""}
+    if not fila["promo_aplicable"]:
+        motivo = fila["promo_motivo"]
+    elif not aplicar:
+        motivo = "desactivaste las promociones"
+    else:
+        motivo = "la compra no llega a las unidades que pide"
+    return {"resumen": resumen, "aplicada": False, "motivo": motivo}
+
+
+def _renglon(sol: modelo.Solucion, j: int, dias: int, aplicar: bool = False) -> dict:
+    """Un renglón del ticket: el producto j de la oferta, con lo que se compra y lo que come cada persona. subtotal es
+    lo que se paga (con la promoción, si se aplicó); subtotal_lista, a precio de lista; descuento, la diferencia."""
     fila = sol.oferta.iloc[j]
     consumo = float(sol.consumo[j])
     x = float(sol.compra[j])
@@ -196,6 +227,9 @@ def _renglon(sol: modelo.Solucion, j: int, dias: int) -> dict:
     sobra = comestible_comprado - consumo * dias
     promo = fila["precio_promocion"]
     agua = fila["alimento_id"] in cfg.ALIMENTOS_AGUA
+    lista = x * float(fila["precio_compra"])
+    paga = float(sol.subtotales[j]) if sol.subtotales is not None else lista
+    descuento = round(lista - paga, 2)
     return {
         "id_producto": sol.oferta.index[j], "nombre": fila["nombre"], "marca": _limpio(fila["marca"]),
         "subcategoria": fila["subcategoria"], "grupo": fila["grupo_alimentario"],
@@ -203,7 +237,8 @@ def _renglon(sol: modelo.Solucion, j: int, dias: int) -> dict:
         "precio_unitario": round(float(fila["precio"]), 2),
         "precio_unidad_texto": (f"${_num(fila['precio'], 2)} /kg" if fila["granel"]
                                 else f"${_num(fila['precio'], 2)} c/u"),
-        "subtotal": round(x * float(fila["precio_compra"]), 2),
+        "subtotal": round(paga, 2), "subtotal_lista": round(lista, 2), "descuento": descuento,
+        "promo": _promo_renglon(fila, descuento, aplicar),
         "promocion": _limpio(round(float(promo), 2)) if pd.notna(promo) else None,
         "gramos_dia": round(consumo, 1),
         "consumo_dia_texto": _gramos(consumo, agua), "agua": agua,
@@ -230,10 +265,18 @@ def _datos_tienda(tienda: pd.Series) -> dict:
             "hoy": _horario_hoy(tienda), "tipo": tienda["tipo_sucursal"]}
 
 
-def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> dict:
+def _ahorro(items: list[dict]) -> dict:
+    """Total a precio de lista, ahorro por promociones y cuántas se aplicaron."""
+    total_lista = round(sum(it["subtotal_lista"] for it in items), 2)
+    total = round(sum(it["subtotal"] for it in items), 2)
+    return {"total_lista": total_lista, "ahorro_promociones": round(total_lista - total, 2),
+            "promociones_aplicadas": sum(1 for it in items if it["promo"] and it["promo"]["aplicada"])}
+
+
+def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str, aplicar: bool = False) -> dict:
     o = sol.oferta
     consumo = sol.consumo
-    items = _ordenar([_renglon(sol, j, dias) for j in np.flatnonzero(sol.compra > 0)])
+    items = _ordenar([_renglon(sol, j, dias, aplicar) for j in np.flatnonzero(sol.compra > 0)])
     total = round(sum(it["subtotal"] for it in items), 2)
     energia = float(np.dot(o["energia_kcal"].to_numpy(float) / 100, consumo))
     return {
@@ -241,7 +284,8 @@ def _ticket(sol: modelo.Solucion, tienda: pd.Series, dias: int, fecha: str) -> d
         "fecha_precios": fecha, "dias": dias, "items": items, "total": total,
         "costo_diario": round(total / dias, 2),
         "costo_1000_kcal": round(total / dias / energia * 1000, 2) if energia else None,
-        "promociones_disponibles": sum(1 for it in items if it["promocion"]),
+        "promociones_disponibles": sum(1 for it in items if it["promocion"] or it["promo"]),
+        **_ahorro(items),
     }
 
 
@@ -305,10 +349,12 @@ def _aptos_hogar(d: oferta.Datos, personas: list[Persona], reqs: list[Requerimie
 
 def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_PREDETERMINADO,
           listos: bool = False, tiempos: dict[str, dict] | None = None, caminata_minutos: float | None = None,
-          aviso_tiempos: str | None = None, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> dict:
+          aviso_tiempos: str | None = None, agua: str = cfg.AGUA_MODO_PREDETERMINADO,
+          promos: bool | None = None) -> dict:
     """Con tiempos (id_tienda -> {minutos, metros, fuente}, de canasta/rutas.py) y caminata_minutos, solo se evalúan
     las sucursales a las que se llega caminando dentro de ese límite; sin ellos, las más cercanas en línea recta.
-    agua: cómo toma agua el hogar (config.AGUA_MODOS); el agua envasada solo se ofrece si se compra."""
+    agua: cómo toma agua el hogar (config.AGUA_MODOS); el agua envasada solo se ofrece si se compra. promos: aplicar
+    las promociones aplicables (None: sí, si la base trae alguna)."""
     inicio = time.time()
     if isinstance(personas, Persona):
         personas = [personas]
@@ -321,6 +367,7 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
     nombres = _nombres(personas)
     reqs = [calcular(p, agua) for p in personas]
     d = oferta.cargar()
+    aplicar = d.promos_aplicables > 0 if promos is None else bool(promos)
     compra_agua = cfg.AGUA_MODOS[agua]["compra"]
     base_aptos, aptos, efectos, sin_aptos = _aptos_hogar(d, personas, reqs, listos, agua)
     base = {
@@ -333,7 +380,8 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
                      for p, nombre, r, ef, ap in zip(personas, nombres, reqs, efectos, aptos)],
         "hogar": {"personas": len(personas), "energia_kcal": float(sum(r.energia_kcal for r in reqs))},
         "opciones": {"listos": listos, "listos_criterio": cfg.LISTOS_CRITERIO if listos else None, "agua": agua,
-                     "agua_nombre": cfg.AGUA_MODOS[agua]["nombre"]},
+                     "agua_nombre": cfg.AGUA_MODOS[agua]["nombre"], "promos": aplicar,
+                     "promos_en_base": d.promos_aplicables},
         "catalogo": {"productos_total": d.total_productos,
                      "productos_canasta": len(d.productos) if compra_agua else int(base_aptos.sum()),
                      "excluidos_siempre": EXCLUIDOS_SIEMPRE},
@@ -355,7 +403,7 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
                          f"No hay supermercados con precios en SEPA a menos de {_num(cfg.RADIO_MAXIMO_KM)} km.")
         base["sin_sucursales"] = True
         return base
-    soluciones = _evaluar(reqs, d, tiendas, aptos, dias)
+    soluciones = _evaluar(reqs, d, tiendas, aptos, dias, aplicar)
     comparacion = []
     for i, t in tiendas.iterrows():
         s = soluciones[i]
@@ -384,7 +432,7 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
     n_vars = len(sol.oferta) * (1 + len(personas)) + metas_modelo
     base.update({
         "sucursales": comparacion,
-        "ticket": _ticket(sol, tiendas.loc[elegida["id"]], dias, d.fecha),
+        "ticket": _ticket(sol, tiendas.loc[elegida["id"]], dias, d.fecha, aplicar),
         "modelo": {"estado": sol.estado, "productos_considerados": len(sol.oferta), "variables": n_vars,
                    "metas": metas_modelo, "segundos_sucursal": round(sol.segundos, 2),
                    "segundos_total": round(time.time() - inicio, 2), "gap": cfg.GAP_RELATIVO},
@@ -399,15 +447,25 @@ def armar(personas: list[Persona], lat: float, lon: float, dias: int = cfg.DIAS_
 def _union(oa: tuple[pd.DataFrame, list[np.ndarray]], ob: tuple[pd.DataFrame, list[np.ndarray]], id_a: str,
            id_b: str) -> tuple[pd.DataFrame, list[np.ndarray]]:
     """Las ofertas de A y de B en una sola, con la columna id_tienda: el mismo producto en las dos sucursales son dos
-    filas distintas, cada una con su precio. Una fila de B con el mismo producto que A vende al mismo precio o más
-    barato se saca: nunca puede ser mejor (mismos nutrientes y gramos), y con ella el modelo tendría dos filas
-    idénticas por cada producto que las dos venden igual (dos sucursales de una cadena), que lo hacen lento y dejan
-    partir la compra por nada. El óptimo no cambia."""
+    filas distintas, cada una con su precio y su promoción. Una fila de B con el mismo producto que A vende al mismo
+    precio o más barato se saca si su promoción tampoco es mejor (no tiene, o es la misma de A a un precio igual o
+    mayor): nunca puede ser mejor (mismos nutrientes y gramos), y con ella el modelo tendría dos filas idénticas por
+    cada producto que las dos venden igual (dos sucursales de una cadena), que lo hacen lento y dejan partir la compra
+    por nada. El óptimo no cambia."""
     o_a, aptos_a = oa
     o_b, aptos_b = ob
-    precio_a = dict(zip(o_a.index, o_a["precio_compra"].to_numpy(float)))
-    queda = np.array([p not in precio_a or c < precio_a[p]
-                      for p, c in zip(o_b.index, o_b["precio_compra"].to_numpy(float))], dtype=bool)
+
+    def clave(o):
+        pr = modelo.Promos.de(o)
+        return zip(o.index, o["precio_compra"].to_numpy(float), pr.forma, pr.unidades, pr.tope, pr.precio)
+    de_a = {p: (c, f, u, t, q) for p, c, f, u, t, q in clave(o_a)}
+
+    def dominada(p, c, f, u, t, q) -> bool:
+        if p not in de_a or c < de_a[p][0]:
+            return False
+        _, fa, ua, ta, qa = de_a[p]
+        return f == 0 or (f == fa and u == ua and t <= ta and q >= qa)
+    queda = np.array([not dominada(*x) for x in clave(o_b)], dtype=bool)
     o = pd.concat([o_a.assign(id_tienda=id_a), o_b[queda].assign(id_tienda=id_b)])
     return o, [np.concatenate([a, b[queda]]) for a, b in zip(aptos_a, aptos_b)]
 
@@ -472,19 +530,23 @@ def _circuito(ta: pd.Series, tb: pd.Series) -> dict:
                        {"desde": "b", "hasta": "lugar", "minutos": casa_b, "fuente": fuente_b}]}
 
 
-def _ticket_dividido(sol: modelo.Solucion, tiendas: list[pd.Series], dias: int, fecha: str) -> dict:
-    """El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal; cada renglón dice de qué
-    sucursal es (id_tienda)."""
+def _ticket_dividido(sol: modelo.Solucion, tiendas: list[pd.Series], dias: int, fecha: str,
+                     aplicar: bool = False) -> dict:
+    """El ticket de la compra combinada, un bloque por sucursal (A primero) con su subtotal (y su ahorro por
+    promociones: cada sucursal aplica las suyas); cada renglón dice de qué sucursal es (id_tienda)."""
     de_tienda = sol.oferta["id_tienda"].to_numpy()
     bloques = []
     for t in tiendas:
         filas = np.flatnonzero((sol.compra > 0) & (de_tienda == t.name))
-        items = _ordenar([{**_renglon(sol, j, dias), "id_tienda": t.name} for j in filas])
+        items = _ordenar([{**_renglon(sol, j, dias, aplicar), "id_tienda": t.name} for j in filas])
         bloques.append({"tienda": _datos_tienda(t), "items": items,
-                        "subtotal": round(sum(it["subtotal"] for it in items), 2)})
+                        "subtotal": round(sum(it["subtotal"] for it in items), 2), **_ahorro(items)})
     total = round(sum(b["subtotal"] for b in bloques), 2)
+    total_lista = round(sum(b["total_lista"] for b in bloques), 2)
     return {"fecha_precios": fecha, "dias": dias, "sucursales": bloques, "total": total,
-            "costo_diario": round(total / dias, 2)}
+            "costo_diario": round(total / dias, 2), "total_lista": total_lista,
+            "ahorro_promociones": round(total_lista - total, 2),
+            "promociones_aplicadas": sum(b["promociones_aplicadas"] for b in bloques)}
 
 
 def _metas(r: dict) -> dict:
@@ -568,6 +630,7 @@ def dos_super(personas: list[Persona], r: dict, tiempos: dict[str, dict] | None 
         raise ValueError("El resultado se armó por tiempo caminando: hacen falta los mismos tiempos.")
     lat, lon = r["ubicacion"]["lat"], r["ubicacion"]["lon"]
     dias, listos, agua = r["dias"], r["opciones"]["listos"], r["opciones"]["agua"]
+    aplicar = bool(r["opciones"].get("promos", False))                 # las mismas promociones que en r
     nombres = _nombres(personas)
     reqs = [calcular(p, agua) for p in personas]
     d = oferta.cargar()
@@ -582,12 +645,12 @@ def dos_super(personas: list[Persona], r: dict, tiempos: dict[str, dict] | None 
         t = oferta.sucursales_por_id(d, lat, lon, [s["id"] for s in r["sucursales"]])
     ta = t.loc[id_a]
     cercanas = oferta.vecinas_de(t, id_a, cfg.DOS_SUPER_MINUTOS_ENTRE)
-    # Las que venden lo mismo al mismo precio que A (o que otra más cercana) no suman nada.
-    ofertas = {id_a: oferta.oferta_tienda(d, id_a, aptos)}
-    vistas, distintas = {_firma(ofertas[id_a][0])}, []
+    # Las que venden lo mismo al mismo precio y con las mismas promociones que A (o que otra más cercana) no suman nada.
+    ofertas = {id_a: oferta.oferta_tienda(d, id_a, aptos, aplicar)}
+    vistas, distintas = {_firma(ofertas[id_a][0], leyendas=False)}, []
     for i in cercanas.index:
-        ofertas[i] = oferta.oferta_tienda(d, i, aptos)
-        firma = _firma(ofertas[i][0])
+        ofertas[i] = oferta.oferta_tienda(d, i, aptos, aplicar)
+        firma = _firma(ofertas[i][0], leyendas=False)
         if firma not in vistas:
             vistas.add(firma)
             distintas.append(i)
@@ -635,7 +698,7 @@ def dos_super(personas: list[Persona], r: dict, tiempos: dict[str, dict] | None 
     sol, tb = soluciones[mejor["id"]], vecinas.loc[mejor["id"]]
     ahorro = round(costo_a - mejor["costo"], 2)
     pct = round(ahorro / costo_a * 100, 1)
-    ticket = _ticket_dividido(sol, [ta, tb], dias, r["fecha_precios"])
+    ticket = _ticket_dividido(sol, [ta, tb], dias, r["fecha_precios"], aplicar)
     productos_b = list(dict.fromkeys(it["subcategoria"] for it in ticket["sucursales"][1]["items"]))
     personas_c = []
     for dieta, req, sa, nombre in zip(sol.dietas, reqs, sin_aptos, nombres):

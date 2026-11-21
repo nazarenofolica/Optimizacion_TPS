@@ -11,6 +11,7 @@ estrella** listo para usar en Power BI, pandas o R:
 | `dim_producto` | producto comestible | `id_producto` (EAN o código interno de cadena) | Nombre, marca, categoría, subcategoría, grupo alimentario, presentación, 33 nutrientes cada 100 g, ingredientes, alérgenos, aptitudes (vegano, sin TACC...), NOVA, sellos. **Sin precio** |
 | `dim_tienda` | sucursal | `id_tienda` (`comercio-bandera-sucursal`) | Cadena, bandera, formato, tipo, dirección, coordenada validada, provincia / departamento / municipio (códigos INDEC), barrio y comuna en CABA, horarios |
 | `fact_precio` | producto × tienda | `id_producto` + `id_tienda` | Precio publicado, promoción vigente, presentación (500 g, 1 l, 12 unidades, 1 kg a granel) y **precio normalizado** por kg, litro o unidad (y cada 100 g) |
+| `promocion` | promoción de un precio (hasta 2) | `id_producto` + `id_tienda` + `orden` | Leyenda de SEPA clasificada (desde la etapa 5): tipo (porcentaje, 2×1, 2.ª al 70 %, precio fijo, llevando n o desconocida), parámetros, condiciones de pago u horario, vigencia, si la canasta la aplica y por qué no, y cómo entra al modelo |
 
 "1 kg de banana a $x" y "500 g de banana a $y" no son comparables tal como se publican: el hecho lleva cada
 precio a la misma unidad dentro de cada subcategoría (kg para la banana, litro para la leche, unidad para los
@@ -75,6 +76,11 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   vecina a ≤ 10 min caminando, enumerando los pares con el modelo de siempre (`resultado.dos_super`). Conviene si cubre
   mejor las metas o, con las mismas, si ahorra al menos 3 % y $1.000; se informan el ahorro y los minutos de más
   (tramo entre las dos, estimado) y el ticket sale dividido por sucursal.
+- **Promociones** (etapa 5, criterio en `canasta/config.py`): las de la tabla `promocion` que se pueden aplicar
+  entran al modelo solo en la etapa del costo (precio efectivo, tope, "llevando n" con una binaria, grupos enteros
+  para el 2×1 y la 2.ª unidad; ver el docstring de `canasta/modelo.py`), y el ticket muestra el descuento de cada
+  renglón y el ahorro. "Aplicar promociones" en el paso 3, `?promos=0|1` en el enlace, `--sin-promos` en la consola.
+  Con una base sin la tabla (la del 23/10/2026), no hay promociones y todo da lo mismo que antes.
 - **Sin cerdo, halal y kosher** (etapa 4, `PESCADOS_*` y los criterios en `canasta/config.py`): con las columnas de
   dieta y religión; "desconocido" no es apto. Sin certificaciones en la base, halal y kosher no ofrecen carnes ni
   aves (solo las rotuladas, y no hay) y aplican lo que se puede verificar por ingredientes (kosher: sin mariscos,
@@ -192,6 +198,19 @@ Lo que vende una sola cadena no tiene con quién compararse: se compara con sus 
 (descripción casi igual, contenido parecido, precio con consenso de al menos dos cadenas, ponderado por
 tiendas). Así aparecen las cadenas chicas que siguen publicando precios de hace años para códigos viejos (una
 mayonesa a $156 el litro, un jugo en polvo a $25): esos productos quedan afuera con su motivo.
+
+### promocion
+
+SEPA publica hasta dos promociones por precio (`productos_precio_unitario_promo1` / `productos_leyenda_promo1` y
+`..._promo2`), con una leyenda libre distinta en cada cadena. `sepa/precio/promociones.py` clasifica cada leyenda
+distinta una vez: tipo (`porcentaje`, `nxm`, `segunda_unidad`, `precio_fijo`, `llevando_x` o `desconocida`), n, m,
+porcentaje, precio, tope de unidades, condición de pago (tarjeta, banco, billetera, programa de la cadena: nunca se
+aplican, quedan fuera de alcance), otra condición (horario, días, jubilados, online) y vigencia. `aplicable` dice si la
+canasta la puede aplicar y `motivo`, por qué no. El precio por unidad con la promoción es el que publica SEPA si
+coincide con la leyenda (±3 %); si no lo hay, el que sale de la leyenda. Con el ZIP del 20/11/2026: 83,5 % de las
+filas con promoción, aplicables (DIA y La Anónima casi todas); 15,3 %, desconocidas (Carrefour, Coto y la mayoría de
+la Cooperativa Obrera solo publican la vigencia); 1,2 %, con horario; ninguna pide banco o tarjeta. Es una tabla
+aparte (y no columnas de `fact_precio`) porque puede haber dos por precio y así `fact_precio` no cambia.
 
 ## Calidad
 
