@@ -16,6 +16,7 @@ DIR_SALIDA = cfg_sepa.DIR_SALIDA
 RUTA_REQUERIMIENTOS = DIR_REFERENCIA / "requerimientos_nutricionales.csv"
 RUTA_GUIAS = DIR_REFERENCIA / "guias_alimentarias.csv"
 RUTA_PERFILES = DIR_REFERENCIA / "perfiles.csv"
+RUTA_CONDICIONES = DIR_REFERENCIA / "condiciones.csv"
 RUTA_DIM_PRODUCTO = cfg_sepa.RUTA_DIM_PRODUCTO.with_suffix(".parquet")
 RUTA_DIM_TIENDA = cfg_sepa.RUTA_DIM_TIENDA.with_suffix(".parquet")
 RUTA_FACT_PRECIO = cfg_sepa.RUTA_FACT_PRECIO.with_suffix(".parquet")
@@ -140,7 +141,45 @@ RESTRICCIONES = {
     "sin_ultraprocesados": "Sin ultraprocesados (NOVA 4)",
     "hipertension": "Hipertensión",
     "diabetes": "Diabetes",
+    # Etapa 4 (al final: el orden define los bits de aptitud de la página, un uint32 por producto: hasta 32).
+    "sin_cerdo": "Sin cerdo",
+    "halal": "Halal",
+    "kosher": "Kosher",
+    "anemia_ferropenica": "Anemia por falta de hierro",
+    "osteoporosis": "Osteoporosis o riesgo de fracturas",
+    "colesterol_alto": "Colesterol alto",
+    "deficit_b12": "Déficit de vitamina B12",
+    "deficit_vitamina_d": "Déficit de vitamina D",
+    "enfermedad_renal": "Enfermedad renal crónica",
 }
+# Condiciones médicas: no filtran productos (su bit de aptitud vale 1 en todos), cambian metas según la tabla
+# referencia/condiciones.csv, con su fuente, igual que la hipertensión y la diabetes cambian el sodio y los azúcares
+# (esas dos siguen acá, en SODIO_HIPERTENSION_MG y AZUCARES_LIBRES_PCT_DIABETES, porque además filtran productos).
+# Van como restricciones y no como un campo aparte para que lleguen solas a todo lo que ya las usa: la persona, los
+# perfiles, el enlace ?perfiles=, la página y el pedido estructurado de la etapa 6.
+CONDICIONES = ["anemia_ferropenica", "osteoporosis", "colesterol_alto", "deficit_b12", "deficit_vitamina_d",
+               "enfermedad_renal"]
+# kcal por gramo, para los topes de las condiciones que son un porcentaje de la energía (colesterol alto: saturadas).
+KCAL_POR_G = {"grasas_saturadas_g": 9, "grasas_totales_g": 9, "grasas_trans_g": 9, "proteinas_g": 4,
+              "carbohidratos_g": 4, "azucares_libres_g": 4}
+
+# Dieta y religión (columnas de sepa/producto/religion.py, si / no / desconocido; "desconocido" no es apto).
+#   Sin cerdo: sin carne, grasa ni derivados de cerdo, tampoco en los ingredientes, ni gelatina de origen no
+#     declarado (puede ser porcina).
+#   Halal (Corán 2:173 y 5:3 y 5:90; criterio de las certificadoras, p. ej. el Centro Islámico de la República
+#     Argentina): sin cerdo ni derivados, sin alcohol; carnes rojas y aves solo si el producto está rotulado halal; la
+#     gelatina solo si se declara de origen no porcino (algunas escuelas exigen además faena halal: no se puede
+#     verificar). Los pescados y mariscos son halal para la mayoría de las escuelas (la hanafí excluye los mariscos:
+#     se suma "Alergia a mariscos").
+#   Kosher (Levítico 11 y Deuteronomio 14; criterios de las agencias certificadoras como la OU): sin cerdo, sin
+#     mariscos, solo pescados con aletas y escamas, carnes y aves solo rotuladas kosher (la faena, el desangrado y la
+#     certificación no figuran en el rótulo), sin gelatina, carmín (insecto) ni derivados de la uva sin certificar.
+#     Los lácteos, el pan y los procesados se aceptan si lo verificable (la lista de ingredientes) no lo impide: la
+#     base no tiene certificaciones kosher.
+PESCADOS_CON_ESCAMAS = {"atun_lata", "caballa_lata", "sardinas_lata", "merluza", "milanesa_pescado", "salmon",
+                        "trucha"}
+# Pescados sin escamas (o con escamas que no se desprenden) que pueden aparecer en esos alimentos genéricos.
+PESCADOS_SIN_ESCAMAS = r"CAZON|BAGRE|ANGUILA|\bRAYA\b|PEZ ESPADA|TIBURON|SURUBI|ESTURION|\bPANGA|PANGASIUS"
 # Con celiaquía, lo único que se compra a granel es lo fresco: arroz, legumbres, harinas y frutos secos sueltos se
 # contaminan con trigo en el local (ANMAT, recomendaciones para personas celíacas).
 GRANEL_APTO_CELIACOS = {"Verduras y frutas", "Carnes y huevos"}

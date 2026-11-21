@@ -16,6 +16,7 @@ import pandas as pd
 
 from sepa import config as cfg
 from sepa.producto.nutrientes import NUTRIENTES
+from sepa.producto.religion import COLUMNAS as RELIGION
 
 logger = logging.getLogger("sepa.verificacion")
 
@@ -80,6 +81,10 @@ def verificar(dim_producto: pd.DataFrame, dim_tienda: pd.DataFrame, fact: pd.Dat
         _control(r, f"composición: contiene_{a} en si/no/desconocido", ~p[f"contiene_{a}"].isin(TRIESTADO), True, ids)
     for c in ("apto_vegetariano", "apto_vegano", "sin_tacc", "sin_lactosa", "azucar_agregada"):
         _control(r, f"composición: {c} en si/no/desconocido", ~p[c].isin(TRIESTADO), True, ids)
+    for c in RELIGION:
+        if c in p:              # un dim_producto anterior a la etapa 4 no las trae (canasta/oferta.py las calcula)
+            validos = TRIESTADO if c.startswith("contiene_") else {"si", "no"}
+            _control(r, f"dieta y religión: {c} en {'/'.join(sorted(validos))}", ~p[c].isin(validos), True, ids)
     _control(r, "composición: vegano implica vegetariano",
              p["apto_vegano"].eq("si") & ~p["apto_vegetariano"].eq("si"), True, ids)
     animal = p[["contiene_leche", "contiene_huevo", "contiene_pescado", "contiene_mariscos"]].eq("si").any(axis=1)

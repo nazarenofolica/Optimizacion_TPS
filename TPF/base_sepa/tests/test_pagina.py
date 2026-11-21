@@ -34,7 +34,8 @@ CASOS = [
     (["oficinista"], (-34.60386, -58.38419), 7, False, "compra"),                     # CABA, agua comprada
     (["celiaca", "escolar"], (-31.41670, -64.18330), 7, False, "bebidas"),            # Córdoba, 2 litros de bebida
     (["caso_extremo"], (-34.60386, -58.38419), 7, False, "canilla"),                  # CABA, ninguna cubre todo
-]
+    (["kosher", "halal", "anemia"], (-34.60386, -58.38419), 7, False, "canilla"),     # CABA, etapa 4: religión y
+]                                                                                     # condiciones médicas
 TOLERANCIA_COSTO = 0.02      # los dos motores cortan la búsqueda entera con una brecha de 1 %
 CASOS_DOS_SUPER = [
     # perfiles, lugar, minutos de caminata, listos; lo que da Python
@@ -226,6 +227,8 @@ class TestParidadPagina(unittest.TestCase):
                 for a, b in zip(py["personas"], js["personas"]):
                     self.assertEqual(a["requerimientos"]["energia_kcal"], b["requerimientos"]["energia_kcal"])
                     self.assertEqual(a["requerimientos"]["pasos"], b["requerimientos"]["pasos"])
+                    self.assertEqual(a["requerimientos"]["avisos"], b["requerimientos"]["avisos"])
+                    self.assertEqual(a["restricciones"]["criterios"], b["restricciones"]["criterios"])
                     self.assertEqual(a["restricciones"]["efecto"], b["restricciones"]["efecto"])
                     self.assertEqual(a["restricciones"]["productos_aptos"], b["restricciones"]["productos_aptos"])
                 # Mismas sucursales, con costos dentro de la brecha y el mismo cumplimiento.

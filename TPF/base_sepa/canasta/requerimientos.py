@@ -11,6 +11,8 @@ De una persona (edad, sexo, peso, actividad, etapa, restricciones) a sus metas d
   5. Agua, según cómo la toma el hogar (config.AGUA_MODOS): el agua total del día (NASEM) o solo la de las bebidas
      (8 vasos de las Guías); se le exige a la compra si el agua se compra y, si es de la canilla, solo se informa.
   6. Reglas de las Guías Alimentarias (referencia/guias_alimentarias.csv).
+  7. Condiciones médicas (referencia/condiciones.csv): cambian metas con su fuente (más hierro con anemia, menos
+     saturadas con colesterol alto...), sin pasar nunca un máximo tolerable, y avisan si requieren supervisión.
 
 Cada número queda registrado en `pasos` con su fórmula y su fuente: la página muestra el cálculo completo.
 """
@@ -387,6 +389,124 @@ def _reglas(energia: float) -> list[Meta]:
     return metas
 
 
+# ------------------------------------------------------------
+# Condiciones médicas (referencia/condiciones.csv)
+# ------------------------------------------------------------
+
+def condiciones() -> dict[str, list[dict]]:
+    """referencia/condiciones.csv por condición, en el orden de la tabla."""
+    salida: dict[str, list[dict]] = {}
+    for f in leer_tabla(cfg.RUTA_CONDICIONES).to_dict("records"):
+        salida.setdefault(f["condicion"], []).append(f)
+    return salida
+
+
+def _minusc(texto: str) -> str:
+    """La primera letra en minúscula ("Vitamina B12" -> "vitamina B12")."""
+    return texto[:1].lower() + texto[1:]
+
+
+def _cantidad(x: float) -> str:
+    return _fmt(x, 0 if x >= 100 else 1)
+
+
+def _aviso_condicion(fila: dict) -> str:
+    aviso = fila["aviso"]
+    return f"Requiere supervisión profesional: {_minusc(aviso)}" if fila["requiere_supervision"] == "si" else aviso
+
+
+def _cambio_texto(f: dict) -> str:
+    """Qué cambia una fila de la tabla, en palabras, sin los números de una persona (para el criterio)."""
+    nombre, unidad = NOMBRES[f["meta"]]
+    v = float(f["valor"])
+    return {"factor_minimo": f"{nombre}: el mínimo × {_fmt(v, 1)}, sin pasar el máximo tolerable",
+            "minimo_al_menos": f"{nombre}: al menos {_cantidad(v)} {unidad} por día",
+            "maximo_a_lo_sumo": f"{nombre}: a lo sumo {_cantidad(v)} {unidad} por día",
+            "maximo_pct_energia": f"{nombre}: menos del {_fmt(v)} % de la energía",
+            "prioridad": f"{nombre}: prioritaria"}[f["cambio"]]
+
+
+def criterio_condicion(clave: str) -> str:
+    """El criterio de una condición para mostrarlo: qué metas cambia, sus fuentes y el aviso."""
+    filas = condiciones()[clave]
+    cambios = [_cambio_texto(f) for f in filas if f["cambio"] != "ninguno"]
+    que = ("No filtra productos: cambia metas. " + ". ".join(cambios) + "." if cambios
+           else "No filtra productos ni cambia metas: solo avisa.")
+    fuentes = "; ".join(dict.fromkeys(f["fuente"] for f in filas))
+    return f"{que} {_aviso_condicion(filas[0])} Fuentes: {fuentes}."
+
+
+def _condiciones(p: Persona, metas: list[Meta], energia: float, pasos: list[dict], avisos: list[str]) -> None:
+    """Aplica a las metas las condiciones de la persona (en el orden de sus restricciones), con su paso y su aviso.
+    Ningún mínimo queda por encima de su máximo: si pasaría, se apunta al máximo y se avisa."""
+    tabla = condiciones()
+    req = leer_tabla(cfg.RUTA_REQUERIMIENTOS)
+    for c in [r for r in p.restricciones if r in cfg.CONDICIONES]:
+        nombre_c, filas = cfg.RESTRICCIONES[c], tabla[c]
+        formulas, resultados = [], []
+        for f in filas:
+            if f["cambio"] == "ninguno":
+                continue
+            v = float(f["valor"])
+            nombre, unidad = NOMBRES[f["meta"]]
+            m = next((x for x in metas if x.clave == f["meta"]), None)
+            if m is None:                      # una meta que nadie más pone (el colesterol): va con los macros
+                m = Meta(f["meta"], nombre, unidad, f["meta"], tipo="macro", fuente=f["fuente"].split(":")[0])
+                metas.insert(max(i for i, x in enumerate(metas) if x.tipo == "macro") + 1, m)
+            corto = None
+            if f["cambio"] == "factor_minimo":
+                base = float(_fila_etapa(req, p, "minimo")[f["meta"]])
+                formula = f"{nombre}: {_cantidad(base)} × {_fmt(v, 1)} = {_cantidad(base * v)} {unidad}"
+                # El factor vegetariano es el mismo motivo (menor absorción): no se suman, vale el mayor.
+                if p.vegetariana and cfg.FACTOR_VEGETARIANO.get(f["meta"], 0) >= v:
+                    formula += " (ya lo pide la dieta vegetariana)"
+                else:
+                    m.minimo = max(m.minimo or 0.0, base * v)
+                    corto = f"× {_fmt(v, 1)}"
+                formulas.append(formula)
+            elif f["cambio"] == "minimo_al_menos":
+                formulas.append(f"{nombre}: al menos {_cantidad(v)} {unidad}")
+                m.minimo = max(m.minimo or 0.0, v)
+                corto = f"al menos {_cantidad(v)} {unidad}"
+            elif f["cambio"] == "maximo_a_lo_sumo":
+                formulas.append(f"{nombre}: a lo sumo {_cantidad(v)} {unidad}")
+                m.maximo = v if m.maximo is None else min(m.maximo, v)
+                corto = f"a lo sumo {_cantidad(v)} {unidad}"
+            elif f["cambio"] == "maximo_pct_energia":
+                kcal = cfg.KCAL_POR_G[f["meta"]]
+                tope = v / 100 * energia / kcal
+                formulas.append(f"{nombre}: {_fmt(v)} % de {_fmt(energia)} kcal ÷ {kcal} kcal/g = {_cantidad(tope)} "
+                                f"{unidad}")
+                m.maximo = tope if m.maximo is None else min(m.maximo, tope)
+                corto = f"menos del {_fmt(v)} % de la energía"
+            elif f["cambio"] == "prioridad":
+                formulas.append(f"{nombre}: prioritaria (lo que falte pesa {_fmt(v)} veces)")
+                m.peso = max(m.peso, cfg.PESO_DEFICIT_PREDETERMINADO * v)      # dos condiciones no se multiplican
+                corto = "prioritaria"
+            else:
+                raise ValueError(f"Cambio desconocido en condiciones.csv: {f['cambio']}")
+            if corto:
+                m.nota = (f"{m.nota}; " if m.nota else "") + f"{corto} por {_minusc(nombre_c)}"
+            if m.minimo is not None and m.maximo is not None and m.minimo > m.maximo:
+                avisos.append(f"Con {_minusc(nombre_c)}, el {_minusc(nombre)} que hace falta ({_fmt(m.minimo, 1)} "
+                              f"{unidad}) supera el máximo tolerable ({_fmt(m.maximo, 1)} {unidad}): la canasta "
+                              "apunta al máximo y la diferencia la indica un profesional.")
+                m.nota += f"; se limita al máximo tolerable ({_fmt(m.maximo, 1)})"
+                m.minimo = m.maximo
+            if f["cambio"] == "prioridad":
+                resultados.append(f"{_minusc(nombre)} prioritaria")
+            elif m.minimo is not None and m.maximo is not None:
+                resultados.append(f"{_minusc(nombre)} {_cantidad(m.minimo)} a {_cantidad(m.maximo)} {unidad}")
+            else:
+                resultados.append(f"{_minusc(nombre)} {'≥' if m.minimo is not None else '≤'} "
+                                  f"{_cantidad(m.minimo if m.minimo is not None else m.maximo)} {unidad}")
+        pasos.append({"titulo": f"Condición: {_minusc(nombre_c)}",
+                      "formula": "; ".join(formulas) if formulas else "No cambia las metas: solo avisa",
+                      "resultado": "; ".join(resultados) if resultados else "las metas de siempre",
+                      "fuente": "; ".join(dict.fromkeys(f["fuente"] for f in filas))})
+        avisos.append(_aviso_condicion(filas[0]))
+
+
 def _agua(p: Persona, modo: str, pasos: list[dict]) -> Meta:
     """Meta de agua del día, en gramos (≈ ml). Con agua comprada se le exige a la compra; de la canilla, se informa."""
     m = cfg.AGUA_MODOS[modo]
@@ -436,6 +556,7 @@ def calcular(p: Persona, agua: str = cfg.AGUA_MODO_PREDETERMINADO) -> Requerimie
                   "resultado": f"{_fmt(prot)} g/día", "fuente": ""})
     metas = (_macros(p, energia, prot, pasos) + _micronutrientes(p, pasos, avisos) + [_agua(p, agua, pasos)]
              + _reglas(energia))
+    _condiciones(p, metas, energia, pasos, avisos)
     if "diabetes" in p.restricciones or "hipertension" in p.restricciones:
         avisos.append("Con diabetes o hipertensión, esta canasta es orientativa: el plan lo ajusta el médico o un "
                       "nutricionista.")

@@ -25,16 +25,19 @@ const COLOR_GRUPO = {
   "Alimentos de consumo opcional": "#8a6d9e",
   "Agua e infusiones": "#2f7f9e",
 };
+// Grupos del paso 1. "Salud" suma, después de la hipertensión y la diabetes, las condiciones médicas (CONDICIONES):
+// cambian metas, no filtran productos, y algunas requieren supervisión profesional.
 const GRUPOS_RESTRICCIONES = [
-  { titulo: "Dieta", claves: ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_ultraprocesados"] },
+  { titulo: "Dieta y religión", claves: ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_ultraprocesados",
+    "sin_cerdo", "halal", "kosher"] },
   { titulo: "Alergias (también sin trazas)", alergia: true },
-  { titulo: "Salud", claves: ["hipertension", "diabetes"] },
+  { titulo: "Salud", claves: ["hipertension", "diabetes"], condiciones: true },
 ];
 const PERSONA_NUEVA = { nombre: "", sexo: "F", edad: 34, peso_kg: 63, altura_cm: 163, actividad: "liviana",
   objetivo: "mantener", etapa: "general", trimestre: 2, restricciones: [] };
 
 const estado = {
-  P: null, perfiles: [], hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
+  P: null, perfiles: [], criterios: {}, condiciones: {}, hogar: [{ ...PERSONA_NUEVA }], actual: 0, lugar: null, dias: 7, listos: false, agua: null,
   caminata: null, listo: false, ocupado: false, resultado: null, vista: 0, mapa: null, marcador: null,
   mapaResultado: null, tiempos: new Map(), anterior: null, ultimaRuta: null,
   escalera: new Map(),   // minutos -> {resumen, resultado, rutas, pedido}: la mejor compra con cada límite de caminata
@@ -319,6 +322,10 @@ function actualizarVisibles() {
   const act = estado.P.ACTIVIDAD[p.actividad];
   $("#actividad-desc").textContent = act ? act.descripcion : "";
   $("#errores-persona").textContent = erroresPersona(p).join(" ");
+  // Las condiciones elegidas que requieren supervisión muestran su aviso ahí mismo, antes de calcular.
+  const sup = p.restricciones.filter((r) => estado.condiciones[r] && estado.condiciones[r].supervision);
+  $(".avisos-supervision").innerHTML = sup.map((r) => `<p class="aviso-supervision"><i aria-hidden="true">!</i>` +
+    `<span><b>${esc(estado.P.RESTRICCIONES[r])}: requiere supervisión profesional.</b> ${esc(estado.condiciones[r].aviso)}</span></p>`).join("");
 }
 
 function alCambiarEditor(e) {
@@ -387,9 +394,16 @@ function prepararHogar() {
   $("#objetivos").innerHTML = Object.entries(P.OBJETIVO).map(([clave, o]) =>
     `<label><input type="radio" name="p-objetivo" value="${clave}"><span>${esc(o.nombre)}</span></label>`).join("");
   $("#restricciones").innerHTML = GRUPOS_RESTRICCIONES.map((g) => {
-    const claves = g.alergia ? Object.keys(P.ALERGIAS) : g.claves;
-    return `<div class="grupo-restricciones"><h3>${esc(g.titulo)}</h3><div class="chips">${claves.map((k) =>
-      `<label class="chip"><input type="checkbox" name="p-restriccion" value="${k}"><span>${esc(P.RESTRICCIONES[k].replace(/^Alergia (al|a la|a) /, ""))}</span></label>`).join("")}</div></div>`;
+    const claves = g.alergia ? Object.keys(P.ALERGIAS) : g.claves.concat(g.condiciones ? P.CONDICIONES : []);
+    const nombre = (k) => P.RESTRICCIONES[k].replace(/^Alergia (al|a la|a) /, "");
+    const supervision = (k) => Boolean(estado.condiciones[k] && estado.condiciones[k].supervision);
+    const chips = claves.map((k) => `<label class="chip"><input type="checkbox" name="p-restriccion" value="${k}"><span>` +
+      `${esc(nombre(k))}${supervision(k) ? '<b class="chip-marca" title="Requiere supervisión profesional">con supervisión</b>' : ""}` +
+      "</span></label>").join("");
+    const criterios = claves.map((k) => `<dt>${esc(P.RESTRICCIONES[k])}</dt><dd>${esc(estado.criterios[k] || "")}</dd>`).join("");
+    return `<div class="grupo-restricciones"><h3>${esc(g.titulo)}</h3><div class="chips">${chips}</div>
+      ${g.condiciones ? '<div class="avisos-supervision" aria-live="polite"></div>' : ""}
+      <details class="criterios-grupo"><summary>Qué exige cada una</summary><dl>${criterios}</dl></details></div>`;
   }).join("");
 
   $("#personas").addEventListener("click", (e) => {
@@ -1004,7 +1018,8 @@ function bloquePersona(d, i) {
     <p class="ayuda"><b>${fmt(r.productos_aptos)}</b> de los ${fmt(d.catalogo.productos_canasta)} productos de la canasta son aptos. Un producto sin datos que lo confirmen no se considera apto.</p>
     ${restricciones.length ? `<ul class="restricciones-lista">${restricciones.map((c) => {
       const ef = r.efecto.find((x) => x.clave === c.clave);
-      return `<li><details><summary><span>${esc(c.nombre)}</span>${ef ? `<small>deja afuera ${fmt(ef.excluye)} productos</small>` : ""}</summary>
+      const condicion = estado.P.CONDICIONES.includes(c.clave);
+      return `<li><details><summary><span>${esc(c.nombre)}</span>${ef ? `<small>deja afuera ${fmt(ef.excluye)} productos</small>` : condicion ? "<small>cambia metas</small>" : ""}</summary>
         <p>${esc(c.criterio)}</p></details></li>`;
     }).join("")}</ul>` : '<p class="estado-metas sin-faltas"><i aria-hidden="true">✓</i><span>Sin restricciones: puede comer cualquier producto de la canasta.</span></p>'}`;
 }
@@ -1706,6 +1721,8 @@ async function iniciar() {
   }
   estado.P = resumen.parametros;
   estado.perfiles = resumen.perfiles;
+  estado.criterios = resumen.criterios;
+  estado.condiciones = resumen.condiciones;
   estado.caminata = estado.P.CAMINATA_MINUTOS;
   estado.agua = estado.P.AGUA_MODO_PREDETERMINADO;
   estado.listo = true;
@@ -1719,7 +1736,8 @@ async function iniciar() {
     <p class="t-linea"><span>Alimentos con nutrientes</span><span>${fmt(resumen.productos)}</span></p>
     <p class="t-linea"><span>Supermercados</span><span>${fmt(resumen.tiendas)}</span></p>
     <p class="t-linea"><span>Nutrientes por alimento</span><span>33</span></p>
-    <p class="t-linea"><span>Restricciones</span><span>${Object.keys(estado.P.RESTRICCIONES).length}</span></p><hr>
+    <p class="t-linea"><span>Restricciones</span><span>${Object.keys(estado.P.RESTRICCIONES).length - estado.P.CONDICIONES.length}</span></p>
+    <p class="t-linea"><span>Condiciones médicas</span><span>${estado.P.CONDICIONES.length}</span></p><hr>
     <p class="t-total"><span>TOTAL</span><span>EL MÁS BAJO</span></p>
     <p class="t-centro t-gracias">*** a pocos minutos ***</p>`;
   [...tc.children].forEach((el, i) => el.style.setProperty("--i", i));

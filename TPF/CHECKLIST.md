@@ -100,10 +100,26 @@ GitHub.
 - [ ] Controles contra el día anterior (precios que saltan, sucursales que desaparecen).
 - [ ] Entorno reproducible con `uv`.
 
-## Etapa 4 · Restricciones nuevas
+## Etapa 4 (21/11/2026) · Restricciones nuevas y condiciones médicas
 
-- [ ] Kosher, halal y sin cerdo (y pescetariano, exclusión de ingredientes); recargar la base.
-- [ ] Vitaminas y condiciones médicas con fuente y aviso de supervisión profesional (`referencia/condiciones.csv`).
+- [x] Columnas de dieta y religión (`sepa/producto/religion.py`: cerdo, carne, gelatina, alcohol, vino, carmín y
+      rótulos kosher y halal), como paso del pipeline y aplicables al `dim_producto` existente (la canasta las calcula
+      al cargar si el parquet no las trae).
+- [x] Sin cerdo, halal y kosher al final de `RESTRICCIONES` (bits 15 a 17), con criterio y fuentes en `config.py` y en
+      el texto de la página. Sin certificaciones en la base: halal y kosher no ofrecen carnes ni aves (0 rotuladas en la
+      canasta; 2 productos kosher o parve en toda la base, ninguno halal).
+- [x] Condiciones médicas en `referencia/condiciones.csv` (anemia, osteoporosis, colesterol alto, déficit de B12 y de
+      vitamina D, enfermedad renal): cambian metas con su fuente en los dos motores, sin pasar ningún máximo tolerable;
+      las que requieren supervisión lo avisan (bits 18 a 23, sin filtrar productos).
+- [x] Página: grupos "Dieta y religión", "Alergias" y "Salud", marca "con supervisión" y su aviso al elegirla, "Qué
+      exige cada una" desplegable; perfiles ocultos `kosher`, `halal` y `anemia`.
+- [x] 161 tests de Python (18 nuevos): religión con productos sintéticos, aptos con los datos reales, canastas reales en el Microcentro y
+      Córdoba, cada condición cambia lo que dice la tabla, ningún mínimo pasa un máximo; un caso más de paridad
+      (kosher, halal y anemia en el Microcentro) que además compara avisos y criterios.
+- [x] Presentación: etapa 4 en "Hecho"; "Dieta y religión" y "Salud" en el modelo.
+- [ ] Certificaciones de verdad (etiquetas de Open Food Facts o listas de las certificadoras) para ofrecer carnes y
+      lácteos kosher o halal; separar carne y leche por comida (hoy la canasta es por día).
+- [ ] Pescetariano y exclusión de ingredientes puntuales.
 
 ## Etapa 5 · Promociones con condiciones
 

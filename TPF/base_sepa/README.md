@@ -75,6 +75,15 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   vecina a ≤ 10 min caminando, enumerando los pares con el modelo de siempre (`resultado.dos_super`). Conviene si cubre
   mejor las metas o, con las mismas, si ahorra al menos 3 % y $1.000; se informan el ahorro y los minutos de más
   (tramo entre las dos, estimado) y el ticket sale dividido por sucursal.
+- **Sin cerdo, halal y kosher** (etapa 4, `PESCADOS_*` y los criterios en `canasta/config.py`): con las columnas de
+  dieta y religión; "desconocido" no es apto. Sin certificaciones en la base, halal y kosher no ofrecen carnes ni
+  aves (solo las rotuladas, y no hay) y aplican lo que se puede verificar por ingredientes (kosher: sin mariscos,
+  pescados sin escamas, gelatina, carmín ni derivados de la uva). La mezcla carne-leche por comida no se modela.
+- **Condiciones médicas** (`referencia/condiciones.csv`, `CONDICIONES` en `canasta/config.py`): anemia por falta de
+  hierro, osteoporosis, colesterol alto, déficit de B12 o de vitamina D y enfermedad renal crónica. No filtran
+  productos: cambian metas con su fuente (NASEM, FAO/OMS, NCEP ATP III, BHOF, KDOQI), sin pasar nunca un máximo
+  tolerable, y las que requieren supervisión profesional lo avisan. Perfiles ocultos para probarlas:
+  `?perfiles=kosher,halal,anemia`.
 
 ## Estructura
 
@@ -85,7 +94,7 @@ SEPA 2.0/
 │   ├── config.py             rutas y todos los umbrales, con su porqué
 │   ├── fuentes/              descarga y lectura: SEPA, Open Food Facts, USDA, catálogos web, geografía
 │   ├── producto/             dim_producto: identificación, contenido, categoría, clasificación,
-│   │                         nutrientes, similitud, composición
+│   │                         nutrientes, similitud, composición, dieta y religión
 │   ├── tienda/               dim_tienda: coordenadas, división política, horarios
 │   ├── precio/               fact_precio: precios anormales y normalización
 │   ├── verificacion.py       controles que las tres tablas cumplen siempre
@@ -95,6 +104,7 @@ SEPA 2.0/
 │   │                         parte comestible, unidad de precio, grupo alimentario
 │   ├── categorias_web.csv    categoría de góndola -> alimentos compatibles
 │   ├── composicion_alimentos.csv   alérgenos y aptitudes "por naturaleza" de cada alimento
+│   ├── condiciones.csv       condiciones médicas: qué meta cambia, cómo, con qué fuente y si requiere supervisión
 │   ├── rotulos_fotos.csv     tablas nutricionales leídas de fotos de envases
 │   └── nutricion_manual.csv  correcciones puntuales de nutrientes
 ├── tests/
@@ -145,7 +155,13 @@ SEPA 2.0/
 7. **Composición**: alérgenos (sí / no / desconocido), trazas, apto vegetariano y vegano, sin TACC, sin lactosa,
    NOVA, aditivos, azúcar agregada, edulcorantes, aceite de palma; y sellos de advertencia aproximados (en los
    polvos para preparar, que la ley evalúa sobre lo preparado, solo los de azúcares y grasas).
-8. **Precio plausible**: un producto cuyo precio por kg o litro está por debajo de la quinta parte del
+8. **Dieta y religión** (`sepa/producto/religion.py`, etapa 4): `contiene_cerdo`, `contiene_carne`,
+   `contiene_gelatina`, `contiene_alcohol`, `contiene_vino`, `contiene_carmin` (sí / no / desconocido) y los rótulos
+   `rotulo_kosher` y `rotulo_halal`, desde el alimento genérico, el nombre y la lista de ingredientes (sin las trazas
+   ni los aromatizantes sintéticos; el vinagre y el "licor de cacao" no son alcohol). La gelatina sin origen
+   declarado puede ser porcina. Un `dim_producto` anterior no las trae: la canasta las calcula al cargar con la misma
+   función. En la base hay 2 productos rotulados kosher o parve (ninguno de la canasta) y ninguno halal.
+9. **Precio plausible**: un producto cuyo precio por kg o litro está por debajo de la quinta parte del
    percentil 10 de su subcategoría o por encima de 8 veces el percentil 90, o muy por debajo del de sus
    "gemelos" (los casi iguales que venden otras cadenas), tiene el contenido mal cargado o un precio
    desactualizado y se excluye (sin poner precio en la dimensión). Percentiles y no la mediana porque hay

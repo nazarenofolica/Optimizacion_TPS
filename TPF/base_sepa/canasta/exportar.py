@@ -109,6 +109,8 @@ def paquete() -> tuple[dict, bytes]:
     for c in NUMERICAS + oferta.NUTRIENTES + oferta.DERIVADOS:
         binario.agregar(f"p.{c}", p[c].to_numpy(float))
     aptitud = np.zeros(len(p), dtype=np.uint32)
+    if len(cfg.RESTRICCIONES) > 32:
+        raise RuntimeError("Más de 32 restricciones: la aptitud ya no entra en un uint32 (ampliarla aquí y en motor.js)")
     for i, r in enumerate(cfg.RESTRICCIONES):
         apto, _ = oferta.aptos(p, [r])
         aptitud |= apto.to_numpy().astype(np.uint32) << i
@@ -151,6 +153,7 @@ def paquete() -> tuple[dict, bytes]:
         "parametros": parametros(), "nombres": rq.NOMBRES,
         "requerimientos": rq.leer_tabla(cfg.RUTA_REQUERIMIENTOS).to_dict("records"),
         "guias": rq.leer_tabla(cfg.RUTA_GUIAS).to_dict("records"), "perfiles": rq.perfiles(),
+        "condiciones": rq.leer_tabla(cfg.RUTA_CONDICIONES).to_dict("records"),
         "criterios": {c["clave"]: c["criterio"] for c in oferta.criterios(list(cfg.RESTRICCIONES))},
     }
     return meta, binario.bytes()

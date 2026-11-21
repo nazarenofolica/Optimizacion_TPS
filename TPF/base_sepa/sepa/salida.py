@@ -20,6 +20,7 @@ import pandas as pd
 
 from sepa import config as cfg
 from sepa.producto.nutrientes import NUTRIENTES
+from sepa.producto.religion import COLUMNAS as RELIGION
 
 logger = logging.getLogger("sepa.salida")
 
@@ -65,6 +66,15 @@ COLUMNAS_PRODUCTO = {
     "edulcorantes": "si / no / desconocido",
     "aceite_palma": "si / no / desconocido",
     "fuente_composicion": "rótulo (catálogo web), rótulo (Open Food Facts), ingredientes o alimento genérico",
+    "contiene_cerdo": "Carne, grasa o derivados de cerdo, o gelatina de origen no declarado: si / no / desconocido",
+    "contiene_carne": "Carnes rojas, aves y sus derivados (no el pescado): si / no / desconocido",
+    "contiene_gelatina": "Gelatina o colágeno de cualquier origen: si / no / desconocido",
+    "contiene_alcohol": "Bebida alcohólica o alcohol entre los ingredientes (no el vinagre): si / no / desconocido",
+    "contiene_vino": "Derivados de la uva que para kosher necesitan certificación (vino, mosto, jugo de uva, coñac): "
+                     "si / no / desconocido",
+    "contiene_carmin": "Colorante carmín o cochinilla (INS 120): si / no / desconocido",
+    "rotulo_kosher": "El nombre, la marca o el rótulo dicen KOSHER, KASHER o PARVE: si / no",
+    "rotulo_halal": "El nombre, la marca o el rótulo dicen HALAL: si / no",
     "sellos": "Cantidad de sellos de advertencia (Ley 27.642), aproximada a partir de los nutrientes (en los "
               "polvos para preparar, solo azúcares y grasas: la ley los evalúa sobre lo preparado)",
     "categoria_web": "Categoría de góndola (catálogos de Jumbo, Disco y Vea): la publicada para ese EAN o la que "
@@ -93,6 +103,7 @@ ORDEN_PRODUCTO = (["id_producto", "tipo_codigo", "id_comercio_interno", "nombre"
                   + ["ingredientes"] + [f"contiene_{a}" for a in ALERGENOS]
                   + ["puede_contener", "apto_vegetariano", "apto_vegano", "sin_tacc", "sin_lactosa", "nova",
                      "aditivos", "azucar_agregada", "edulcorantes", "aceite_palma", "fuente_composicion"]
+                  + RELIGION
                   + SELLOS + ["sellos", "categoria_web", "clasificacion_origen", "contenido_fuente",
                               "contenido_acuerdo", "alimento_id"])
 

@@ -61,6 +61,20 @@ sin commitear los datos del día. Open Food Facts, los catálogos web, Georef/US
 Si falla la verificación no se publica (queda el día anterior) y se abre un issue. Los tests de Python corren en cada
 push. Tests: 142 en Python.
 
+**Etapa 4 del MVP (2026-11-21)**, restricciones nuevas y condiciones médicas, sin recargar la base entera (no están
+las cachés del pipeline en esta máquina): `sepa/producto/religion.py` deriva de columnas que `dim_producto` ya tiene
+(nombre, descripción, ingredientes, alimento genérico, NOVA, vegetariano) si cada producto tiene cerdo, carne,
+gelatina, alcohol, vino o carmín y si está rotulado kosher o halal; es un paso del pipeline y la canasta lo aplica al
+cargar si el parquet no trae las columnas. Con eso, **sin cerdo**, **halal** y **kosher** al final de `RESTRICCIONES`:
+sin certificaciones en la base (2 productos kosher o parve en 28.030, ninguno de la canasta; ninguno halal), halal y
+kosher no ofrecen carnes ni aves y aplican lo verificable (kosher: sin mariscos, pescados sin escamas, gelatina,
+carmín ni derivados de la uva); la mezcla carne-leche por comida no se modela. **Condiciones médicas** en
+`referencia/condiciones.csv` (anemia por falta de hierro, osteoporosis, colesterol alto, déficit de B12 y de vitamina
+D, enfermedad renal crónica): cambian metas con su fuente (NASEM, FAO/OMS, NCEP ATP III, BHOF, KDOQI) en los dos
+motores, sin pasar ningún máximo tolerable, y las que requieren supervisión lo avisan en el formulario y en el
+resultado. Canastas reales del oficinista a 15 min: Microcentro $23.406 sin cerdo, $24.491 halal o kosher, $27.770 con
+anemia; Córdoba $37.494 sin cerdo, halal o kosher. Tests: 161 en Python. Detalle en [../docs/ROADMAP.md](../docs/ROADMAP.md).
+
 ## Para revisar
 
 ### Datos (pipeline)

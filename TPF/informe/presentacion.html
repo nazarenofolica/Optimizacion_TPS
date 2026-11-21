@@ -230,7 +230,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cargando-demo b { font: 400 44px var(--serif); color: var(--tinta); }
 
 /* ---------- 7 · Límites ---------- */
-/* Tres bloques: hecho en las etapas 1 a 3, etapas 4 a 6 (y lo que queda del POC), fuera de alcance. */
+/* Tres bloques: hecho en las etapas 1 a 4, etapas 5 y 6 (y lo que queda del POC), fuera de alcance. */
 .columnas { flex: 1; display: grid; grid-template-columns: 1fr 1.2fr .72fr; gap: 56px; margin-top: 40px; align-items: start; }
 .columnas h3 { font: 500 16px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 16px; display: flex; align-items: center; gap: 12px; }
 .columnas h4 { font: 500 14px var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 26px 0 4px; opacity: .6; }
@@ -348,8 +348,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <span class="etiqueta r" style="--d:6">Guías Alimentarias<small>verduras, frutas, lácteos…</small></span>
         <span class="etiqueta r rota" style="--d:7">Variedad<small>≤ 2 porciones por alimento</small></span>
         <span class="etiqueta nueva r rota2" style="--d:8">Agua<small>canilla · compra · 8 vasos</small></span>
-        <span class="etiqueta r" style="--d:9">Salud<small>hipertensión · diabetes</small></span>
-        <span class="etiqueta r rota" style="--d:10">Dieta<small>celiaquía · vegano · 8 alergias · NOVA 4</small></span>
+        <span class="etiqueta nueva r" style="--d:9">Salud<small>8 condiciones médicas</small></span>
+        <span class="etiqueta nueva r rota" style="--d:10">Dieta y religión<small>celiaquía · vegano · halal · kosher</small></span>
         <span class="etiqueta r" style="--d:11">Hogar<small>hasta 8 personas, compra común</small></span>
         <span class="etiqueta dest r rota2" style="--d:12">≤ 15 · 30 · 45 · 60 min<small>caminando, por la calle</small></span>
       </div>
@@ -454,19 +454,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <h2 class="titulo r" style="--d:1">Del POC <em>al MVP.</em></h2>
     <div class="columnas">
       <div class="r" style="--d:2">
-        <h3><span class="pastilla">Hecho</span>etapas 1 a 3</h3>
+        <h3><span class="pastilla">Hecho</span>etapas 1 a 4</h3>
         <ul class="lista">
           <li><span class="marca-li hecho" aria-hidden="true">1</span>Aumentar de peso<small>+500 kcal/día · proteína 1,2 g/kg</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">1</span>El agua, como restricción<small>de la canilla · comprada · 8 vasos</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">1</span>Cuando no llega a 37 metas<small>cuánto cubre cada una y qué probar</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">2</span>Comprar en dos sucursales<small>binarias de visita · se resuelve por pares</small></li>
           <li><span class="marca-li hecho" aria-hidden="true">3</span>Precios de cada día<small>ETL con GitHub Actions · tests en cada push</small></li>
+          <li><span class="marca-li hecho" aria-hidden="true">4</span>Restricciones nuevas<small>sin cerdo · halal · kosher · 6 condiciones médicas</small></li>
         </ul>
       </div>
       <div class="r" style="--d:3">
-        <h3><span class="pastilla si">Sigue</span>etapas 4 a 6</h3>
+        <h3><span class="pastilla si">Sigue</span>etapas 5 y 6</h3>
         <ul class="lista">
-          <li><span class="marca-li etapa">4</span>Restricciones nuevas<small>kosher · halal · sin cerdo · condiciones médicas</small></li>
           <li><span class="marca-li etapa">5</span>Promociones con condiciones<small>2×1 · 2.ª unidad · porcentaje</small></li>
           <li><span class="marca-li etapa">6</span>Contarlo en texto libre<small>LLM con Groq → metas para confirmar</small></li>
         </ul>

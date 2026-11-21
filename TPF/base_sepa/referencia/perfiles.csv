@@ -5,7 +5,9 @@
 #   aumentar (subir = ganar masa muscular; aumentar = aumentar de peso). etapa: general, embarazo (con trimestre 1, 2 o
 #   3) o lactancia.
 #   restricciones (separadas por "|"): celiaquia, vegetariano, vegano, sin_lactosa, sin_leche, sin_huevo, sin_mani,
-#   sin_frutos_secos, sin_soja, sin_pescado, sin_mariscos, sin_sesamo, sin_ultraprocesados, hipertension, diabetes.
+#   sin_frutos_secos, sin_soja, sin_pescado, sin_mariscos, sin_sesamo, sin_ultraprocesados, hipertension, diabetes,
+#   sin_cerdo, halal, kosher y las condiciones médicas (referencia/condiciones.csv): anemia_ferropenica,
+#   osteoporosis, colesterol_alto, deficit_b12, deficit_vitamina_d, enfermedad_renal.
 #   visible: si o no. La página ofrece solo los visibles como perfiles de ejemplo; los demás se cargan por enlace
 #   (?perfiles=id) o desde la consola, y los usan los tests.
 id;nombre;descripcion;sexo;edad;peso_kg;altura_cm;actividad;objetivo;etapa;trimestre;restricciones;visible
@@ -29,3 +31,6 @@ aumentar_peso;Aumentar de peso;Estudiante de 20 años, muy flaco (IMC 17), que q
 embarazada_vegetariana;Embarazada vegetariana;Mujer de 27 años en el 2.º trimestre, vegetariana;F;27;61;160;liviana;mantener;embarazo;2;vegetariano;si
 adulto_mayor;Adulto mayor;Varón de 67 años con diabetes, hipertensión y sobrepeso, que quiere bajar de peso;M;67;84;170;sedentaria;bajar;general;;diabetes|hipertension;si
 caso_extremo;Caso extremo;Celíaca y vegana, alérgica al maní, los frutos secos, la soja y el sésamo;F;31;58;162;moderada;mantener;general;;celiaquia|vegano|sin_mani|sin_frutos_secos|sin_soja|sin_sesamo;si
+kosher;Kosher;Varón de 45 años que come kosher (en la base no hay carnes rotuladas: pescado, huevos, lácteos y legumbres);M;45;78;174;liviana;mantener;general;;kosher;no
+halal;Halal;Mujer de 28 años que come halal y tiene colesterol alto;F;28;62;162;moderada;mantener;general;;halal|colesterol_alto;no
+anemia;Anemia;Mujer de 26 años con anemia por falta de hierro;F;26;55;160;liviana;mantener;general;;anemia_ferropenica;no

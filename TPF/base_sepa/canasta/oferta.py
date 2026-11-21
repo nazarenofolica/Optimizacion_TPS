@@ -22,6 +22,9 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from canasta import config as cfg
+from canasta import requerimientos as rq
+from sepa.producto import religion
+from sepa.texto import sin_tildes
 
 logger = logging.getLogger("canasta.oferta")
 
@@ -40,7 +43,7 @@ COLUMNAS_PRODUCTO = [
     "fuente_nutrientes", "fuente_composicion", "contiene_gluten", "contiene_leche", "contiene_huevo", "contiene_mani",
     "contiene_frutos_secos", "contiene_soja", "contiene_pescado", "contiene_mariscos", "contiene_sesamo",
     "puede_contener", "apto_vegetariano", "apto_vegano", "sin_tacc", "sin_lactosa", "azucar_agregada",
-    "exceso_azucares", "exceso_sodio",
+    "exceso_azucares", "exceso_sodio", "descripcion_sepa", "ingredientes", "alcohol_g",
 ] + NUTRIENTES
 COLUMNAS_TIENDA = [
     "id_tienda", "comercio", "bandera", "formato", "tipo_sucursal", "sucursal_nombre", "direccion", "localidad",
@@ -50,6 +53,8 @@ COLUMNAS_TIENDA = [
 ]
 NOMBRE_ALERGENO = {"leche": "leche", "huevo": "huevo", "mani": "maní", "frutos_secos": "frutos secos",
                    "soja": "soja", "pescado": "pescado", "mariscos": "mariscos", "sesamo": "sésamo", "gluten": "gluten"}
+# Kosher: mariscos y el surimi (mezcla de pescados, a veces con extracto de cangrejo) no se pueden verificar.
+ALIMENTOS_MAR_NO_KOSHER = {"calamar", "langostinos", "surimi"}
 ALIMENTOS_AZUCAR_LIBRE = {"azucar", "azucar_mascabo", "miel", "jugo", "mermelada", "dulce_de_leche",
                           "leche_condensada", "dulce_membrillo", "caramelos"}
 
@@ -81,6 +86,23 @@ def _derivados(p: pd.DataFrame) -> pd.DataFrame:
     return p
 
 
+def _columnas_producto() -> list[str]:
+    """Las columnas que se leen de dim_producto: las de la canasta y, si el parquet ya las trae (corridas del
+    pipeline desde la etapa 4), las de dieta y religión."""
+    presentes = set(pq.read_schema(cfg.RUTA_DIM_PRODUCTO).names)
+    return COLUMNAS_PRODUCTO + [c for c in religion.COLUMNAS if c in presentes]
+
+
+def _religion(p: pd.DataFrame) -> pd.DataFrame:
+    """Columnas de dieta y religión (sin cerdo, halal, kosher). Un dim_producto anterior a la etapa 4 no las trae: se
+    calculan con la misma función del pipeline (sepa/producto/religion.py), sobre todos los productos de cada
+    alimento genérico, así dan lo mismo que en una corrida completa."""
+    faltan = [c for c in religion.COLUMNAS if c not in p]
+    if faltan:
+        p[faltan] = religion.derivar(p)[faltan]
+    return p
+
+
 def cargar() -> Datos:
     """Lee dim_producto, dim_tienda y fact_precio (una vez por proceso; ~700 MB, con un pico de ~1 GB al cargar)."""
     global _DATOS
@@ -90,12 +112,13 @@ def cargar() -> Datos:
         for ruta in (cfg.RUTA_DIM_PRODUCTO, cfg.RUTA_DIM_TIENDA, cfg.RUTA_FACT_PRECIO):
             if not ruta.exists():
                 raise FileNotFoundError(f"Falta {ruta}: primero hay que correr python -m sepa")
-        todos = pd.read_parquet(cfg.RUTA_DIM_PRODUCTO, columns=COLUMNAS_PRODUCTO)
+        todos = pd.read_parquet(cfg.RUTA_DIM_PRODUCTO, columns=_columnas_producto())
         # El agua y la soda se cargan siempre; solo se ofrecen si el hogar compra el agua (ver es_agua).
         p = todos[(todos["grupo_alimentario"].isin(cfg.GRUPOS_CANASTA) | todos["alimento_id"].isin(cfg.ALIMENTOS_AGUA))
-                  & ~todos["alimento_id"].isin(cfg.ALIMENTOS_EXCLUIDOS)
-                  & ~todos["nombre"].str.upper().str.contains(cfg.NOMBRES_EXCLUIDOS, regex=True)].copy()
-        p = _derivados(p).set_index("id_producto")
+                  & ~todos["alimento_id"].isin(cfg.ALIMENTOS_EXCLUIDOS)].copy()
+        p = _religion(p)
+        p = p[~p["nombre"].str.upper().str.contains(cfg.NOMBRES_EXCLUIDOS, regex=True)]
+        p = _derivados(p).drop(columns=["descripcion_sepa", "ingredientes"]).set_index("id_producto")
         t = pd.read_parquet(cfg.RUTA_DIM_TIENDA, columns=COLUMNAS_TIENDA).set_index("id_tienda")
         fecha = pq.read_table(cfg.RUTA_FACT_PRECIO, columns=["fecha"]).column(0)
         fecha = str(fecha[0].as_py().date()) if len(fecha) else ""
@@ -139,6 +162,17 @@ def _sin_trazas(p: pd.DataFrame, alergeno: str) -> pd.Series:
     return ~trazas & ~sin_rotulo
 
 
+def _kosher_verificable(p: pd.DataFrame) -> pd.Series:
+    """Lo que se puede verificar de kosher sin certificación: sin cerdo, carne ni gelatina, sin carmín ni derivados
+    de la uva, sin mariscos y, si tiene pescado, que sea uno con escamas."""
+    pescado_dudoso = ((p["contiene_pescado"] == "si") & ~p["alimento_id"].isin(cfg.PESCADOS_CON_ESCAMAS)) | (
+        p["alimento_id"].isin(cfg.PESCADOS_CON_ESCAMAS)
+        & p["nombre"].fillna("").map(sin_tildes).str.upper().str.contains(cfg.PESCADOS_SIN_ESCAMAS, regex=True))
+    return ((p["contiene_cerdo"] == "no") & (p["contiene_carne"] == "no") & (p["contiene_gelatina"] == "no")
+            & (p["contiene_carmin"] == "no") & (p["contiene_vino"] == "no") & (p["contiene_mariscos"] != "si")
+            & ~p["alimento_id"].isin(ALIMENTOS_MAR_NO_KOSHER) & ~pescado_dudoso)
+
+
 def criterios(restricciones: list[str]) -> list[dict]:
     """Qué exige cada restricción, en palabras (para mostrarlo)."""
     textos = {
@@ -154,6 +188,18 @@ def criterios(restricciones: list[str]) -> list[dict]:
         "hipertension": "Sin productos con sello de exceso en sodio y con el sodio del día por debajo de 1.500 mg.",
         "diabetes": "Sin productos con sello de exceso en azúcares y con los azúcares libres por debajo del 5 % de la "
                     "energía.",
+        "sin_cerdo": "Sin carne, grasa ni fiambres de cerdo, y sin cerdo, panceta, tocino o jamón entre los "
+                     "ingredientes. La gelatina sin origen declarado puede ser porcina y se excluye. Los procesados "
+                     "sin lista de ingredientes que podrían tenerlo (galletitas, tapas, pastas rellenas) también.",
+        "halal": "Sin cerdo ni derivados y sin alcohol (tampoco en los ingredientes: licor, vino, ron; el vinagre sí). "
+                 "Carnes rojas y aves, solo rotuladas halal: en la base no hay ninguna, así que las proteínas salen "
+                 "del pescado, los mariscos, los huevos, los lácteos y las legumbres. La gelatina, solo si se declara "
+                 "de origen no porcino. Si tu escuela excluye los mariscos, sumá \"Alergia a mariscos\".",
+        "kosher": "Sin cerdo, mariscos ni pescados sin escamas (cazón, surubí, pez espada); carnes y aves solo "
+                  "rotuladas kosher, y en la base no hay ninguna. Sin gelatina, carmín (sale de un insecto) ni vino, "
+                  "mosto o jugo de uva entre los ingredientes. Los lácteos, el pan y los procesados se aceptan si su "
+                  "lista de ingredientes no lo impide: la base no tiene las certificaciones kosher (que también "
+                  "cubren cómo se elaboran). No se separa la carne de la leche por comida: la canasta es por día.",
     }
     salida = []
     for r in restricciones:
@@ -161,6 +207,8 @@ def criterios(restricciones: list[str]) -> list[dict]:
             a = NOMBRE_ALERGENO[cfg.ALERGIAS[r]]
             texto = (f"Sin {a} entre los ingredientes ni como traza declarada (\"puede contener\"). Los procesados "
                      f"sin rótulo propio no informan sus trazas y se excluyen.")
+        elif r in cfg.CONDICIONES:
+            texto = rq.criterio_condicion(r)
         else:
             texto = textos[r]
         salida.append({"clave": r, "nombre": cfg.RESTRICCIONES[r], "criterio": texto})
@@ -198,6 +246,15 @@ def aptos(p: pd.DataFrame, restricciones: list[str], base: pd.Series | None = No
             m = ~p["exceso_sodio"].astype(bool)
         elif r == "diabetes":
             m = ~p["exceso_azucares"].astype(bool)
+        elif r == "sin_cerdo":
+            m = p["contiene_cerdo"] == "no"
+        elif r == "halal":
+            m = (p["rotulo_halal"] == "si") | ((p["contiene_cerdo"] == "no") & (p["contiene_alcohol"] == "no")
+                                               & (p["contiene_carne"] == "no"))
+        elif r == "kosher":
+            m = (p["rotulo_kosher"] == "si") | _kosher_verificable(p)
+        elif r in cfg.CONDICIONES:
+            continue                       # cambia metas (requerimientos.py), no filtra productos
         else:
             raise ValueError(f"Restricción desconocida: {r}")
         efecto.append({"clave": r, "nombre": cfg.RESTRICCIONES[r], "excluye": int((apto & ~m).sum())})

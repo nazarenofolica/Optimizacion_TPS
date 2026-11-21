@@ -10,6 +10,7 @@ Pasos (cada uno en su módulo):
                      de su subcategoría (kg, l o unidad) y a 100 g
   6. nutrientes      33 nutrientes cada 100 g comestibles, sin vacíos
   7. composicion     alérgenos, aptitudes, procesamiento; sellos de advertencia
+  8. religion        cerdo, carne, gelatina, alcohol, vino y carmín; rótulos kosher y halal
 
 Un producto entra solo si es comida, tiene una clasificación sin conflictos, un
 contenido conocido (o una unidad con peso típico) y un rótulo, si lo tiene,
@@ -26,7 +27,8 @@ import numpy as np
 import pandas as pd
 
 from sepa.fuentes.sepa import DatosSEPA
-from sepa.producto import categorias, clasificacion, composicion, contenido, identificacion, nutrientes
+from sepa.producto import (categorias, clasificacion, composicion, contenido, identificacion, nutrientes,
+                           religion)
 
 logger = logging.getLogger("sepa.producto")
 
@@ -138,6 +140,7 @@ def armar(datos: DatosSEPA, off: pd.DataFrame, web: pd.DataFrame) -> tuple[pd.Da
                             envasado=p["es_ean"], azucar_agregada=p["azucar_agregada"],
                             para_preparar=p["alimento_id"].isin(nutrientes.PARA_PREPARAR))
     p = pd.concat([p, sel], axis=1)
+    p = pd.concat([p, religion.derivar(p)], axis=1)
     p["parte_comestible"] = p["alimento_id"].map(c["parte_comestible"])
     p["densidad_g_ml"] = p["alimento_id"].map(c["densidad_g_ml"]).where(liquido)
     p["porcion_g"] = p["alimento_id"].map(c["porcion"])

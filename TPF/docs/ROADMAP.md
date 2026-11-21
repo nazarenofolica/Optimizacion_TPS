@@ -104,6 +104,63 @@ corrida a mano: [DESPLIEGUE.md](DESPLIEGUE.md)). No se probó todavía en GitHub
   paridad con Chrome headless, a mano.
 - Tests: 142 en Python (10 nuevos del modo diario) y 3 opcionales de paridad.
 
+### Etapa 4 del MVP (21/11/2026): restricciones nuevas y condiciones médicas
+
+Sin recargar la base entera (en esta máquina no están las cachés del pipeline): lo nuevo sale de columnas que
+`dim_producto` ya tiene (nombre, marca, descripción, ingredientes, alimento genérico, NOVA, vegetariano, alcohol).
+
+- **Columnas nuevas** (`sepa/producto/religion.py`, paso 8 del pipeline y aplicable al parquet existente: si no las
+  trae, `canasta/oferta.py` las calcula al cargar con la misma función, ~4 s): `contiene_cerdo`, `contiene_carne`,
+  `contiene_gelatina`, `contiene_alcohol`, `contiene_vino`, `contiene_carmin` (si / no / desconocido) y
+  `rotulo_kosher`, `rotulo_halal`. Reglas en el orden de `composicion.py`: el alimento genérico, el nombre y la lista de
+  ingredientes dicen "si" (sin las trazas ni los aromatizantes sintéticos: "aromatizante idéntico al natural
+  panceta" no es cerdo; "licor de cacao" no es alcohol; el vinagre tampoco); "no" si hay lista y no lo trae, si no es
+  procesado o si ya es vegetariano; si no, "desconocido", que no es apto. Para el alcohol, el vino y el carmín, un
+  procesado sin lista solo es dudoso si su alimento los trae seguido sin avisarlo en el nombre (≥ 3 % de los que
+  tienen lista, medido en cada corrida: budines, alfajores, yogures, helados, mermeladas light...).
+- **Restricciones**, al final de `RESTRICCIONES` (bits 15 a 17 de la aptitud; el binario es un uint32 por producto y
+  `exportar.py` corta si pasan de 32):
+
+  | Restricción | Criterio | Excluye (de 19.336) |
+  |---|---|---:|
+  | Sin cerdo | sin carne, grasa, fiambres ni embutidos de cerdo; sin cerdo, panceta, tocino o jamón en los ingredientes; sin gelatina de origen no declarado | 6.539 (1.548 seguros y ~5.000 procesados sin lista que podrían tenerlo) |
+  | Halal | sin cerdo ni alcohol; carnes rojas y aves solo rotuladas halal (no hay ninguna); gelatina solo de origen no porcino declarado; pescado y mariscos sí (la escuela hanafí los excluye: se suma "Alergia a mariscos") | 7.856 |
+  | Kosher | sin cerdo, carne ni aves no rotuladas (no hay); sin mariscos, surimi ni pescados sin escamas (cazón, surubí, pez espada); sin gelatina, carmín ni derivados de la uva sin certificar (vino, mosto, jugo de uva) | 8.497 |
+
+  Fuentes: Corán 2:173, 5:3 y 5:90; Levítico 11 y Deuteronomio 14; los criterios de las certificadoras (Centro
+  Islámico de la República Argentina, OU). **Rótulos en la base:** "kosher" o "parve" en 2 productos de 28.030 (un
+  vino y una milanesa de soja, ninguno de la canasta; una mermelada dice "KOSHBR", un error de lectura del rótulo que
+  no se cuenta), "halal" en ninguno (las dos coincidencias eran "chala", una cerveza). **Límites:** sin
+  certificaciones en la base, halal y kosher son lo verificable por ingredientes; la faena, el cuajo de los quesos, la
+  leche y el pan bajo supervisión no figuran; la mezcla carne-leche por comida no se modela (la canasta es por día; hoy
+  no hay carne apta, así que no se presenta).
+- **Condiciones médicas** (`referencia/condiciones.csv`: condición → meta → cambio y valor → fuente → requiere
+  supervisión → aviso), como restricciones al final (bits 18 a 23) que no filtran productos, igual que la hipertensión
+  y la diabetes cambian el sodio y los azúcares: así llegan solas a la persona, los perfiles, `?perfiles=`, la página y
+  el pedido de la etapa 6. Cada cambio aparece en "Cómo calculamos lo que necesita" (fórmula, resultado y fuente) y en
+  los avisos; ningún mínimo pasa un máximo tolerable (se apunta al máximo y se avisa, como el hierro vegetariano).
+
+  | Condición | Qué cambia | Fuente | Supervisión |
+  |---|---|---|---|
+  | Anemia por falta de hierro | hierro × 1,8 (sin pasar el UL de 45 mg; no se suma al vegetariano), vitamina C prioritaria | NASEM 2001; FAO/OMS 2004; OMS 2016 (el hierro medicinal lo indica el médico) | sí |
+  | Osteoporosis o riesgo de fracturas | calcio ≥ 1.200 mg; vitamina D ≥ 20 µg y prioritaria (sigue informativa) | NASEM 2011; BHOF 2022 | no |
+  | Colesterol alto | saturadas < 7 % de la energía; colesterol ≤ 200 mg (meta nueva) | NCEP ATP III (NHLBI 2002) | no |
+  | Déficit de vitamina B12 | B12 prioritaria (su déficit pesa el doble) | NASEM 1998 | sí |
+  | Déficit de vitamina D | vitamina D prioritaria (informativa: la comida no alcanza) | NASEM 2011 | sí |
+  | Enfermedad renal crónica | nada: solo avisa (proteína, potasio, fósforo y sodio dependen de la etapa) | KDOQI 2020 | sí |
+
+  Nunca dosis ni suplementos: las que requieren supervisión lo dicen en el formulario y en el resultado.
+- **Página:** el paso 1 agrupa "Dieta y religión", "Alergias" y "Salud"; las condiciones con supervisión llevan la marca
+  en el chip y, al elegirlas, su aviso; cada grupo tiene "Qué exige cada una" desplegable. Perfiles ocultos de prueba:
+  `kosher`, `halal` (con colesterol alto) y `anemia` (`?perfiles=kosher,halal,anemia`).
+- **Canastas reales** (oficinista, una semana, 15 min caminando, tiempos estimados): Microcentro, sin restricciones
+  $23.406; sin cerdo $23.406; halal y kosher $24.491; anemia $27.770; colesterol alto $23.866 (38 metas); osteoporosis
+  y déficit de B12 $25.274. Córdoba: sin cerdo, halal y kosher $37.494; anemia $41.589; colesterol alto $36.905;
+  osteoporosis y B12 $38.070. Todas cubren todas sus metas.
+- Tests: 161 en Python (18 nuevos: religión con productos sintéticos y reales, aptos con los datos, canastas reales en
+  el Microcentro y Córdoba, cada condición cambia lo que dice la tabla, ningún mínimo pasa un máximo) y un caso más de
+  paridad (kosher, halal con colesterol alto y anemia en el Microcentro), que ahora compara también avisos y criterios.
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -142,7 +199,7 @@ el costo, se propone el segundo súper si cubre mejor las metas o si ahorra al m
 ahorro junto a los minutos de más para que la persona decida. Con más de dos visitas los pares dejan de alcanzar:
 haría falta el MILP con binarias (o enumerar tríos acotados) y, para el orden de las visitas, un problema de ruteo.
 
-## El camino al MVP: etapas 3 a 6 (la 3, hecha)
+## El camino al MVP: etapas 3 a 6 (la 3 y la 4, hechas)
 
 Cada etapa se planifica y se cierra por separado, con sus tests y la paridad entre los dos motores.
 
@@ -156,21 +213,15 @@ Ver "Etapa 3 del MVP" arriba y [DESPLIEGUE.md](DESPLIEGUE.md). Lo que queda de l
 - Entorno reproducible con `uv` (hoy hay dos `requirements.txt` con rangos de versiones).
 - Paridad en cada push (hoy, a mano), tests de la página con Playwright y del motor JavaScript sin navegador (Node).
 
-### Etapa 4 · Restricciones nuevas y condiciones médicas
+### Etapa 4 · Restricciones nuevas y condiciones médicas: hecha (21/11/2026)
 
-Requiere recargar la base: la composición y las aptitudes salen del pipeline (`python -m sepa`), no de la página.
+Ver "Etapa 4 del MVP" arriba. Lo que se había planeado y queda: pescetariano y exclusión de ingredientes puntuales;
+certificaciones kosher y halal de verdad (etiquetas de Open Food Facts, que el pipeline todavía no guarda, o listas de
+las certificadoras) para ofrecer carnes y lácteos certificados; más condiciones solo con fuente.
 
-- **Kosher, halal y sin cerdo**, y también pescetariano y exclusión de ingredientes puntuales. Sin cerdo sale de los
-  mismos datos de composición; kosher y halal necesitan una certificación del producto (etiquetas de Open Food Facts
-  o listas de las entidades certificadoras), con la cobertura medida antes de ofrecerlas. Cada una entra al final de
-  `RESTRICCIONES` (el orden define los bits de aptitud de la página).
-- **Vitaminas y condiciones médicas** (anemia, deficiencias de vitaminas, embarazo de riesgo, etc.). El motor ya
-  ajusta metas (hierro y zinc vegetarianos, sodio con hipertensión, azúcares con diabetes). Para ampliar:
-  - Una tabla versionada de **ajustes por condición** (`referencia/condiciones.csv`): condición → meta modificada →
-    fuente bibliográfica (NASEM, OMS, guías argentinas) → "requiere supervisión profesional" sí/no.
-  - Solo se ofrecen condiciones con fuente; las que requieren supervisión muestran el aviso y no cambian metas por
-    encima de los máximos tolerables.
-  - Nunca diagnóstico ni suplementación: la canasta sigue siendo comida del supermercado.
+Lo que se había planeado (una tabla de ajustes por condición con fuente y "requiere supervisión"; solo condiciones
+con fuente; ningún mínimo por encima de un máximo tolerable; nunca diagnóstico ni suplementación) quedó así. Kosher y
+halal se ofrecen con la cobertura medida (0 rotulados en la canasta), por eso sin carnes.
 
 ### Etapa 5 · Promociones con condiciones
 

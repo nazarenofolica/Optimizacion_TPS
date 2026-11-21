@@ -10,6 +10,7 @@ import pandas as pd
 from canasta import config as cfg
 from canasta import modelo, oferta
 from canasta import requerimientos as rq
+from sepa.producto import religion
 
 
 def meta(metas: list[rq.Meta], clave: str) -> rq.Meta:
@@ -160,6 +161,7 @@ def _productos(**cambios) -> pd.DataFrame:
         "nova": 1, "fuente_composicion": "alimento genérico", "puede_contener": "", "sin_tacc": "si",
         "apto_vegetariano": "si", "apto_vegano": "si", "sin_lactosa": "si", "exceso_sodio": False,
         "exceso_azucares": False, **{f"contiene_{a}": "no" for a in oferta.NOMBRE_ALERGENO},
+        "alimento_id": "fideos", **{c: "no" for c in religion.COLUMNAS},
     }
     filas = []
     for clave, valores in cambios.items():
@@ -195,6 +197,129 @@ class TestRestricciones(unittest.TestCase):
         p = _productos(lenteja={}, leche={"apto_vegano": "no"}, salado={"exceso_sodio": True})
         apto, _ = oferta.aptos(p, ["vegano", "hipertension"])
         self.assertEqual(apto[apto].index.tolist(), ["lenteja"])
+
+    def test_sin_cerdo_halal_y_kosher(self):
+        carne = {"contiene_carne": "si", "apto_vegetariano": "no", "apto_vegano": "no"}
+        p = _productos(
+            lenteja={},
+            nalga={**carne, "alimento_id": "nalga"},
+            bondiola={**carne, "alimento_id": "bondiola", "contiene_cerdo": "si"},
+            galletita_sin_lista={"contiene_cerdo": "desconocido", "contiene_carne": "desconocido",
+                                 "contiene_gelatina": "desconocido"},
+            budin_con_ron={"contiene_alcohol": "si"},
+            yogur_gelatina_bovina={"contiene_gelatina": "si"},
+            yogur_carmin={"contiene_carmin": "si"},
+            mermelada_uva={"contiene_vino": "si"},
+            merluza={"alimento_id": "merluza", "contiene_pescado": "si", "apto_vegetariano": "no"},
+            cazon={"alimento_id": "merluza", "nombre": "Filet de cazón", "contiene_pescado": "si"},
+            langostinos={"alimento_id": "langostinos", "contiene_mariscos": "si"},
+            pastas_salmon={"alimento_id": "pastas_rellenas", "contiene_pescado": "si"},
+            carne_rotulada={**carne, "alimento_id": "nalga", "rotulo_kosher": "si", "rotulo_halal": "si"},
+        )
+        aptos = {r: oferta.aptos(p, [r])[0] for r in ("sin_cerdo", "halal", "kosher")}
+        nombres = {r: a[a].index.tolist() for r, a in aptos.items()}
+        self.assertNotIn("bondiola", nombres["sin_cerdo"])
+        self.assertNotIn("galletita_sin_lista", nombres["sin_cerdo"])          # "desconocido" no es apto
+        self.assertIn("nalga", nombres["sin_cerdo"])
+        self.assertEqual(nombres["halal"], ["lenteja", "yogur_gelatina_bovina", "yogur_carmin", "mermelada_uva",
+                                            "merluza", "cazon", "langostinos", "pastas_salmon", "carne_rotulada"])
+        self.assertEqual(nombres["kosher"], ["lenteja", "budin_con_ron", "merluza", "carne_rotulada"])
+
+    def test_condiciones_no_filtran_productos(self):
+        p = _productos(lenteja={}, bondiola={"contiene_cerdo": "si"})
+        for c in cfg.CONDICIONES:
+            apto, efecto = oferta.aptos(p, [c])
+            self.assertTrue(apto.all(), c)
+            self.assertEqual(efecto, [], c)
+
+    def test_las_nuevas_van_al_final(self):
+        # El orden define los bits de aptitud de la página: las de la etapa 4 se agregaron al final, sin mover nada.
+        claves = list(cfg.RESTRICCIONES)
+        self.assertEqual(claves[:15], ["celiaquia", "vegetariano", "vegano", "sin_lactosa", "sin_leche", "sin_huevo",
+                                       "sin_mani", "sin_frutos_secos", "sin_soja", "sin_pescado", "sin_mariscos",
+                                       "sin_sesamo", "sin_ultraprocesados", "hipertension", "diabetes"])
+        self.assertEqual(claves[15:18], ["sin_cerdo", "halal", "kosher"])
+        self.assertEqual(claves[18:], cfg.CONDICIONES)
+        self.assertLessEqual(len(claves), 32)                                  # un uint32 por producto
+        self.assertTrue(all(c["criterio"] for c in oferta.criterios(claves)))
+
+
+class TestCondiciones(unittest.TestCase):
+    """Cada condición cambia exactamente las metas que dice referencia/condiciones.csv, con su paso y su aviso."""
+
+    @staticmethod
+    def _metas(restricciones: list[str], **persona) -> rq.Requerimientos:
+        datos = {"sexo": "F", "edad": 30, "peso_kg": 60, **persona}
+        return rq.calcular(rq.Persona(restricciones=restricciones, **datos))
+
+    def _cambios(self, restricciones: list[str], **persona) -> dict[str, tuple]:
+        antes = {m.clave: (m.minimo, m.maximo, m.peso) for m in self._metas([], **persona).metas}
+        despues = {m.clave: (m.minimo, m.maximo, m.peso) for m in self._metas(restricciones, **persona).metas}
+        return {k: (antes.get(k), v) for k, v in despues.items() if antes.get(k) != v}
+
+    def test_tabla_y_claves(self):
+        tabla = rq.condiciones()
+        self.assertEqual(list(tabla), cfg.CONDICIONES)
+        for c, filas in tabla.items():
+            with self.subTest(condicion=c):
+                self.assertEqual(len({(f["requiere_supervision"], f["aviso"]) for f in filas}), 1)
+                for f in filas:
+                    self.assertTrue(f["fuente"] and f["aviso"])
+                    self.assertIn(f["requiere_supervision"], ("si", "no"))
+                    if f["cambio"] != "ninguno":
+                        self.assertIn(f["meta"], rq.NOMBRES)
+                        float(f["valor"])
+
+    def test_cada_condicion_cambia_lo_que_dice_la_tabla(self):
+        cambios = {c: self._cambios([c]) for c in cfg.CONDICIONES}
+        self.assertEqual(cambios["anemia_ferropenica"], {"hierro_mg": ((18, 45, 1), (18 * 1.8, 45, 1)),
+                                                         "vitamina_c_mg": ((75, None, 1), (75, None, 2))})
+        self.assertEqual(cambios["osteoporosis"], {"calcio_mg": ((1000, 2500, 1), (1200, 2500, 1)),
+                                                   "vitamina_d_ug": ((15, None, 1), (20, None, 2))})
+        energia = self._metas([]).energia_kcal
+        self.assertEqual(set(cambios["colesterol_alto"]), {"grasas_saturadas_g", "colesterol_mg"})
+        self.assertAlmostEqual(cambios["colesterol_alto"]["grasas_saturadas_g"][1][1], 0.07 * energia / 9)
+        self.assertEqual(cambios["colesterol_alto"]["colesterol_mg"], (None, (None, 200, 1)))
+        self.assertEqual(cambios["deficit_b12"], {"vitamina_b12_ug": ((2.4, None, 1), (2.4, None, 2))})
+        self.assertEqual(cambios["deficit_vitamina_d"], {"vitamina_d_ug": ((15, None, 1), (15, None, 2))})
+        self.assertEqual(cambios["enfermedad_renal"], {})
+        # Las condiciones no filtran productos: la energía y el resto de las metas quedan igual.
+        for c in cfg.CONDICIONES:
+            self.assertEqual(self._metas([c]).energia_kcal, energia)
+
+    def test_pasos_y_avisos_de_supervision(self):
+        for c, filas in rq.condiciones().items():
+            with self.subTest(condicion=c):
+                r = self._metas([c])
+                paso = next(s for s in r.pasos if s["titulo"].startswith("Condición:"))
+                self.assertTrue(paso["formula"] and paso["resultado"] and paso["fuente"])
+                supervision = [a for a in r.avisos if a.startswith("Requiere supervisión profesional")]
+                self.assertEqual(len(supervision), 1 if filas[0]["requiere_supervision"] == "si" else 0)
+                self.assertTrue(any(filas[0]["aviso"][1:] in a for a in r.avisos))
+
+    def test_ningun_minimo_pasa_el_maximo(self):
+        # La embarazada con anemia: 27 × 1,8 = 48,6 mg de hierro pasaría el máximo tolerable de 45 mg.
+        embarazo = {"etapa": "embarazo", "trimestre": 2}
+        r = self._metas(["anemia_ferropenica"], **embarazo)
+        hierro = meta(r.metas, "hierro_mg")
+        self.assertEqual((hierro.minimo, hierro.maximo), (45, 45))
+        self.assertTrue(any(a.startswith("Con anemia por falta de hierro, el hierro") for a in r.avisos))
+        # Con dieta vegetariana el factor es el mismo motivo: no se acumula ni se avisa dos veces.
+        r = self._metas(["vegetariano", "anemia_ferropenica"], **embarazo)
+        self.assertEqual(meta(r.metas, "hierro_mg").minimo, 45)
+        self.assertEqual(sum("supera el máximo tolerable" in a for a in r.avisos), 1)
+        for persona in ({"edad": 8, "peso_kg": 27}, {"edad": 15, "peso_kg": 55}, {"edad": 75, "peso_kg": 60},
+                        embarazo, {"etapa": "lactancia"}, {"sexo": "M", "edad": 40, "peso_kg": 80}):
+            for vegetariano in ([], ["vegetariano"]):
+                with self.subTest(persona=persona, vegetariano=vegetariano):
+                    for m in self._metas(vegetariano + cfg.CONDICIONES, **persona).metas:
+                        if m.minimo is not None and m.maximo is not None:
+                            self.assertLessEqual(m.minimo, m.maximo, m.clave)
+
+    def test_dos_condiciones_no_multiplican_la_prioridad(self):
+        r = self._metas(["osteoporosis", "deficit_vitamina_d"])
+        self.assertEqual(meta(r.metas, "vitamina_d_ug").peso, 2)
+        self.assertEqual(meta(r.metas, "vitamina_d_ug").tipo, "informativa")       # sigue sin exigírsele a la compra
 
 
 def _oferta_modelo() -> pd.DataFrame:
@@ -686,6 +811,72 @@ class TestPerfilesVisiblesConDatos(unittest.TestCase):
         self.assertGreater(m["sucursales"], 1)
         self.assertLessEqual(len(m["faltan"]), 2)                              # pocas y entendibles
         self.assertLess(self.r["caso_extremo"]["ticket"]["total"], 80_000)     # una semana, no un costo absurdo
+
+
+@unittest.skipUnless(cfg.RUTA_FACT_PRECIO.exists(), "faltan las tablas de ../datos/sepa/")
+class TestDietaYReligionConDatos(unittest.TestCase):
+    """Sin cerdo, halal y kosher con los datos reales: cuántos productos quedan y una canasta del oficinista en el
+    Microcentro y en Córdoba (las tres sucursales más cercanas, tiempos estimados, sin red); y una con condiciones."""
+
+    LUGARES = {"Microcentro": (-34.60386, -58.38419), "Córdoba": (-31.41670, -64.18330)}
+
+    @classmethod
+    def setUpClass(cls):
+        from canasta import resultado, rutas
+        cls.resultado = resultado
+        cls.d = oferta.cargar()
+        oficinista = next(p for p in rq.perfiles() if p["id"] == "oficinista")
+        cls.r = {}
+        for lugar, (lat, lon) in cls.LUGARES.items():
+            tiempos, _ = rutas.tiempos_caminando(lat, lon, 15, clave="")
+            tiempos = dict(sorted(tiempos.items(), key=lambda kv: kv[1]["minutos"])[:3])
+            casos = [[], ["sin_cerdo"], ["halal"], ["kosher"]]
+            casos.append(["colesterol_alto"] if lugar == "Microcentro" else ["anemia_ferropenica", "deficit_b12"])
+            for rs in casos:
+                persona = rq.persona_desde({**oficinista, "restricciones": rs})
+                cls.r[lugar, tuple(rs)] = resultado.armar([persona], lat, lon, 7, tiempos=tiempos,
+                                                          caminata_minutos=15)
+
+    def test_cuantos_productos_quedan(self):
+        p = self.d.productos
+        apto = {r: oferta.aptos(p, [r])[0] for r in ("sin_cerdo", "halal", "kosher", "vegetariano")}
+        for r, a in apto.items():
+            self.assertGreater(a.sum(), 5000, r)                       # quedan miles: alcanza para armar canastas
+        self.assertGreater((~apto["sin_cerdo"]).sum(), 1500)          # fiambres, embutidos y cortes de cerdo
+        # Sin rótulos en la base, halal y kosher son "sin cerdo" (y sin carne): nunca más amplios.
+        self.assertEqual((p["rotulo_kosher"] == "si").sum() + (p["rotulo_halal"] == "si").sum(), 0)
+        for r in ("halal", "kosher"):
+            self.assertFalse((apto[r] & ~apto["sin_cerdo"]).any(), r)
+            self.assertFalse((apto[r] & (p["contiene_carne"] != "no")).any(), r)
+        cerdo = p["alimento_id"].isin(religion.ALIMENTOS_CERDO)
+        self.assertFalse((apto["sin_cerdo"] & cerdo).any())
+        self.assertFalse((apto["kosher"] & p["alimento_id"].isin(["calamar", "langostinos", "surimi"])).any())
+        self.assertTrue((apto["halal"] & p["alimento_id"].isin(["merluza", "atun_lata"])).any())   # el pescado sí
+
+    def test_canastas_reales(self):
+        for (lugar, rs), r in self.r.items():
+            with self.subTest(lugar=lugar, restricciones=rs):
+                self.assertNotIn("error", r)
+                self.assertIn(r["modelo"]["estado"], ("optima", "factible"))
+                self.assertTrue(r["ticket"]["items"])
+                apto, _ = oferta.aptos(self.d.productos, [x for x in rs if x not in cfg.CONDICIONES])
+                for item in r["ticket"]["items"]:
+                    self.assertTrue(apto[item["id_producto"]], item["nombre"])
+                base = self.r[lugar, ()]["ticket"]["total"]
+                if not set(rs) & set(cfg.CONDICIONES):
+                    # Una restricción nunca abarata la compra (más allá de la brecha de 1 % del solver).
+                    self.assertGreaterEqual(r["ticket"]["total"], base * (1 - 2 * cfg.GAP_RELATIVO))
+
+    def test_condiciones_en_la_canasta(self):
+        r = self.r["Microcentro", ("colesterol_alto",)]
+        colesterol = next(c for c in r["personas"][0]["cobertura"] if c["clave"] == "colesterol_mg")
+        self.assertEqual(colesterol["maximo"], 200)
+        self.assertTrue(any(s["titulo"] == "Condición: colesterol alto" for s in r["personas"][0]["requerimientos"]["pasos"]))
+        r = self.r["Córdoba", ("anemia_ferropenica", "deficit_b12")]
+        avisos = r["personas"][0]["requerimientos"]["avisos"]
+        self.assertEqual(sum(a.startswith("Requiere supervisión profesional") for a in avisos), 2)
+        hierro = next(c for c in r["personas"][0]["cobertura"] if c["clave"] == "hierro_mg")
+        self.assertAlmostEqual(hierro["minimo"], 18 * 1.8)
 
 
 class TestPerfiles(unittest.TestCase):

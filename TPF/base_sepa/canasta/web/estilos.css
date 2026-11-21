@@ -242,6 +242,25 @@ input:focus-visible, select:focus-visible { outline: none; }
 .grupo-restricciones { margin-top: 10px; }
 .grupo-restricciones h3 { font-size: 0.8rem; font-weight: 500; color: var(--tinta-suave); margin-bottom: 6px; }
 .grupo-restricciones .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Condiciones que requieren supervisión: la marca va en el chip (se ve sin tocar nada) y, al elegirla, su aviso. */
+.chip-marca {
+  font: 500 0.7rem/1 var(--texto); color: var(--naranja); padding: 3px 5px; border-radius: 4px; margin-left: 2px;
+  background: color-mix(in srgb, var(--naranja) 12%, var(--superficie)); white-space: nowrap;
+}
+.avisos-supervision { display: grid; gap: 6px; margin-top: 8px; }
+.avisos-supervision:empty { display: none; }
+.aviso-supervision {
+  display: flex; gap: 8px; align-items: flex-start; padding: 9px 11px; border-radius: 8px; font-size: 0.84rem;
+  background: color-mix(in srgb, var(--naranja) 9%, var(--superficie)); border: 1px solid color-mix(in srgb, var(--naranja) 32%, transparent);
+}
+.aviso-supervision i {
+  flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; margin-top: 1px;
+  background: var(--naranja); color: var(--superficie); font: 700 0.72rem var(--ticket); font-style: normal;
+}
+.aviso-supervision b { font-weight: 600; }
+.criterios-grupo dl { display: grid; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--hundido); }
+.criterios-grupo dt { font-size: 0.84rem; font-weight: 600; }
+.criterios-grupo dd { margin: 2px 0 0; font-size: 0.82rem; color: var(--tinta-suave); max-width: 72ch; overflow-wrap: anywhere; }
 
 /* Personas del hogar */
 .personas { display: flex; flex-wrap: wrap; gap: 8px; }

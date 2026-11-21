@@ -65,8 +65,13 @@
   async function cargarPaquete(meta64, binario64) {
     const meta = JSON.parse(new TextDecoder().decode(await desempacar(meta64)));
     cargarDatos(meta, await desempacar(binario64));
+    // Para el formulario: el criterio de cada restricción y, de cada condición, si requiere supervisión y su aviso.
+    const condiciones = Object.fromEntries(P.CONDICIONES.map((c) => {
+      const f = D.condiciones.find((x) => x.condicion === c);
+      return [c, { supervision: f.requiere_supervision === "si", aviso: f.aviso }];
+    }));
     return { fecha: D.fecha, perfiles: D.perfiles, parametros: P, productos: D.productos.n, tiendas: D.tiendas.id.length,
-      productosTotal: D.productosTotal };
+      productosTotal: D.productosTotal, criterios: D.criterios, condiciones };
   }
 
   function cargarDatos(meta, buffer) {
@@ -115,6 +120,7 @@
       fecha: meta.fecha_precios, productosTotal: meta.productos_total, productos, tiendas: meta.tiendas,
       precios: { inicio, filaProd, filaPrecio, filaPromo }, nombres: meta.nombres,
       requerimientos: meta.requerimientos, guias: meta.guias, perfiles: meta.perfiles, criterios: meta.criterios,
+      condiciones: meta.condiciones,
     };
   }
 
@@ -388,6 +394,90 @@
     });
   }
 
+  // ------------------------------------------------------------
+  // Condiciones médicas (referencia/condiciones.csv; requerimientos._condiciones)
+  // ------------------------------------------------------------
+
+  const primeraMinusc = (s) => s.slice(0, 1).toLowerCase() + s.slice(1);
+  const cantidadMeta = (x) => fmt(x, x >= 100 ? 0 : 1);
+  const avisoCondicion = (f) => (f.requiere_supervision === "si"
+    ? `Requiere supervisión profesional: ${primeraMinusc(f.aviso)}` : f.aviso);
+
+  // Aplica a las metas las condiciones de la persona (en el orden de sus restricciones), con su paso y su aviso.
+  // Ningún mínimo queda por encima de su máximo: si pasaría, se apunta al máximo y se avisa.
+  function condiciones(p, metas, energia, pasos, avisos) {
+    for (const c of p.restricciones.filter((r) => P.CONDICIONES.includes(r))) {
+      const nombreC = P.RESTRICCIONES[c];
+      const filas = D.condiciones.filter((f) => f.condicion === c);
+      const formulas = [], resultados = [];
+      for (const f of filas) {
+        if (f.cambio === "ninguno") continue;
+        const v = Number(f.valor);
+        const [nombre, unidad] = D.nombres[f.meta];
+        let m = metas.find((x) => x.clave === f.meta);
+        if (!m) {                          // una meta que nadie más pone (el colesterol): va con los macros
+          m = meta(f.meta, nombre, unidad, f.meta, null, null, { tipo: "macro", fuente: f.fuente.split(":")[0] });
+          let k = -1;
+          metas.forEach((x, i) => { if (x.tipo === "macro") k = i; });
+          metas.splice(k + 1, 0, m);
+        }
+        let corto = null;
+        if (f.cambio === "factor_minimo") {
+          const base = Number(filaEtapa(p, "minimo")[f.meta]);
+          let formula = `${nombre}: ${cantidadMeta(base)} × ${fmt(v, 1)} = ${cantidadMeta(base * v)} ${unidad}`;
+          // El factor vegetariano es el mismo motivo (menor absorción): no se suman, vale el mayor.
+          if (esVegetariana(p) && (P.FACTOR_VEGETARIANO[f.meta] || 0) >= v) {
+            formula += " (ya lo pide la dieta vegetariana)";
+          } else {
+            m.minimo = Math.max(m.minimo || 0, base * v);
+            corto = `× ${fmt(v, 1)}`;
+          }
+          formulas.push(formula);
+        } else if (f.cambio === "minimo_al_menos") {
+          formulas.push(`${nombre}: al menos ${cantidadMeta(v)} ${unidad}`);
+          m.minimo = Math.max(m.minimo || 0, v);
+          corto = `al menos ${cantidadMeta(v)} ${unidad}`;
+        } else if (f.cambio === "maximo_a_lo_sumo") {
+          formulas.push(`${nombre}: a lo sumo ${cantidadMeta(v)} ${unidad}`);
+          m.maximo = m.maximo === null ? v : Math.min(m.maximo, v);
+          corto = `a lo sumo ${cantidadMeta(v)} ${unidad}`;
+        } else if (f.cambio === "maximo_pct_energia") {
+          const kcal = P.KCAL_POR_G[f.meta];
+          const tope = v / 100 * energia / kcal;
+          formulas.push(`${nombre}: ${fmt(v)} % de ${fmt(energia)} kcal ÷ ${kcal} kcal/g = ${cantidadMeta(tope)} ${unidad}`);
+          m.maximo = m.maximo === null ? tope : Math.min(m.maximo, tope);
+          corto = `menos del ${fmt(v)} % de la energía`;
+        } else if (f.cambio === "prioridad") {
+          formulas.push(`${nombre}: prioritaria (lo que falte pesa ${fmt(v)} veces)`);
+          m.peso = Math.max(m.peso, P.PESO_DEFICIT_PREDETERMINADO * v);      // dos condiciones no se multiplican
+          corto = "prioritaria";
+        } else {
+          throw new Error(`Cambio desconocido en condiciones.csv: ${f.cambio}`);
+        }
+        if (corto) m.nota = (m.nota ? `${m.nota}; ` : "") + `${corto} por ${primeraMinusc(nombreC)}`;
+        if (m.minimo !== null && m.maximo !== null && m.minimo > m.maximo) {
+          avisos.push(`Con ${primeraMinusc(nombreC)}, el ${primeraMinusc(nombre)} que hace falta (${fmt(m.minimo, 1)} ` +
+            `${unidad}) supera el máximo tolerable (${fmt(m.maximo, 1)} ${unidad}): la canasta apunta al máximo y la ` +
+            "diferencia la indica un profesional.");
+          m.nota += `; se limita al máximo tolerable (${fmt(m.maximo, 1)})`;
+          m.minimo = m.maximo;
+        }
+        if (f.cambio === "prioridad") resultados.push(`${primeraMinusc(nombre)} prioritaria`);
+        else if (m.minimo !== null && m.maximo !== null) {
+          resultados.push(`${primeraMinusc(nombre)} ${cantidadMeta(m.minimo)} a ${cantidadMeta(m.maximo)} ${unidad}`);
+        } else {
+          resultados.push(`${primeraMinusc(nombre)} ${m.minimo !== null ? "≥" : "≤"} ` +
+            `${cantidadMeta(m.minimo !== null ? m.minimo : m.maximo)} ${unidad}`);
+        }
+      }
+      pasos.push({ titulo: `Condición: ${primeraMinusc(nombreC)}`,
+        formula: formulas.length ? formulas.join("; ") : "No cambia las metas: solo avisa",
+        resultado: resultados.length ? resultados.join("; ") : "las metas de siempre",
+        fuente: [...new Set(filas.map((f) => f.fuente))].join("; ") });
+      avisos.push(avisoCondicion(filas[0]));
+    }
+  }
+
   // Meta de agua del día, en gramos (≈ ml). Con agua comprada se le exige a la compra; de la canilla, se informa.
   function aguaMeta(p, modo, pasos) {
     const m = P.AGUA_MODOS[modo];
@@ -431,6 +521,7 @@
       resultado: `${fmt(prot)} g/día`, fuente: "" });
     const metas = macros(p, energia, prot, pasos).concat(micronutrientes(p, pasos, avisos), [aguaMeta(p, agua, pasos)],
       reglas(energia));
+    condiciones(p, metas, energia, pasos, avisos);
     if (p.restricciones.includes("diabetes") || p.restricciones.includes("hipertension")) {
       avisos.push("Con diabetes o hipertensión, esta canasta es orientativa: el plan lo ajusta el médico o un nutricionista.");
     }
@@ -454,6 +545,7 @@
     if (!conAgua) for (let i = 0; i < pr.n; i++) if (pr.es_agua[i]) apto[i] = 0;
     const efecto = [];
     for (const r of restricciones) {
+      if (P.CONDICIONES.includes(r)) continue;     // cambia metas (condiciones), no filtra productos
       const bit = 1 << orden.indexOf(r);
       let excluye = 0;
       for (let i = 0; i < pr.n; i++) {
