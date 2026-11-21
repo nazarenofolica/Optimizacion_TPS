@@ -132,6 +132,26 @@ ejemplo una vez por mes, porque aparecen productos nuevos).
   uso no vencen; si vencen, la corrida siguiente las rearma (como la primera).
 - La cuota gratuita de rutas de OpenRouteService no aplica: la página publicada no lleva clave.
 
+## Texto libre con Groq (etapa 6): solo en la página local
+
+"Contalo con tus palabras" necesita la clave de Groq, y una clave no puede ir en una página estática: cualquiera que
+la abra la ve. Por eso la traducción la hace un servidor, y **en GitHub Pages no hay servidor** (sirve archivos, no
+ejecuta código): la página publicada no muestra el bloque ni consulta nada. Funciona en la página local, servida por
+`python -m canasta`, que suma dos rutas (`/api/estado` y `/api/interpretar`, `canasta/servidor.py`) solo para esta
+máquina. Para el público hace falta un backend propio (FastAPI que envuelva `canasta/llm.py`; ver "Producción" en el
+[ROADMAP](ROADMAP.md)).
+
+Para usarlo:
+
+1. Crear una clave gratuita en https://console.groq.com/keys.
+2. En `base_sepa/.env` (copiado de `.env.example`; no se versiona), poner `GROQ_API_KEY=gsk_...`.
+3. Desde `base_sepa/`, `python -m canasta`: la consola dice "Texto libre: con Groq" y la página lo ofrece en el paso 1.
+
+La clave queda solo en el servidor local: no va en `canasta.html` ni en `canasta_local.html` (`exportar.py` corta la
+exportación si la encontrara) y Actions no la tiene ni la necesita. El texto se manda a Groq con la confirmación de la
+persona y no se guarda ni se escribe en el log. Sin clave, `python -m canasta --llm-simulado` prueba la página con
+respuestas de ejemplo (solo para desarrollo; la página avisa que es una simulación).
+
 ## Cambiar el horario
 
 En `.github/workflows/tpf-diario.yml`, bajo `schedule`, cada `cron` es "minuto hora día mes día-de-la-semana" en

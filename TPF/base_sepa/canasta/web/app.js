@@ -46,6 +46,7 @@ const estado = {
   dos: new WeakMap(),    // resultado -> {ds, rutas}: la compra en dos súper calculada sobre ese resultado
   vistaDos: false,       // el ticket muestra la compra en dos súper (si conviene) en lugar de la de uno
   capaDos: null, puntosMapa: null,
+  delTexto: {},          // lo que el texto libre completó en los pasos 2 y 3 (dias, agua...), para marcarlo
 };
 const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
 const PARAMETROS = new URLSearchParams(location.search);
@@ -198,11 +199,14 @@ function resumenPersona(p) {
 
 function erroresPersona(p) {
   const P = estado.P, e = [];
+  // Sexo y trimestre vacíos solo llegan del texto libre, cuando el texto no los dice: se piden, no se adivinan.
+  if (p.sexo !== "F" && p.sexo !== "M") e.push("Elegí el sexo biológico.");
   if (!(p.edad >= P.EDAD_MINIMA && p.edad <= P.EDAD_MAXIMA)) {
     e.push(`La edad tiene que estar entre ${P.EDAD_MINIMA} y ${P.EDAD_MAXIMA} años (antes de los ${P.EDAD_MINIMA}, la alimentación la indica el pediatra).`);
   }
   if (!(p.peso_kg >= P.PESO_RANGO_KG[0] && p.peso_kg <= P.PESO_RANGO_KG[1])) e.push("Revisá el peso.");
   if (p.altura_cm != null && !(p.altura_cm >= P.ALTURA_RANGO_CM[0] && p.altura_cm <= P.ALTURA_RANGO_CM[1])) e.push("Revisá la altura.");
+  if (p.etapa === "embarazo" && !(String(p.trimestre) in P.ENERGIA_EMBARAZO)) e.push("Elegí el trimestre del embarazo.");
   return e;
 }
 
@@ -223,6 +227,7 @@ function dibujarPersonas() {
     ? `${quienes}, compra para ${periodo}, cerca de ${estado.lugar.corto || estado.lugar.nombre}${caminata}.`
     : `${quienes}, compra para ${periodo}. Falta elegir dónde comprás.`;
   marcarPasos();
+  marcarDelTexto();
 }
 
 // Las pestañas de los pasos: cada una se marca completa cuando tiene lo necesario y muestra un resumen corto.
@@ -288,12 +293,13 @@ function prepararPasos() {
 function cargarEditor() {
   const p = estado.hogar[estado.actual];
   $("#p-nombre").value = p.nombre;
-  form()["p-sexo"].value = p.sexo;
+  $$('[name="p-sexo"]').forEach((c) => { c.checked = c.value === p.sexo; });
   $("#p-edad").value = p.edad ?? "";
   $("#p-peso").value = p.peso_kg ?? "";
   $("#p-altura").value = p.altura_cm ?? "";
   form()["p-etapa"].value = p.etapa;
-  form()["p-trimestre"].value = String(p.trimestre || 2);
+  const trimestre = p.trimestre === null ? "" : String(p.trimestre || 2);    // null: del texto, sin decirlo
+  $$('[name="p-trimestre"]').forEach((c) => { c.checked = c.value === trimestre; });
   form()["p-actividad"].value = p.actividad;
   form()["p-objetivo"].value = p.objetivo;
   $$('[name="p-restriccion"]').forEach((c) => { c.checked = p.restricciones.includes(c.value); });
@@ -310,7 +316,7 @@ function leerEditor() {
   p.peso_kg = numero($("#p-peso").value);
   p.altura_cm = numero($("#p-altura").value);
   p.etapa = form()["p-etapa"].value;
-  p.trimestre = Number(form()["p-trimestre"].value);
+  p.trimestre = Number(form()["p-trimestre"].value) || null;
   p.actividad = form()["p-actividad"].value;
   p.objetivo = form()["p-objetivo"].value;
   p.restricciones = $$('[name="p-restriccion"]:checked').map((c) => c.value);
@@ -609,6 +615,193 @@ function prepararCompra() {
       + "tarjeta: el total va a precio de lista.";
   }
   promos.addEventListener("change", (e) => { estado.promos = e.target.checked; dibujarPersonas(); guardar(); });
+}
+
+// ============================================================
+// Contalo con tus palabras (etapa 6): el servidor local (python -m canasta) le pasa el texto a Groq y devuelve el
+// pedido ya validado (canasta/llm.py). Acá solo se prellena el formulario: nada se calcula hasta "Armar la canasta".
+// La clave nunca llega a la página; sin servidor (la página publicada, o abierta como archivo) el bloque no aparece.
+// ============================================================
+
+const CAMPOS_TEXTO = ["nombre", "sexo", "edad", "peso_kg", "altura_cm", "actividad", "objetivo", "etapa", "trimestre"];
+// Dónde va la marca "del texto" de cada campo (la etiqueta del control).
+const ETIQUETA_TEXTO = {
+  nombre: () => $("#p-nombre").closest(".campo").querySelector(".etiqueta"),
+  sexo: () => $("#l-sexo"),
+  edad: () => $("#p-edad").closest(".campo").querySelector(".etiqueta"),
+  peso_kg: () => $("#p-peso").closest(".campo").querySelector(".etiqueta"),
+  altura_cm: () => $("#p-altura").closest(".campo").querySelector(".etiqueta"),
+  etapa: () => $("#l-etapa"),
+  actividad: () => $("#l-actividad"),
+  objetivo: () => $("#l-objetivo"),
+  restricciones: () => $("#l-restricciones"),
+  dias: () => $("#l-periodo"),
+  agua: () => $("#l-agua"),
+  listos: () => $("#listos").closest("label").querySelector("b"),
+  promos: () => $("#promos").closest("label").querySelector("b"),
+  caminata_minutos: () => $("#l-caminata"),
+};
+const valorHogar = { dias: () => estado.dias, agua: () => estado.agua, listos: () => estado.listos,
+  promos: () => estado.promos, caminata_minutos: () => estado.caminata };
+const mismaLista = (a, b) => [...a].sort().join("|") === [...b].sort().join("|");
+
+// Cada campo que vino del texto y sigue con ese valor lleva la marca; si la persona lo cambia, la marca se va.
+function marcarDelTexto() {
+  if (!estado.P) return;
+  const p = estado.hogar[estado.actual] || {};
+  const del = p.del_texto || {}, hogar = estado.delTexto || {};
+  for (const [campo, etiqueta] of Object.entries(ETIQUETA_TEXTO)) {
+    const el = etiqueta();
+    if (!el) continue;
+    let marca = el.querySelector(".del-texto");
+    let vino;
+    if (campo in valorHogar) vino = campo in hogar && hogar[campo] === valorHogar[campo]();
+    else if (campo === "etapa") vino = "etapa" in del && del.etapa === p.etapa && (p.etapa !== "embarazo" || del.trimestre === p.trimestre);
+    else if (campo === "restricciones") vino = "restricciones" in del && mismaLista(del.restricciones, p.restricciones);
+    else vino = campo in del && del[campo] === p[campo];
+    if (vino && !marca) {
+      marca = document.createElement("span");
+      marca.className = "del-texto";
+      marca.textContent = "del texto";
+      marca.title = "Lo completamos con tu texto: revisalo";
+      el.appendChild(marca);
+    }
+    if (marca) marca.hidden = !vino;
+  }
+}
+
+// Las personas del pedido validado, para el formulario. Lo obligatorio que el texto no dijo queda vacío (el formulario
+// lo pide); lo opcional, con el valor de siempre del formulario y sin marca.
+function personaDelTexto(x) {
+  const p = { ...PERSONA_NUEVA, nombre: x.nombre || "", sexo: "", edad: null, peso_kg: null, altura_cm: null,
+    restricciones: [...(x.restricciones || [])] };
+  const del = {};
+  for (const k of CAMPOS_TEXTO) {
+    if (x[k] != null) { p[k] = x[k]; del[k] = x[k]; }
+  }
+  if (p.etapa === "embarazo" && x.trimestre == null) p.trimestre = null;
+  if (p.restricciones.length) del.restricciones = [...p.restricciones];
+  p.del_texto = del;
+  return p;
+}
+
+function aplicarInterpretacion(r) {
+  const P = estado.P, ped = r.pedido;
+  if (ped.personas.length) {
+    estado.hogar = ped.personas.slice(0, P.PERSONAS_MAXIMAS).map(personaDelTexto);
+    const conError = estado.hogar.findIndex((p) => erroresPersona(p).length);
+    estado.actual = Math.max(conError, 0);
+  }
+  const hogar = {};
+  if (ped.dias != null && String(ped.dias) in P.DIAS_PERIODO) { estado.dias = ped.dias; hogar.dias = ped.dias; }
+  if (ped.agua != null && ped.agua in P.AGUA_MODOS) { estado.agua = ped.agua; hogar.agua = ped.agua; }
+  if (ped.listos != null) { estado.listos = ped.listos; hogar.listos = ped.listos; }
+  if (ped.promos != null && estado.promosEnBase) { estado.promos = ped.promos; hogar.promos = ped.promos; }
+  if (ped.caminata_minutos != null && P.CAMINATA_OPCIONES.includes(ped.caminata_minutos)) {
+    estado.caminata = ped.caminata_minutos;
+    hogar.caminata_minutos = ped.caminata_minutos;
+  }
+  estado.delTexto = hogar;
+  estado.anterior = null;
+  estado.escalera.clear();
+  $("#retomar").hidden = true;
+  sincronizarControles();
+  guardar();
+}
+
+function listaTexto(titulo, items, clase = "") {
+  if (!items.length) return "";
+  return `<div class="tl-lista ${clase}"><p class="tl-sub">${esc(titulo)}</p><ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+
+function mostrarInterpretacion(r) {
+  const P = estado.P, ped = r.pedido;
+  const n = ped.personas.length;
+  const partes = [];
+  if (n) partes.push(`${n === 1 ? "1 persona" : `${n} personas`} (${ped.personas.map((p, i) => nombrePersona(p, i)).join(", ")})`);
+  if (ped.dias != null) partes.push(`la compra para ${P.DIAS_PERIODO[ped.dias]}`);
+  if (ped.agua != null) partes.push(P.AGUA_MODOS[ped.agua].corto);
+  if (ped.listos) partes.push("solo alimentos listos para comer");
+  if (ped.caminata_minutos != null) partes.push(`hasta ${ped.caminata_minutos} min caminando`);
+  const cargado = partes.length
+    ? `Cargamos ${partes.length > 1 ? partes.slice(0, -1).join(", ") + " y " + partes[partes.length - 1] : partes[0]}.`
+    : "No cambiamos nada del formulario.";
+  const sigue = n ? "Revisá a cada persona y completá lo que falta: nada se calcula hasta que toques «Armar la canasta»." : "";
+  const el = $("#tl-resultado");
+  el.innerHTML = `<p class="tl-entendimos"><b>Lo que entendimos.</b> ${esc(cargado)} ${esc(sigue)}</p>
+    ${r.simulado ? '<p class="tl-simulado">Modo de prueba: no se envió nada a Groq y esta es una respuesta de ejemplo, no la de tu texto.</p>' : ""}
+    ${listaTexto("Para completar o aclarar", r.preguntas, "tl-preguntas")}
+    ${listaTexto("Atención", r.avisos, "tl-avisos")}
+    ${listaTexto("Lo que la canasta no aplica", r.notas, "tl-notas")}`;
+  el.hidden = false;
+  el.focus({ preventScroll: true });
+}
+
+async function interpretarTexto() {
+  const texto = $("#tl-texto").value.trim(), boton = $("#tl-interpretar"), aviso = $("#tl-estado");
+  if (!texto || !$("#tl-acepto").checked || boton.disabled) return;
+  boton.disabled = true;
+  boton.classList.add("trabajando");
+  $("#tl-texto").readOnly = true;
+  aviso.classList.remove("error");
+  aviso.textContent = "Interpretando…";
+  const corte = new AbortController();
+  const reloj = setTimeout(() => corte.abort(), 45000);
+  try {
+    const resp = await fetch("/api/interpretar", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto, consentimiento: true }), signal: corte.signal, cache: "no-store" });
+    let datos = null;
+    try { datos = await resp.json(); } catch (err) { /* sin cuerpo JSON */ }
+    if (!resp.ok || !datos || !datos.pedido) {
+      throw new Error((datos && datos.error) || `El servidor local respondió con un error (${resp.status}).`);
+    }
+    aplicarInterpretacion(datos);
+    mostrarInterpretacion(datos);
+    aviso.textContent = "";
+  } catch (err) {
+    aviso.classList.add("error");
+    aviso.textContent = err.name === "AbortError" ? "Tardó demasiado: probá de nuevo en un rato o completá el formulario a mano."
+      : err instanceof TypeError ? "No se pudo hablar con el servidor local: ¿sigue abierto python -m canasta?"
+      : err.message;
+  } finally {
+    clearTimeout(reloj);
+    $("#tl-texto").readOnly = false;
+    boton.classList.remove("trabajando");
+    habilitarInterpretar();
+  }
+}
+
+function habilitarInterpretar() {
+  const largo = $("#tl-texto").value.length, maximo = estado.P.LLM_TEXTO_MAXIMO;
+  $("#tl-contador").textContent = largo ? `${fmt(largo)} de ${fmt(maximo)} caracteres` : "";
+  $("#tl-contador").classList.toggle("cerca", largo > maximo * 0.9);
+  $("#tl-interpretar").disabled = !$("#tl-texto").value.trim() || !$("#tl-acepto").checked
+    || $("#tl-interpretar").classList.contains("trabajando");
+}
+
+// Solo se pregunta al servidor si la página se sirve desde esta máquina: en la publicada no hay backend.
+async function prepararTextoLibre() {
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return;
+  let info = null;
+  try {
+    const corte = new AbortController();
+    setTimeout(() => corte.abort(), 3000);
+    const resp = await fetch("/api/estado", { cache: "no-store", signal: corte.signal });
+    if (resp.ok) info = await resp.json();
+  } catch (err) { return; }                     // servidor sin la API (otro servidor de archivos): no se ofrece
+  if (!info || typeof info.llm !== "boolean") return;
+  $("#texto-libre").hidden = false;
+  $("#tl-form").hidden = !info.llm;
+  $("#tl-sin-clave").hidden = info.llm;
+  const area = $("#tl-texto");
+  area.maxLength = estado.P.LLM_TEXTO_MAXIMO;
+  area.addEventListener("input", habilitarInterpretar);
+  $("#tl-acepto").addEventListener("change", habilitarInterpretar);
+  $("#tl-interpretar").addEventListener("click", interpretarTexto);
+  if (info.simulado) {
+    $("#tl-estado").textContent = "Modo de prueba (--llm-simulado): las respuestas son de ejemplo y no se envía nada a Groq.";
+  }
+  habilitarInterpretar();
 }
 
 // ============================================================
@@ -1806,6 +1999,7 @@ async function iniciar() {
   prepararHogar();
   prepararUbicacion();
   prepararCompra();
+  prepararTextoLibre();
   prepararPasos();
   cargarEditor();
   dibujarPersonas();

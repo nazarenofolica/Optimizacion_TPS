@@ -53,6 +53,37 @@
 
       <section class="paso" id="paso-hogar" data-panel="hogar" role="tabpanel" aria-labelledby="t-hogar">
         <h2 id="t-hogar" class="sr-only">Quiénes comen</h2>
+        <!-- Contalo con tus palabras (etapa 6): solo con el servidor local (python -m canasta), que tiene la clave de
+             Groq. En la página publicada no hay servidor y el bloque no aparece. -->
+        <div id="texto-libre" class="texto-libre" hidden>
+          <details id="tl-detalles">
+            <summary><span class="tl-titulo"><b>Contalo con tus palabras</b> <small>opcional</small></span>
+              <span class="tl-bajada">Escribí quiénes comen y qué no pueden comer, o pegá una indicación médica:
+                completamos el formulario y vos lo revisás.</span></summary>
+            <div class="tl-cuerpo">
+              <p id="tl-sin-clave" class="ayuda" hidden>Para usarlo, poné tu clave de Groq en <code>base_sepa/.env</code>
+                (<code>GROQ_API_KEY=…</code>) y volvé a abrir <code>python -m canasta</code>. Mientras tanto, completá el
+                formulario de abajo.</p>
+              <div id="tl-form">
+                <label class="campo tl-campo"><span class="etiqueta">Tu texto</span>
+                  <textarea id="tl-texto" rows="4" maxlength="4000" spellcheck="true"
+                    placeholder="Somos mi hija de 8 años, celíaca, y yo, mujer de 40 y 62 kg. Compramos para dos semanas."></textarea></label>
+                <p id="tl-contador" class="tl-contador" aria-live="off"></p>
+                <div class="tl-privacidad" role="note"><i aria-hidden="true">i</i>
+                  <p><b>Lo que escribas se envía a Groq</b>, un servicio externo de inteligencia artificial, para
+                    pasarlo al formulario. Nosotros no lo guardamos. Si pegás una indicación médica, sacale el nombre,
+                    el DNI y los datos de contacto.</p></div>
+                <label class="tl-casilla"><input type="checkbox" id="tl-acepto">
+                  <span>Entiendo que el texto se envía a Groq para interpretarlo.</span></label>
+                <div class="tl-acciones">
+                  <button type="button" class="boton-secundario" id="tl-interpretar" disabled>Interpretar el texto</button>
+                  <p id="tl-estado" class="tl-estado" role="status"></p>
+                </div>
+              </div>
+              <div id="tl-resultado" class="tl-resultado" tabindex="-1" hidden></div>
+            </div>
+          </details>
+        </div>
         <div class="personas-fila">
           <div id="personas" class="personas" role="tablist" aria-label="Personas del hogar"></div>
           <button type="button" id="agregar-persona" class="boton-agregar">+ Agregar persona</button>
@@ -108,7 +139,7 @@
             <div id="objetivos" class="segmentado" role="radiogroup" aria-labelledby="l-objetivo"></div>
           </div>
           <div class="campo">
-            <span class="etiqueta">Lo que no puede o no quiere comer</span>
+            <span class="etiqueta" id="l-restricciones">Lo que no puede o no quiere comer</span>
             <div id="restricciones"></div>
           </div>
           </div>

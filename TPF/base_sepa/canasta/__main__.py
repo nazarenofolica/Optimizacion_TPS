@@ -3,7 +3,9 @@ Canasta saludable: la compra más barata que cubre lo que necesita un hogar, en 
 precios del modelo estrella de SEPA 2.0 (../datos/sepa/).
 
     python -m canasta                       # exporta datos/sepa/canasta_local.html con la clave de rutas y la abre
-                                            # servida en http://localhost (Ctrl+C para cerrar)
+                                            # servida en http://localhost (Ctrl+C para cerrar), con la API del
+                                            # texto libre si hay GROQ_API_KEY (canasta/servidor.py)
+    python -m canasta --llm-simulado        # lo mismo, con el texto libre simulado (solo para desarrollo)
     python -m canasta --exportar [RUTA]     # solo exporta (por defecto datos/sepa/canasta.html, sin clave)
     python -m canasta --perfil celiaca --direccion "Av Corrientes 1234" --provincia "Ciudad Autónoma de Buenos Aires"
     python -m canasta --perfil oficinista,trabajo_fisico,escolar --lat -32.95 --lon -60.64 --dias 14 --listos
@@ -23,13 +25,9 @@ la base las trae (desde la etapa 5); --sin-promos las deja afuera.
 from __future__ import annotations
 
 import argparse
-import functools
-import http.server
 import logging
 import subprocess
 import sys
-import threading
-import webbrowser
 from pathlib import Path
 
 from sepa import config as cfg_sepa
@@ -67,6 +65,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--sin-promos", action="store_true",
                    help="Con --perfil: no aplicar las promociones (por defecto se aplican las que no piden banco, "
                         "tarjeta ni el programa de la cadena, si la base las trae).")
+    p.add_argument("--llm-simulado", action="store_true",
+                   help="Solo para desarrollo: el servidor local responde \"Contalo con tus palabras\" con "
+                        "interpretaciones de ejemplo (canasta/llm_simulado.py), sin llamar a Groq; la página lo avisa.")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -215,7 +216,8 @@ def main(argv: list[str] | None = None) -> int:
                               + (["--verbose"] if args.verbose else []))
         if hijo.returncode != 0:
             return hijo.returncode
-        _servir(ruta, args.puerto)
+        from canasta import servidor
+        servidor.servir(ruta, args.puerto, llm_simulado=args.llm_simulado)
         return 0
 
     from canasta import resultado, rutas, ubicacion
@@ -246,30 +248,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.dos_super and "ticket" in r:
         _imprimir_dos_super(resultado.dos_super(hogar, r, tiempos))
     return 0
-
-
-def _servir(ruta: Path, puerto: int) -> None:
-    """Sirve la carpeta de la página en http://localhost: desde file:// los mapas de OpenStreetMap pueden no cargar
-    (piden el encabezado Referer) y el navegador no comparte la ubicación."""
-    manejador = functools.partial(_Silencioso, directory=str(ruta.parent))
-    try:
-        servidor = http.server.ThreadingHTTPServer(("127.0.0.1", puerto), manejador)
-    except OSError:
-        servidor = http.server.ThreadingHTTPServer(("127.0.0.1", 0), manejador)     # el puerto estaba ocupado
-    url = f"http://localhost:{servidor.server_address[1]}/{ruta.name}"
-    print(f"Canasta en {url}  (Ctrl+C para cerrar)")
-    threading.Timer(0.5, webbrowser.open, args=(url,)).start()
-    try:
-        servidor.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        servidor.server_close()
-
-
-class _Silencioso(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *args):  # noqa: D102 - sin una línea por pedido en la consola
-        pass
 
 
 if __name__ == "__main__":

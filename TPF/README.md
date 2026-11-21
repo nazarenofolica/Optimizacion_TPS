@@ -23,6 +23,7 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en el repo, falta activarla: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
 | **MVP, etapa 4** (sin cerdo, halal y kosher con lo verificable por ingredientes; seis condiciones médicas que cambian metas con su fuente y avisan si requieren supervisión) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | **MVP, etapa 5** (promociones con condiciones: las leyendas de SEPA clasificadas, 2×1, 2.ª al 70 %, llevando n y porcentajes en el modelo; nunca las que piden banco o tarjeta; ticket con el descuento y el ahorro) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md). Se aplican desde la próxima actualización de la base |
+| **MVP, etapa 6** (contarlo en texto libre: un LLM de Groq traduce lo que escribe la persona, o una prescripción, al formulario, que ella confirma; validado contra `config.py`; en la página local) | ✅ 21/11/2026 con respuestas simuladas, falta probarlo con una clave real: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
 | Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
 | Consigna, resultados e informe | ⏳ Pendiente |
@@ -32,12 +33,13 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 ```powershell
 cd base_sepa
 pip install -r requirements.txt
-copy .env.example .env          # y poner la clave gratuita de OpenRouteService en ORS_API_KEY
+copy .env.example .env          # claves gratuitas: OpenRouteService (ORS_API_KEY) y Groq (GROQ_API_KEY)
 python -m canasta               # abre la página en http://localhost:8765 (Ctrl+C para cerrar)
 python -m unittest discover -s tests -v
 ```
 
-Sin clave, la página funciona igual pero estima los tiempos caminando por distancia y lo avisa. Más opciones en
+Sin clave de rutas, la página funciona igual pero estima los tiempos caminando por distancia y lo avisa. Con la de
+Groq, el paso 1 ofrece "Contalo con tus palabras" (solo en la página local). Más opciones en
 [`base_sepa/README.md`](base_sepa/README.md#canasta-saludable-poc).
 
 ## Orden de lectura

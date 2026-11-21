@@ -233,6 +233,74 @@ condiciones (2×1, la 2.ª al 70 %, llevando 3). **Se aplican desde la próxima 
   ticket, dos súper y, con los datos, que la base sin promociones da lo mismo) y un caso más de paridad (2×1, 2.ª al
   70 %, llevando 3 y una bancaria inyectados, con una sucursal y con dos súper).
 
+### Etapa 6 del MVP (21/11/2026): contarlo en texto libre (LLM con Groq)
+
+"Contalo con tus palabras", en el paso 1 de la página local: la persona escribe quiénes comen y qué no pueden comer, o
+pega una indicación médica, y un LLM de Groq lo traduce al **pedido estructurado** que ya consume el motor. El
+formulario queda prellenado, con lo que falta como preguntas, y nada se calcula hasta "Armar la canasta". El LLM no
+elige productos, no inventa precios ni nutrientes y no reemplaza al optimizador. **Todo se probó con respuestas
+simuladas: falta probarlo con una clave real** (ver abajo).
+
+- **Módulo `canasta/llm.py`** (lógica pura y cliente, sin servidor):
+  - `esquema()`: el JSON Schema de la salida, **derivado de `config.py`** (personas hasta `PERSONAS_MAXIMAS`, con sexo,
+    edad, peso, altura, actividad de `ACTIVIDAD`, objetivo de `OBJETIVO`, etapa de `ETAPAS` (nuevo en config), trimestre,
+    restricciones y condiciones de `RESTRICCIONES` y `no_reconocidas`; `dias` de `DIAS_PERIODO`, `agua` de `AGUA_MODOS`,
+    `caminata_minutos` de `CAMINATA_OPCIONES`, `listos` y `promos`; más `preguntas` y `notas`). Todo obligatorio y
+    `null` si el texto no lo dice, como pide el modo estricto.
+  - `prompt_sistema()`: en español, con los valores válidos tomados de config; su rol es traducir; no inventar ni
+    estimar (lo que no se dice va en `null`), no diagnosticar ni recomendar, "anemia" sin decir que es por falta de
+    hierro se pregunta, siglas habituales (DBT, HTA, LDL, ERC), lo que no está en la lista va a `no_reconocidas` y lo
+    que la página no modela (1.200 kcal indicadas, fraccionar comidas, picantes) a `notas`. El texto de la persona va
+    en el mensaje del usuario entre `<texto>` y `</texto>` (se le quitan esos delimitadores) y el prompt dice que las
+    instrucciones que traiga son datos, no órdenes.
+  - Cliente con `requests` (sin SDK): `POST https://api.groq.com/openai/v1/chat/completions`, modelo `GROQ_MODELO =
+    "openai/gpt-oss-120b"` con `response_format` JSON Schema en **modo estricto** (`GROQ_MODELOS_ESTRICTOS`; con otro
+    modelo, `json_object` y el esquema en el prompt), `temperature` 0,1 y 30 s de espera. Errores con mensaje en
+    español: sin clave, 401/403 clave inválida, 429 cuota, 400 formato, 5xx, sin conexión, demora y JSON ilegible.
+  - `validar(salida) -> (pedido, preguntas, avisos, notas)`: estricto, determinista, sin red. La salida del LLM es un
+    dato no confiable: lo desconocido o fuera de rango **nunca entra al pedido**. Los rangos se revisan con
+    `requerimientos.persona_desde(...).validar()` (no se escriben dos veces); embarazo o lactancia fuera de 14 a 50
+    años o en un varón, objetivo de peso en un menor, una restricción inventada, 150 años, `dias: 10`, un texto donde
+    va un número: van a `preguntas` (lo que hay que completar o aclarar) o a `avisos` (lo que se descartó, o "la
+    canasta no sabe evitar «frutilla»: revisá el ticket"). Las preguntas y notas se limpian (sin enlaces ni marcas,
+    hasta 10 de 300 caracteres). `personas_del_pedido` arma las `Persona` con los valores de siempre del formulario.
+  - `canasta/llm_simulado.py`: tres salidas de ejemplo (el hogar de la hija celíaca, el vegano que entrena y una
+    prescripción ficticia) para los tests y el modo de desarrollo.
+- **Backend: el servidor local de `python -m canasta`, con la biblioteca estándar** (`canasta/servidor.py`), y no
+  FastAPI. Para esta etapa alcanza: la página ya se servía con `http.server`, no suma dependencias ni un proceso más, y
+  la lógica quedó en `llm.py`, separada, para que un FastAPI la envuelva en producción sin cambiarla.
+  - `GET /api/estado` → `{llm, simulado, modelo, texto_maximo}` (`llm` es true si hay `GROQ_API_KEY`).
+  - `POST /api/interpretar` `{texto, consentimiento: true}` → `{pedido, preguntas, avisos, notas, simulado}` o
+    `{error}` (503 sin clave, 429 cuota, 502 otros errores de Groq, 400 texto vacío o de más de 4.000 caracteres o sin
+    consentimiento, 413 cuerpo de más de 64 KB, 415 si no es JSON).
+  - Solo esta máquina: escucha en 127.0.0.1, rechaza otra dirección y otro `Host` (también para los archivos, porque
+    `canasta_local.html` lleva la clave de rutas), un `Origin` o `Sec-Fetch-Site` de otro sitio; sin CORS. El texto no
+    se guarda ni va al log (los tests lo comprueban).
+  - `python -m canasta --llm-simulado`, **solo para desarrollo**: responde con las salidas de ejemplo sin llamar a
+    Groq, y la página lo dice ("Modo de prueba"). Nunca se activa solo.
+- **Página** (paso 1): bloque plegado "Contalo con tus palabras" (solo si `/api/estado` responde, es decir, servida por
+  `python -m canasta` en localhost; en la publicada no aparece y no se consulta nada). Texto de hasta 4.000 caracteres
+  con contador, aviso de privacidad ("Lo que escribas se envía a Groq... Nosotros no lo guardamos. Si pegás una
+  indicación médica, sacale el nombre, el DNI y los datos de contacto"), casilla de confirmación (sin ella el botón no
+  se habilita y el servidor tampoco acepta el pedido) y "Interpretar el texto". Al volver: el hogar se reemplaza por
+  las personas del texto (lo obligatorio que no dijo, vacío; sexo y trimestre vacíos ahora se piden en el formulario),
+  días, agua, listos, promociones y caminata si los dijo; "Lo que entendimos", "Para completar o aclarar", "Atención" y
+  "Lo que la canasta no aplica"; los campos que vinieron del texto llevan la marca "del texto" (se va si se cambian).
+  Sin clave, una línea dice cómo activarlo; con un error (cuota, red), un mensaje amable y el formulario intacto.
+  Probada en Chrome headless a 1.280 y 375 px, en modo oscuro y con "reducir movimiento".
+- **Probado con mocks** (42 tests nuevos, 236 en total): el esquema sale de config y cumple el modo estricto; el
+  prompt lista los valores y el texto no puede cerrar su delimitador; los tres textos de ejemplo; valores fuera de
+  rango, tipos equivocados, restricciones inventadas, instrucciones inyectadas (también de punta a punta: el texto
+  viaja como dato y lo que vuelve se valida), JSON roto, 401, 403, 429, 400, 500, 503, sin conexión, demora, sin
+  clave (no se llama); el endpoint en un hilo (consentimiento, tamaños, `Origin`, `Host`, errores, nada del texto en
+  la consola) y un pedido validado que arma una canasta real (la hija celíaca de 8 años y la madre de 40 para dos
+  semanas en el Microcentro). En el navegador, con el modo simulado: interpretar, completar los dos pesos y armar
+  (COTO, $80.313 para dos semanas).
+- **Falta probar con una clave real**: que `openai/gpt-oss-120b` acepte el esquema en modo estricto tal como está
+  (enums con `null`), la calidad de la traducción con textos reales (siglas, prescripciones largas, hogares grandes),
+  los tiempos de respuesta y la cuota gratuita. Si el modelo rechaza el esquema (400), cambiar `GROQ_MODELO` o sacarlo
+  de `GROQ_MODELOS_ESTRICTOS` (pasa a `json_object` con el esquema en el prompt; la validación es la misma).
+
 ## Lógica de negocio: cómo se optimiza
 
 El objetivo es **la compra más barata que cumple lo que necesita cada persona**, y la arquitectura tiene que separar
@@ -271,7 +339,7 @@ el costo, se propone el segundo súper si cubre mejor las metas o si ahorra al m
 ahorro junto a los minutos de más para que la persona decida. Con más de dos visitas los pares dejan de alcanzar:
 haría falta el MILP con binarias (o enumerar tríos acotados) y, para el orden de las visitas, un problema de ruteo.
 
-## El camino al MVP: etapas 3 a 6 (de la 3 a la 5, hechas)
+## El camino al MVP: etapas 3 a 6 (todas hechas)
 
 Cada etapa se planifica y se cierra por separado, con sus tests y la paridad entre los dos motores.
 
@@ -307,28 +375,18 @@ catálogos web. Lo que queda:
 - Los días de la semana ("los miércoles") hoy no se aplican; con el día de la compra, sí se podrían.
 - Si dos promociones del mismo precio se suman o no: hoy se aplica la mejor.
 
-### Etapa 6 · LLM con Groq (API gratuita)
+### Etapa 6 · LLM con Groq: hecha (21/11/2026, probada con respuestas simuladas)
 
-**Rol:** que la persona cuente algo más en texto libre ("algo barato para mí y mi hija, ella es celíaca y yo tengo
-anemia", o una prescripción médica) y traducirlo al **pedido estructurado** que ya consume el motor (`personas`,
-`restricciones`, `dias`, `caminata_minutos`, `agua`, condiciones), para que la persona lo confirme. No elige
-productos, no inventa precios ni nutrientes, no reemplaza al optimizador.
+Ver "Etapa 6 del MVP" arriba. Del diseño planeado se hizo todo salvo el backend en FastAPI: el endpoint vive en el
+servidor local (`canasta/servidor.py`, biblioteca estándar) y la lógica en `canasta/llm.py`, lista para envolverla. Lo
+que queda:
 
-**Diseño:**
-1. **Backend mínimo (FastAPI):** la clave de Groq (`GROQ_API_KEY`) no puede ir en la página. El mismo backend puede
-   guardar la clave de rutas (deja de estar en la copia local), cachear las matrices por celda de ~100 m (las
-   sucursales no se mueven) y servir el motor Python como API para clientes que no pueden correr WebAssembly. La
-   página puede seguir siendo estática y llamar al backend solo para esto.
-2. El backend recibe el texto y llama a Groq con salida estructurada (JSON Schema del pedido; modo estricto en los
-   modelos que lo soportan, según la documentación de Groq).
-3. Se valida el JSON contra el mismo esquema y contra `canasta/config.py` (restricciones y condiciones conocidas); lo
-   que no se reconoce se pregunta al usuario, no se adivina.
-4. Se muestra el formulario ya completado para que la persona confirme antes de calcular.
-5. Opcional: explicar el resultado en lenguaje simple a partir del JSON del motor (con los números del motor, sin
-   recalcular nada).
-
-**Cuándo:** después de la etapa 4, para que las condiciones médicas tengan su tabla con fuentes. Antes aporta poco:
-el formulario actual cubre lo que el motor sabe hacer.
+- **Probarlo con una clave real de Groq** (esquema estricto, calidad, tiempos, cuota) y ajustar el prompt con lo que
+  salga mal.
+- **Producción**: un backend propio (FastAPI) que use `llm.py`, guarde las claves de Groq y de rutas fuera de la
+  página y cachee las matrices de rutas; con eso el bloque aparece también en la página publicada. Límite de pedidos
+  por persona (la cuota gratuita es compartida).
+- Opcional: explicar el resultado en lenguaje simple a partir del JSON del motor (con sus números, sin recalcular).
 
 ## Otros pendientes (sin etapa asignada)
 
@@ -348,7 +406,7 @@ el formulario actual cubre lo que el motor sabe hacer.
 |---|---|---|
 | Página | Estática en GitHub Pages (hecho, falta activarlo) o Cloudflare Pages | Gratis en repo público |
 | ETL diario | GitHub Actions (hecho: `tpf-diario.yml`; Dagster/Prefect si crecen las fuentes) | Gratis en repo público; si no, minutos de Actions |
-| Backend + rutas | FastAPI + ORS/OSRM autoalojado en un VPS (Coolify para desplegar) | USD 10 a 40 por mes |
+| Backend + rutas | FastAPI (que envuelva `canasta/llm.py`: hoy el texto libre corre en el servidor local) + ORS/OSRM autoalojado en un VPS (Coolify para desplegar) | USD 10 a 40 por mes |
 | Datos | Parquet del último día; Postgres (Supabase) recién cuando haya cuentas | Gratis al inicio |
 | Monitoreo | Sentry (backend, job y página) + alerta si el job no publicó | Plan gratis al inicio |
 | Entornos | `main` → producción, `develop` → previsualización (Pages las da por rama) | — |

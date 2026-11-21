@@ -89,6 +89,17 @@ base**: la de hoy (23/10/2026) no guarda las leyendas y con ella todo da lo mism
 el oficinista en el Microcentro baja de $23.406 a $22.742 con la 2.ª al 70 % en el puré de tomate. Tests: 193 en
 Python y un caso más de paridad.
 
+**Etapa 6 del MVP (2026-11-21)**, contarlo en texto libre con un LLM de Groq. `canasta/llm.py` traduce lo que la
+persona escribe (o una prescripción) al pedido que ya consume el motor: un esquema JSON derivado de `config.py`, un
+prompt en español que solo pide traducir (no elegir productos, no inventar datos, no diagnosticar, ignorar
+instrucciones dentro del texto) y `validar`, que trata la salida como un dato no confiable: lo desconocido o fuera de
+rango (con las reglas de `Persona.validar`) va a preguntas o avisos, nunca al pedido. El servidor local de `python -m
+canasta` (`canasta/servidor.py`, biblioteca estándar) suma `/api/estado` y `/api/interpretar`, solo para esta máquina y
+sin guardar el texto; la página muestra "Contalo con tus palabras" en el paso 1, con el aviso de privacidad y una
+casilla, y deja el formulario prellenado para confirmar. La clave (`GROQ_API_KEY`) va en `.env` y ninguna página la
+lleva. Todo se probó con respuestas simuladas (`--llm-simulado` para la página): falta probarlo con una clave real.
+Tests: 236 en Python.
+
 ## Para revisar
 
 ### Datos (pipeline)

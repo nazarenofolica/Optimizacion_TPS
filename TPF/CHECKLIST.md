@@ -141,10 +141,23 @@ GitHub.
 - [ ] Las desconocidas (Carrefour, Coto, Cooperativa Obrera): cruzar con los catálogos web; promociones por día de la
       semana.
 
-## Etapa 6 · LLM con Groq
+## Etapa 6 (21/11/2026) · Contarlo en texto libre (LLM con Groq)
 
-- [ ] Backend chico (FastAPI) que guarde las claves (Groq y rutas) y cachee las consultas de rutas.
-- [ ] Texto libre (por ejemplo, una prescripción médica) → restricciones y metas que la persona confirma.
+- [x] `canasta/llm.py`: esquema JSON del pedido derivado de `config.py`, prompt en español, cliente de Groq con
+      `requests` (`openai/gpt-oss-120b`, JSON Schema estricto, errores en español) y `validar` estricta y sin red: lo
+      desconocido o fuera de rango va a preguntas o avisos, nunca al pedido; lo que el motor no modela, a notas.
+- [x] Backend: el servidor local de `python -m canasta` con la biblioteca estándar (`canasta/servidor.py`):
+      `GET /api/estado` y `POST /api/interpretar`, solo desde esta máquina, sin CORS, con consentimiento, tope de 4.000
+      caracteres y sin guardar el texto. `--llm-simulado` para desarrollo.
+- [x] Página: "Contalo con tus palabras" en el paso 1 (solo con el servidor local), aviso de privacidad con casilla,
+      formulario prellenado con la marca "del texto", preguntas, avisos y notas; nada se calcula hasta "Armar la canasta".
+- [x] `GROQ_API_KEY` en `base_sepa/.env` (en `.env.example`, vacía); ninguna página la lleva (`exportar.py` lo controla).
+- [x] 236 tests de Python (42 nuevos, todos con respuestas simuladas: inyección de instrucciones, JSON roto, 401, 429,
+      5xx, sin clave, el endpoint en un hilo y un pedido que arma una canasta real).
+- [x] Presentación: etapa 6 en "Hecho"; "Sigue" pasa a producción.
+- [ ] **Probarlo con una clave real** (esquema estricto, calidad de la traducción, tiempos, cuota).
+- [ ] Backend propio (FastAPI) en producción que envuelva `llm.py` y guarde las claves (Groq y rutas): con eso el texto
+      libre llega a la página publicada.
 
 ## Otros pendientes
 

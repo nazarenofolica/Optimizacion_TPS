@@ -216,6 +216,11 @@ def exportar(ruta: Path = RUTA_EXPORTACION, clave_rutas: str | None = None) -> P
         if viejo not in html:
             raise RuntimeError(f"La página cambió: no se encontró {viejo}")
         html = html.replace(viejo, nuevo)
+    # La clave de Groq (etapa 6) solo la usa el servidor local: ninguna página la lleva, ni la local.
+    from canasta.llm import clave_groq
+    clave_llm = clave_groq()
+    if len(clave_llm) >= 16 and clave_llm in html:          # (las de Groq tienen ~56 caracteres)
+        raise RuntimeError("La página exportada contiene la clave de Groq (GROQ_API_KEY): no se escribe")
     ruta.parent.mkdir(parents=True, exist_ok=True)
     ruta.write_text(html, encoding="utf-8")
     logger.info("Página exportada en %s (%.1f MB: datos %.1f MB de metadatos y %.1f MB de precios y nutrientes, "

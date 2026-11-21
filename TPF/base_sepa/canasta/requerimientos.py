@@ -54,11 +54,12 @@ class Persona:
             errores.append(f"Actividad desconocida: {self.actividad}.")
         if self.objetivo not in cfg.OBJETIVO:
             errores.append(f"Objetivo desconocido: {self.objetivo}.")
-        if self.etapa not in ("general", "embarazo", "lactancia"):
+        desde, hasta = cfg.ETAPA_EDADES
+        if self.etapa not in cfg.ETAPAS:
             errores.append(f"Etapa desconocida: {self.etapa}.")
-        elif self.etapa != "general" and (self.sexo != "F" or not 14 <= self.edad <= 50):
-            errores.append("Embarazo y lactancia aplican a mujeres de 14 a 50 años.")
-        if self.etapa == "embarazo" and self.trimestre not in (1, 2, 3):
+        elif self.etapa != "general" and (self.sexo != "F" or not desde <= self.edad <= hasta):
+            errores.append(f"Embarazo y lactancia aplican a mujeres de {desde} a {hasta} años.")
+        if self.etapa == "embarazo" and self.trimestre not in cfg.ENERGIA_EMBARAZO:
             errores.append("Falta el trimestre del embarazo (1, 2 o 3).")
         desconocidas = [r for r in self.restricciones if r not in cfg.RESTRICCIONES]
         if desconocidas:

@@ -77,6 +77,11 @@ OBJETIVO = {
 }
 PISO_ENERGIA_REPOSO = 1.2
 
+# Etapas de la vida con requerimientos propios (embarazo con su trimestre: las claves de ENERGIA_EMBARAZO). Solo
+# mujeres de ETAPA_EDADES años (las tablas de NASEM tienen embarazo y lactancia de 14 a 50).
+ETAPAS = {"general": "Sin embarazo ni lactancia", "embarazo": "Embarazo", "lactancia": "Lactancia"}
+ETAPA_EDADES = (14, 50)
+
 # Energía adicional del embarazo por trimestre y de la lactancia (FAO/OMS/UNU 2004), kcal/día.
 ENERGIA_EMBARAZO = {1: 85, 2: 285, 3: 475}
 ENERGIA_LACTANCIA = 505
@@ -349,6 +354,28 @@ DOS_SUPER_AHORRO_MINIMO_PESOS = 1000.0
 RUTEO_SERVIDOR = "https://api.openrouteservice.org"
 RUTEO_PERFIL = "foot-walking"
 RUTEO_TIEMPO_ESPERA_S = 12
+
+# ============================================================
+# TEXTO LIBRE (etapa 6: LLM con Groq)
+# ============================================================
+
+# "Contalo con tus palabras": un LLM traduce lo que la persona escribe (o una prescripción) al pedido estructurado que
+# ya consume el motor (canasta/llm.py), y la persona lo confirma en el formulario antes de calcular. No elige
+# productos, no inventa precios ni nutrientes y no reemplaza al optimizador. La clave va en base_sepa/.env
+# (GROQ_API_KEY=...) y solo la usa el servidor local (python -m canasta): nunca va en una página.
+# Modelo: uno de los de Groq con salida estructurada. Los de GROQ_MODELOS_ESTRICTOS admiten el modo estricto (JSON
+# Schema garantizado por el servicio); con otro (por ejemplo "meta-llama/llama-4-maverick-17b-128e-instruct" o
+# "moonshotai/kimi-k2-instruct-0905") se pide un objeto JSON con el esquema en el prompt. En los dos casos la
+# respuesta se valida igual (llm.validar). Para cambiarlo, se cambia GROQ_MODELO (y, si el nuevo admite el modo
+# estricto según la documentación de Groq, se lo suma a GROQ_MODELOS_ESTRICTOS).
+GROQ_MODELO = "openai/gpt-oss-120b"
+GROQ_MODELOS_ESTRICTOS = {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}
+URL_GROQ = "https://api.groq.com/openai/v1/chat/completions"     # compatible con la API de OpenAI
+GROQ_TEMPERATURA = 0.1          # baja: traducir, no inventar
+GROQ_TIEMPO_ESPERA_S = 30
+LLM_TEXTO_MAXIMO = 4000         # caracteres del texto libre (la página y el servidor cortan ahí)
+LLM_PREGUNTAS_MAXIMAS = 10      # preguntas y notas que se muestran, cada una de a lo sumo LLM_LARGO_FRASE caracteres
+LLM_LARGO_FRASE = 300
 
 # ============================================================
 # MODELO

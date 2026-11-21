@@ -90,6 +90,12 @@ CANASTA_TEST_PAGINA=1 python -m unittest tests.test_pagina -v                   
   productos: cambian metas con su fuente (NASEM, FAO/OMS, NCEP ATP III, BHOF, KDOQI), sin pasar nunca un máximo
   tolerable, y las que requieren supervisión profesional lo avisan. Perfiles ocultos para probarlas:
   `?perfiles=kosher,halal,anemia`.
+- **Contalo con tus palabras** (etapa 6, `canasta/llm.py`, `canasta/servidor.py`, `GROQ_*` y `LLM_*` en
+  `canasta/config.py`): con `GROQ_API_KEY` en `.env`, la página local ofrece en el paso 1 escribir el hogar (o pegar
+  una prescripción); un LLM de Groq lo traduce al pedido, `llm.validar` lo revisa contra `config.py` y el formulario
+  queda prellenado, con lo que falta como preguntas, para confirmar antes de calcular. El texto se envía a Groq (la
+  página lo avisa y pide confirmarlo) y no se guarda. `python -m canasta --llm-simulado` lo prueba sin clave, con
+  respuestas de ejemplo. La página publicada no tiene servidor y no lo ofrece.
 
 ## Estructura
 
