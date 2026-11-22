@@ -85,8 +85,8 @@ Lo que pidió el docente: si dos súper quedan cerca, comprar parte en cada uno.
 
 ## Etapa 3 (21/11/2026) · ETL diario y CI
 
-Hecha en el repo; la activa el dueño una sola vez ([docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)). No se probó todavía en
-GitHub.
+En `main` desde el merge del PR #2 ([docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)). Los tests ya corrieron y pasaron en
+Actions; el ETL diario todavía no corrió en GitHub.
 
 - [x] GitHub Actions cada día (07:30 y 18:00 de Argentina; SEPA sube el ZIP a la tarde): bajar SEPA, rearmar la base,
       exportar y publicar la página en GitHub Pages, sin commitear los datos del día (`.github/workflows/tpf-diario.yml`).
@@ -95,7 +95,9 @@ GitHub.
 - [x] Si la verificación falla, no se publica y queda la del día anterior; mail de GitHub e issue (uno solo).
 - [x] Tests de Python en cada push y pull request que toque `TPF/` (`.github/workflows/tpf-tests.yml`); paridad a mano.
 - [x] 142 tests de Python (10 del modo diario).
-- [ ] Activarlo: push, merge a `main`, Settings → Pages → "GitHub Actions" y la primera corrida a mano.
+- [x] Activarlo, parte 1: merge a `main` y Settings → Pages → "GitHub Actions" (la página versionada ya se publicó).
+- [x] `pages.yml` (la página versionada) pasa a respaldo manual: en cada push pisaba la página del día.
+- [ ] Activarlo, parte 2: la primera corrida del diario a mano (arma las cachés; puede tardar hasta 3 horas).
 - [ ] Paridad en cada push; tests de la página con Playwright; motor JavaScript con Node.
 - [ ] Controles contra el día anterior (precios que saltan, sucursales que desaparecen).
 - [ ] Entorno reproducible con `uv`.

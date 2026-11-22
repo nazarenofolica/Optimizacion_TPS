@@ -37,3 +37,7 @@ informe/*.toc
 informe/*.fls
 informe/*.fdb_latexmk
 informe/*.synctex.gz
+
+# Video: lo generado (voz, grabación, renders y el video final) se rehace con TPF/video/*.py
+video/salida/
+video/__pycache__/

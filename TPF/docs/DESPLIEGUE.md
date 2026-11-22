@@ -1,14 +1,16 @@
 # Despliegue: ETL diario y CI
 
-Etapa 3 del [ROADMAP](ROADMAP.md). Dos workflows de GitHub Actions, en la raíz del repositorio
+Etapa 3 del [ROADMAP](ROADMAP.md). Tres workflows de GitHub Actions, en la raíz del repositorio
 (`.github/workflows/`, donde GitHub los busca), que solo se ocupan de `TPF/`:
 
 | Workflow | Cuándo corre | Qué hace |
 |---|---|---|
 | [`tpf-tests.yml`](../../.github/workflows/tpf-tests.yml) · "TPF · tests" | En cada push y pull request que toque `TPF/` (TP1 a TP3 no lo disparan) y a mano | La suite de Python; la paridad con el navegador, solo a mano |
 | [`tpf-diario.yml`](../../.github/workflows/tpf-diario.yml) · "TPF · ETL diario y página" | Todos los días a las 07:30 y a las 18:00 (Argentina) y a mano | Baja SEPA, rearma la base, exporta la página y la publica en GitHub Pages |
+| [`pages.yml`](../../.github/workflows/pages.yml) · "Demo en GitHub Pages" | Solo a mano | Respaldo: publica la `canasta.html` versionada (la base del repo). No corre en cada push porque pisaría la página del día; como no publica `fecha.txt`, la corrida siguiente del diario vuelve a publicar la del día |
 
-La página pública queda en **https://nazarenofolica.github.io/Optimizacion_TPS/** (cuando se active, ver abajo).
+La página pública queda en **https://nazarenofolica.github.io/Optimizacion_TPS/**. Hoy (21/11/2026) muestra la
+versionada, que publicó `pages.yml` con el merge a `main`; la del día llega con la primera corrida del diario.
 
 ## El ETL diario
 
@@ -97,6 +99,9 @@ instala las últimas que entran (por ejemplo numpy 2 y scikit-learn 1.7, contra 
 máquina del equipo). La etapa "entorno reproducible con `uv`" las fijaría.
 
 ## Activarlo (una sola vez)
+
+Estado al 21/11/2026: los pasos 1 a 3 están hechos (merge del PR #2; Pages con origen "GitHub Actions"; los tests ya
+corren y pasan en Actions). Falta el 4: la primera corrida del diario.
 
 1. Commitear y pushear los cambios. El workflow de tests ya corre en ese push (pestaña **Actions**).
 2. Llevar los cambios a `main` (merge del pull request). El cron solo corre con el workflow de la rama principal, y el

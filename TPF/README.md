@@ -20,13 +20,13 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
 | **MVP, etapa 1** (objetivo "Aumentar de peso", el agua como restricción en tres modos, un caso que no llega a las 37 metas) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | **MVP, etapa 2** (compra en dos supermercados: binarias de visita resueltas por pares, conviene si cubre mejor las metas o ahorra ≥ 3 % y ≥ $1.000) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 4 a 6 que siguen |
-| **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en el repo, falta activarla: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
+| **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en `main`, con Pages configurado y los tests andando en Actions; falta la primera corrida del diario: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
 | **MVP, etapa 4** (sin cerdo, halal y kosher con lo verificable por ingredientes; seis condiciones médicas que cambian metas con su fuente y avisan si requieren supervisión) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
-| **MVP, etapa 5** (promociones con condiciones: las leyendas de SEPA clasificadas, 2×1, 2.ª al 70 %, llevando n y porcentajes en el modelo; nunca las que piden banco o tarjeta; ticket con el descuento y el ahorro) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md). Se aplican desde la próxima actualización de la base |
+| **MVP, etapa 5** (promociones con condiciones: las leyendas de SEPA clasificadas, 2×1, 2.ª al 70 %, llevando n y porcentajes en el modelo; nunca las que piden banco o tarjeta; ticket con el descuento y el ahorro) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), ya con las promociones de la base del 21/11/2026 |
 | **MVP, etapa 6** (contarlo en texto libre: un LLM de Groq traduce lo que escribe la persona, o una prescripción, al formulario, que ella confirma; validado contra `config.py`; en la página local) | ✅ 21/11/2026 con respuestas simuladas, falta probarlo con una clave real: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
-| Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md) |
-| Presentación del POC, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
-| Consigna, resultados e informe | ⏳ Pendiente |
+| Camino a MVP y producción; investigación de herramientas | 📄 [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/GITHUB_RESEARCH.md`](docs/GITHUB_RESEARCH.md); lo hecho y lo pendiente, tilde por tilde, en [`CHECKLIST.md`](CHECKLIST.md) |
+| Presentación del POC y del MVP, con la demo en vivo | ✅ [`informe/presentacion.html`](informe/presentacion.html): `python informe/presentar.py` |
+| Informe final: el modelo en dos etapas, un ejemplo de tres productos y casos reales | ✅ [`informe/informe.pdf`](informe/informe.pdf) (fuente: `informe.tex`; se compila con `.vscode/settings.json`) |
 
 ## Probar la canasta
 
@@ -47,10 +47,11 @@ Groq, el paso 1 ofrece "Contalo con tus palabras" (solo en la página local). M�
 | # | Archivo | Por qué |
 |---|---|---|
 | 1 | [`docs/introduccion.md`](docs/introduccion.md) | Qué es el problema de la dieta, cómo lo planteó Stigler, cómo se resolvió con el símplex, qué enseñó y cómo lo vamos a plantear con datos argentinos |
-| 2 | [`datos/README.md`](datos/README.md) | La base: las tres tablas, cómo se cruzan, cómo leerlas y su calidad |
+| 2 | [`datos/README.md`](datos/README.md) | La base: las cuatro tablas, cómo se cruzan, cómo leerlas y su calidad |
 | 3 | [`datos/sepa/LEEME.md`](datos/sepa/LEEME.md) | Diccionario de datos completo, columna por columna |
-| 4 | [`base_sepa/README.md`](base_sepa/README.md) | Cómo se construye la base, paso a paso, y sus límites conocidos |
-| 5 | [`docs/fuentes.md`](docs/fuentes.md) | Todas las fuentes: historia del problema, datos y requisitos nutricionales |
+| 4 | [`base_sepa/README.md`](base_sepa/README.md) | Cómo se construye la base, paso a paso, sus límites conocidos y cómo funciona la canasta |
+| 5 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Las etapas del MVP (qué se pidió, cómo se modeló, qué queda) y el camino a producción |
+| 6 | [`docs/fuentes.md`](docs/fuentes.md) | Todas las fuentes: historia del problema, datos y requisitos nutricionales |
 
 ## La base en números
 
@@ -71,33 +72,43 @@ que van a ser los alimentos del modelo.
 ```
 TPF/
 ├── README.md                 este archivo
-├── requirements.txt          para leer la base (pandas, pyarrow)
-│
-├── Consigna/                 el enunciado (pendiente)
-├── Material/                 clases de la cátedra (pendiente)
+├── CHECKLIST.md              lo hecho y lo pendiente, por etapa
+├── PRODUCT.md                para quién es la página y cómo tiene que sentirse (guía de la interfaz)
+├── CLAUDE.md                 reglas del proyecto para el agente (dos motores, claves, cómo verificar)
+├── requirements.txt          solo para leer la base (pandas, pyarrow)
 │
 ├── datos/
 │   ├── README.md             qué es cada tabla y cómo usarla
-│   └── sepa/                 LA BASE: dim_producto, dim_tienda, fact_precio (parquet), LEEME.md, calidad/
+│   └── sepa/                 LA BASE: dim_producto, dim_tienda, fact_precio, promocion (parquet), LEEME.md,
+│                             calidad/ y canasta.html (la página, sin clave)
 │
-├── base_sepa/                el pipeline que arma la base (proyecto SEPA 2.0)
-│   ├── sepa/                 código: lectura de SEPA, productos, nutrientes, tiendas, precios, verificación
-│   ├── referencia/           tablas curadas a mano (alimentos genéricos, rótulos de fotos, categorías)
-│   └── tests/                254 tests (pipeline y canasta)
+├── base_sepa/                el código (pip install -r requirements.txt; .env.example → .env para las claves)
+│   ├── sepa/                 pipeline de la base: lectura de SEPA, productos, nutrientes, tiendas, precios,
+│   │                         promociones, verificación (python -m sepa)
+│   ├── canasta/              la canasta: requerimientos, modelo, rutas, LLM, servidor local (python -m canasta)
+│   │   └── web/              la página: motor.js (el mismo modelo en el navegador), app.js, rutas.js, estilos
+│   ├── referencia/           tablas curadas a mano (alimentos genéricos, perfiles, condiciones, requerimientos)
+│   ├── tests/                254 tests (pipeline y canasta) y la paridad entre los dos motores
+│   ├── README.md             cómo se arma la base y cómo funciona la canasta
+│   └── PLAN_DE_TRABAJO.md    avances, problemas conocidos y próximos pasos
 │
 ├── docs/
 │   ├── introduccion.md       el problema de la dieta: historia, formulación y nuestro planteo
 │   ├── fuentes.md            referencias y fuentes de datos
-│   ├── plan_de_trabajo.md    el esquema (pendiente de la consigna)
-│   └── procedimiento.md      la bitácora (por ahora, la base de datos)
+│   ├── ROADMAP.md            etapas del MVP y camino a producción
+│   ├── DESPLIEGUE.md         GitHub Actions: tests, ETL diario y GitHub Pages
+│   └── GITHUB_RESEARCH.md    herramientas investigadas
 │
-├── src/                      código del modelo (pendiente)
-├── scripts/                  scripts por pregunta (pendiente)
-├── resultados/
-│   ├── tablas/               CSVs generados (pendiente)
-│   └── graficos/             PNGs generados (pendiente)
-└── informe/                  informe.tex + informe.pdf (pendiente; se compila con .vscode/settings.json)
+├── informe/                  informe.tex + informe.pdf (el informe final, con figuras/); presentacion.html +
+│                             presentar.py (la demo en vivo)
+├── material/                 clases de la cátedra (formulación, sensibilidad, metas, entera, redes, proyectos)
+├── .claude/skills/           skills del proyecto (verificar la canasta, diseño de la interfaz, guías web de Chrome,
+│                             depuración)
+└── .mcp.json                 servidores MCP del proyecto (Context7: documentación al día de las bibliotecas)
 ```
+
+Los workflows de GitHub Actions están en la raíz del repositorio, en `.github/workflows/` (`tpf-tests.yml`,
+`tpf-diario.yml` y `pages.yml`, el respaldo manual de la página).
 
 ## Cómo usar la base
 
@@ -110,6 +121,7 @@ import pandas as pd
 producto = pd.read_parquet("datos/sepa/dim_producto.parquet")
 tienda = pd.read_parquet("datos/sepa/dim_tienda.parquet")
 precio = pd.read_parquet("datos/sepa/fact_precio.parquet")
+promocion = pd.read_parquet("datos/sepa/promocion.parquet")
 ```
 
 Para **regenerarla** con el archivo de SEPA del día (baja ~320 MB y, la primera vez, Open Food Facts):

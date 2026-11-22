@@ -1,10 +1,11 @@
 # TPF: canasta saludable al menor precio
 
-- `base_sepa/sepa/`: pipeline de datos (`python -m sepa`) → `datos/sepa/` (dim_producto, dim_tienda, fact_precio).
+- `base_sepa/sepa/`: pipeline de datos (`python -m sepa`) → `datos/sepa/` (dim_producto, dim_tienda, fact_precio, promocion).
 - `base_sepa/canasta/`: la canasta. Motor Python (`modelo.py`, `oferta.py`, `resultado.py`, `rutas.py`) y página
   estática (`web/`: `motor.js`, `rutas.js`, `app.js`, `estilos.css`, `index.html`), que `exportar.py` arma en un único
   HTML con los datos adentro.
-- Documentación: `docs/ROADMAP.md`, `docs/GITHUB_RESEARCH.md`, `base_sepa/PLAN_DE_TRABAJO.md`, `PRODUCT.md`.
+- Documentación: `CHECKLIST.md`, `docs/ROADMAP.md`, `docs/DESPLIEGUE.md`, `docs/GITHUB_RESEARCH.md`,
+  `base_sepa/PLAN_DE_TRABAJO.md`, `PRODUCT.md`.
 
 ## Reglas
 

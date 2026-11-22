@@ -35,6 +35,7 @@ logger = logging.getLogger("canasta.servidor")
 
 LOCALES = {"127.0.0.1", "::1", "localhost"}
 BYTES_MAXIMOS = 64 * 1024        # el texto llega en JSON: 4.000 caracteres son, como mucho, ~24 KB escapados
+DESCARTE_MAXIMO = 1024 * 1024    # lo que se lee (y se tira) de un pedido rechazado; más grande, se corta
 ESTADO_HTTP = {"sin_clave": 503, "cuota": 429, "texto": 400}
 
 
@@ -65,6 +66,18 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
     def _error(self, estado: int, mensaje: str) -> None:
         self._json(estado, {"error": mensaje})
 
+    def _rechazar(self, estado: int, mensaje: str) -> None:
+        """Un POST que se rechaza sin leerlo: se descarta su cuerpo (sin mirarlo) antes de responder. Si el socket se
+        cierra con datos sin leer, Windows manda un RST y el cliente ve la conexión cortada en vez del error."""
+        try:
+            largo = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            largo = 0
+        if 0 < largo <= DESCARTE_MAXIMO:
+            self.rfile.read(largo)
+        self.close_connection = True
+        self._error(estado, mensaje)
+
     # ------------------------------------------------------------
     def do_GET(self):  # noqa: N802 - nombre de http.server
         if not self._local():          # también los archivos: canasta_local.html lleva la clave de rutas
@@ -78,23 +91,23 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         if self.path.split("?")[0] != "/api/interpretar":
-            return self._error(404, "No existe.")
+            return self._rechazar(404, "No existe.")
         if not self._local():
-            return self._error(403, "Solo se atiende desde esta máquina.")
+            return self._rechazar(403, "Solo se atiende desde esta máquina.")
         origen = self.headers.get("Origin")
         if origen and (urlsplit(origen).hostname or "") not in LOCALES:
-            return self._error(403, "Solo se atiende a la página local.")
+            return self._rechazar(403, "Solo se atiende a la página local.")
         if self.headers.get("Sec-Fetch-Site") == "cross-site":
-            return self._error(403, "Solo se atiende a la página local.")
+            return self._rechazar(403, "Solo se atiende a la página local.")
         if not (self.headers.get("Content-Type") or "").lower().startswith("application/json"):
-            return self._error(415, "El pedido tiene que ser JSON.")
+            return self._rechazar(415, "El pedido tiene que ser JSON.")
         try:
             largo = int(self.headers.get("Content-Length") or "")
         except ValueError:
-            return self._error(411, "Falta el largo del pedido.")
+            return self._rechazar(411, "Falta el largo del pedido.")
         if largo > BYTES_MAXIMOS:
-            return self._error(413, f"El texto tiene más de {cfg.LLM_TEXTO_MAXIMO:,} caracteres: acortalo."
-                               .replace(",", "."))
+            return self._rechazar(413, f"El texto tiene más de {cfg.LLM_TEXTO_MAXIMO:,} caracteres: acortalo."
+                                  .replace(",", "."))
         try:
             datos = json.loads(self.rfile.read(largo).decode("utf-8"))
         except (ValueError, UnicodeDecodeError):

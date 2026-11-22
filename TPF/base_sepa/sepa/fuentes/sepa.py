@@ -47,7 +47,7 @@ import logging
 import re
 import zipfile
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import numpy as np

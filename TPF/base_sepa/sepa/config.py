@@ -174,8 +174,6 @@ URL_BARRIOS_CABA = ("https://cdn.buenosaires.gob.ar/datosabiertos/datasets/minis
                     "barrios/barrios.geojson")
 # Coordenada de SEPA frente a la dirección geocodificada: hasta esta distancia se confía en SEPA.
 TOLERANCIA_DIRECCION_M = 300.0
-# Fuera de CABA la geocodificación por altura es menos precisa: se corrige solo si la diferencia es grande.
-TOLERANCIA_DIRECCION_INTERIOR_M = 2_000.0
 # Rectángulo que contiene a la Argentina continental e insular (para atrapar signos y ejes cambiados).
 LAT_ARGENTINA = (-55.2, -21.7)
 LON_ARGENTINA = (-73.7, -53.5)

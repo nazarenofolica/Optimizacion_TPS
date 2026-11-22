@@ -4,9 +4,12 @@
    - Un solo acento: el amarillo del resaltador, solo dentro del ticket y para marcar "la elegida".
    - Verde y rojo solo como estado (cumple / falta).
    - Movimiento que explica algo: el ticket se imprime, el total cuenta, el recorrido se dibuja. Todo con
-     prefers-reduced-motion y sin esconder contenido si la animación no corre. */
+     prefers-reduced-motion y sin esconder contenido si la animación no corre.
+   - Tema: sigue al sistema (color-scheme en el <meta> y en :root, así los controles nativos y el scroll acompañan).
+     Los tokens se redefinen con prefers-color-scheme, que anda en todos los navegadores. */
 
 :root {
+  color-scheme: light dark;
   --fondo: #f1f1ee;
   --superficie: #ffffff;
   --hundido: #f6f6f3;
@@ -27,7 +30,14 @@
   --ruta: #1f5fbf;
   --papel: #fffffe;
   --tinta-ticket: #232323;
+  /* Renglones de "calculando": van sobre el papel, que es claro en los dos temas. */
+  --esqueleto: color-mix(in oklab, var(--papel), var(--tinta-ticket) 9%);
+  --esqueleto-brillo: color-mix(in oklab, var(--papel), var(--tinta-ticket) 3%);
+  --barra-scroll: #a8a8a2;
   --radio: 10px;
+  /* Capas: el mapa aísla las suyas (isolation), así que alcanza con pocas. */
+  --z-panel: 2;
+  --z-fijo: 5;
   --sombra: 0 1px 2px rgba(22, 23, 26, 0.06), 0 4px 8px rgba(22, 23, 26, 0.06);
   --sombra-alta: 0 2px 4px rgba(22, 23, 26, 0.08), 0 8px 8px rgba(22, 23, 26, 0.06);
   --salida: cubic-bezier(0.25, 1, 0.5, 1);       /* ease-out-quart */
@@ -54,13 +64,19 @@
     --naranja: #e3a45c;
     --foco: #8db7ff;
     --ruta: #6fa3ff;
+    /* El papel térmico sigue siendo papel, pero de noche no encandila. */
+    --papel: #e9e8e3;
+    --barra-scroll: #55585d;
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.3);
     --sombra-alta: 0 2px 4px rgba(0, 0, 0, 0.45), 0 8px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 16px; }
+html {
+  -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 72px;
+  accent-color: var(--tinta); scrollbar-color: var(--barra-scroll) var(--fondo);
+}
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body { margin: 0; background: var(--fondo); color: var(--tinta); font: 16px/1.5 var(--texto); }
 h1, h2, h3 { font-family: var(--titulos); line-height: 1.2; margin: 0; text-wrap: balance; }
@@ -160,10 +176,6 @@ small { font-size: 0.82rem; color: var(--tinta-suave); font-weight: 400; }
 }
 .boton-agregar:hover { background: var(--hundido); border-color: var(--tinta); }
 .paso > h2 { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 1.1rem; }
-.numero {
-  display: inline-grid; place-items: center; width: 1.55rem; height: 1.55rem; border-radius: 5px;
-  background: var(--tinta); color: var(--superficie); font: 600 0.82rem var(--ticket); flex: none;
-}
 
 .campo { display: block; margin-top: 14px; }
 .etiqueta { display: block; font-weight: 600; font-size: 0.88rem; margin-bottom: 6px; }
@@ -177,10 +189,8 @@ input::placeholder { color: #75787c; }
 input:hover, select:hover { border-color: #a8a8a2; }
 input:focus, select:focus { border-color: var(--tinta); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tinta) 12%, transparent); outline: none; }
 input:focus-visible, select:focus-visible { outline: none; }
-.fila2, .fila3 { display: grid; gap: 10px; }
-.fila2 { grid-template-columns: 1fr 1fr; }
-.fila3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.fila2 .campo, .fila3 .campo { margin-top: 14px; }
+.fila3 { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fila3 .campo { margin-top: 14px; }
 .con-unidad { position: relative; display: block; }
 .con-unidad input { padding-right: 46px; font-variant-numeric: tabular-nums; }
 .con-unidad i { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--tinta-suave); font-size: 0.85rem; pointer-events: none; }
@@ -537,7 +547,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 @keyframes alimentar { 0% { clip-path: inset(0 0 100% 0); } 60%, 100% { clip-path: inset(0 0 0 0); } }
 .t-esqueleto {
   height: 9px; width: var(--w); margin: 9px 0; border-radius: 2px;
-  background: linear-gradient(90deg, #e9e9e6 0%, #f6f6f3 50%, #e9e9e6 100%) 0 0 / 200% 100%;
+  background: linear-gradient(90deg, var(--esqueleto) 0%, var(--esqueleto-brillo) 50%, var(--esqueleto) 100%) 0 0 / 200% 100%;
   animation: brillo 1.4s linear infinite; animation-delay: calc(var(--i) * 80ms);
 }
 @keyframes brillo { to { background-position: -200% 0; } }
@@ -545,30 +555,63 @@ input:focus-visible, select:focus-visible { outline: none; }
 .progreso i { display: block; height: 100%; width: 0; background: var(--tinta); transition: width 0.4s var(--salida); }
 .cargando-texto { min-height: 1.5em; font-size: 0.92rem; }
 
-.encabezado-resultado { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 48px; align-items: start; }
+/* Índice del resultado: queda arriba mientras se recorre la página (larga en el celular). Fondo sólido, sin vidrio. */
+.indice {
+  position: sticky; top: 0; z-index: var(--z-fijo); display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -24px 28px; padding: 10px 24px; background: var(--fondo); border-bottom: 1px solid var(--linea);
+}
+.indice::-webkit-scrollbar { display: none; }
+.indice a {
+  flex: none; padding: 7px 12px; min-height: 36px; display: inline-flex; align-items: center; border-radius: 999px;
+  font-size: 0.88rem; font-weight: 500; color: var(--tinta-suave); text-decoration: none; transition: background 0.15s, color 0.15s;
+}
+.indice a:hover { background: var(--hundido); color: var(--tinta); }
+.indice a[aria-current="true"] { color: var(--tinta); background: var(--superficie); box-shadow: inset 0 0 0 1px var(--tinta); font-weight: 600; }
+[tabindex="-1"]:focus { outline: none; }
+
+.encabezado-resultado { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 56px; align-items: start; }
 .columna-ticket { display: grid; justify-items: center; gap: 6px; }
 
-/* La respuesta: cuánto, dónde y cómo llegar */
-.resumen { display: grid; gap: 18px; align-content: start; padding-top: 20px; }
+/* La respuesta: cuánto, dónde y cómo llegar. El total manda; lo demás, en una franja debajo. */
+.resumen { display: grid; gap: 18px; align-content: start; padding-top: 12px; max-width: 640px; container-type: inline-size; }
+.respuesta { display: grid; gap: 6px; }
 .resumen-etiqueta { font-size: 0.95rem; color: var(--tinta-suave); }
-.resumen-total { margin-top: -10px; }
 .resumen-total b {
-  display: block; font: 600 clamp(2.8rem, 6vw, 4.4rem)/1 var(--texto); color: var(--tinta); letter-spacing: -0.035em;
+  display: block; font: 600 clamp(2.75rem, 1.6rem + 4vw, 4.4rem)/1 var(--texto); color: var(--tinta); letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
 }
-.resumen-donde { margin-top: -8px; font-size: 1.25rem; color: var(--tinta-suave); }
+.resumen-donde { font-size: 1.2rem; line-height: 1.35; color: var(--tinta-suave); text-wrap: balance; }
 .resumen-donde b { color: var(--tinta); font-weight: 600; }
-.datos-compra { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0; border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
-.datos-compra li { display: grid; padding: 10px 18px 10px 0; margin-right: 18px; border-right: 1px solid var(--linea-suave); font-size: 0.84rem; color: var(--tinta-suave); }
-.datos-compra li:last-child { border-right: 0; margin-right: 0; }
+.datos-compra {
+  list-style: none; padding: 0; margin: 10px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: start;
+  border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea);
+}
+.datos-compra li { display: grid; align-content: start; padding: 10px 20px 10px 0; margin-right: 20px; border-right: 1px solid var(--linea-suave); font-size: 0.84rem; color: var(--tinta-suave); }
+.datos-compra li:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
 .datos-compra span { font: 600 1.05rem var(--ticket); color: var(--tinta); }
-.llegar { display: grid; gap: 6px; padding: 16px 18px; border-radius: var(--radio); background: var(--superficie); box-shadow: var(--sombra); justify-items: start; }
-.llegar p { display: flex; gap: 10px; align-items: flex-start; }
+.llegar {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; padding: 16px 18px; border-radius: var(--radio);
+  background: var(--superficie); border: 1px solid var(--linea); align-items: center;
+}
+.llegar p { display: flex; gap: 10px; align-items: flex-start; grid-column: 1; }
 .llegar .icono { margin-top: 0.15em; }
-.llegar-tiempo { font-size: 1.2rem; font-weight: 600; }
+.llegar-tiempo { font-size: 1.15rem; font-weight: 600; }
 .llegar-tiempo .icono { width: 1.3em; height: 1.3em; margin-top: 0; }
 .llegar-dato { font-size: 0.93rem; color: var(--tinta-suave); }
-.llegar .boton-secundario { margin-top: 8px; }
+.llegar .boton-secundario { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+.motivo { max-width: 62ch; }
+/* Angosto (el ancho de la respuesta, no el de la pantalla): el botón va debajo de los datos. */
+@container (width < 460px) {
+  .llegar { grid-template-columns: minmax(0, 1fr); }
+  .llegar .boton-secundario { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 6px; }
+  .datos-compra li { padding-right: 12px; margin-right: 12px; }
+}
+
+/* Para pagar menos: las dos preguntas (caminar más, sumar un súper) juntas, separadas de la respuesta. */
+.ahorrar { display: grid; gap: 22px; padding-top: 18px; border-top: 2px solid var(--tinta); }
+.ahorrar-titulo { font-size: 1.15rem; font-weight: 600; }
+.ahorrar .dos { padding-top: 18px; border-top: 1px solid var(--linea); }
+.ahorrar .escalera:empty, .ahorrar > :empty { display: none; }
 
 /* ¿Conviene caminar más? */
 .escalera-titulo { font-weight: 600; }
@@ -779,46 +822,45 @@ input:focus-visible, select:focus-visible { outline: none; }
 @keyframes renglon { from { opacity: 0; } }
 .ticket hr { border: 0; border-top: 1px dashed #8a8a8a; margin: 10px 0; }
 .ticket .t-centro { text-align: center; }
-.ticket .t-marca { font-size: 17px; font-weight: 600; text-align: center; letter-spacing: 0.04em; }
+.ticket .t-marca { font-size: 1.062rem; font-weight: 600; text-align: center; letter-spacing: 0.04em; }
 .ticket .t-item { margin: 7px 0; }
 .ticket .t-nombre span:first-child { overflow-wrap: anywhere; }
 .ticket .t-linea { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
 .ticket .t-linea span:last-child { white-space: nowrap; }
-.ticket .t-columnas { font-size: 11px; color: #5a5a5a; }
+.ticket .t-columnas { font-size: 0.6875rem; color: #5a5a5a; }
 .ticket .t-cantidad { color: #3d3d3d; padding-left: 10px; font-variant-numeric: tabular-nums; }
-.ticket .t-detalle { color: #5f5f5f; font-size: 12px; padding-left: 10px; }
+.ticket .t-detalle { color: #5f5f5f; font-size: 0.75rem; padding-left: 10px; }
 .ticket .t-quien { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
 .ticket .t-quien::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
 .ticket .t-grupo { margin-top: 12px; font-weight: 600; }
-.ticket .t-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 600; }
+.ticket .t-total { display: flex; justify-content: space-between; font-size: 1.125rem; font-weight: 600; }
 .ticket .t-total span:last-child { background: var(--acento); padding: 0 4px; }
-.ticket .t-promo { color: #7a4f00; font-size: 12px; padding-left: 10px; }
+.ticket .t-promo { color: #7a4f00; font-size: 0.75rem; padding-left: 10px; }
 /* Promoción aplicada: el renglón va a precio de lista y debajo, como en la caja, la línea del descuento. */
 .ticket .t-descuento { padding-left: 10px; font-weight: 600; }
-.ticket .t-descuento small { font-weight: 400; color: #3d3d3d; font-size: 12px; }
+.ticket .t-descuento small { font-weight: 400; color: #3d3d3d; font-size: 0.75rem; }
 .ticket .t-ahorro { font-weight: 600; }
 .ticket .t-destacado { font-weight: 600; }
 .ticket .t-gracias { margin-top: 8px; letter-spacing: 0.04em; }
-.ticket .t-paso { font-size: 11px; letter-spacing: 0.08em; color: #5a5a5a; margin-bottom: 2px; }
+.ticket .t-paso { font-size: 0.6875rem; letter-spacing: 0.08em; color: #5a5a5a; margin-bottom: 2px; }
 .ticket .t-subtotal { font-weight: 600; }
-.ticket .t-nota { font-size: 11.5px; color: #5f5f5f; margin-top: 4px; }
+.ticket .t-nota { font-size: 0.7188rem; color: #5f5f5f; margin-top: 4px; }
 .ticket hr.t-doble { border-top: 3px double #8a8a8a; }
 /* Entre las dos sucursales, la línea de corte de punta a punta del papel. */
 .ticket .t-corte { display: flex; align-items: center; gap: 8px; margin: 18px -18px 16px; color: #8a8a8a; }
 .ticket .t-corte::before, .ticket .t-corte::after { content: ""; flex: 1; border-top: 1px dashed #8a8a8a; }
-.ticket .t-corte span { font-size: 15px; line-height: 1; transform: rotate(180deg); }
+.ticket .t-corte span { font-size: 0.9375rem; line-height: 1; transform: rotate(180deg); }
 .ticket-vacio { color: #8f8f8f; }
 .ticket-vacio .t-linea span:last-child { color: var(--verde); font-weight: 600; }
 
 /* Secciones del detalle */
-.bloque { margin-top: 64px; }
+.bloque { margin-top: 72px; scroll-margin-top: 72px; }
 .bloque > h2 { font-size: 1.45rem; font-weight: 600; letter-spacing: -0.015em; padding-bottom: 10px; border-bottom: 2px solid var(--tinta); }
 .bloque > .ayuda { max-width: 72ch; margin-top: 12px; font-size: 0.95rem; }
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .bloque { animation: subir linear both; animation-timeline: view(); animation-range: entry 0% entry 35%; }
-  }
-}
+/* Las dos secciones largas (nutrición y modelo) quedan debajo del pliegue: el navegador las arma al acercarse. El
+   tamaño estimado evita saltos del scroll; "auto" recuerda el real. Dónde comprar no: el mapa necesita medirse. */
+.bloque-largo { content-visibility: auto; contain-intrinsic-size: auto none auto 1600px; }
+@media print { .bloque-largo { content-visibility: visible; } }
 .pestanas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .pestanas button {
   font: inherit; font-size: 0.92rem; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
@@ -829,17 +871,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .pestanas button[aria-selected=true] { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); font-weight: 600; }
 
 .subtitulo { margin-top: 34px; font-size: 1.08rem; }
-.pasos { list-style: none; counter-reset: paso; padding: 0; margin: 18px 0 0; display: grid; gap: 16px; }
-.pasos li { counter-increment: paso; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 12px; }
-.pasos li::before {
-  content: counter(paso); font: 600 0.82rem var(--ticket); color: var(--tinta);
-  border: 1.5px solid var(--tinta); border-radius: 50%; width: 1.7rem; height: 1.7rem; display: grid; place-items: center;
-}
-.pasos .formula { font-family: var(--ticket); font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--tinta-suave); margin-top: 2px; }
-.pasos .res { font-weight: 600; margin-top: 2px; }
-.pasos .fuente { color: var(--tinta-suave); font-size: 0.82rem; }
 
-.tabla-envoltorio { overflow-x: auto; margin-top: 16px; border-radius: var(--radio); background: var(--superficie); box-shadow: var(--sombra); }
+.tabla-envoltorio { overflow-x: auto; margin-top: 16px; border-radius: var(--radio); background: var(--superficie); border: 1px solid var(--linea); }
 table { border-collapse: collapse; width: 100%; font-size: 0.93rem; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--linea-suave); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 0; }
@@ -849,14 +882,8 @@ td.num { font-family: var(--ticket); font-size: 0.88rem; }
 tbody tr { transition: background 0.15s; }
 tbody tr:hover { background: var(--hundido); }
 tr.elegida td { background: var(--acento-suave); font-weight: 600; }
+th { text-wrap: balance; }
 
-.barra { position: relative; height: 8px; background: var(--hundido); border: 1px solid var(--linea); border-radius: 4px; min-width: 110px; }
-.barra i { position: absolute; inset: 0 auto 0 0; background: var(--verde); border-radius: 3px; }
-@media (prefers-reduced-motion: no-preference) { .barra i { animation: crecer 0.9s var(--salida-fuerte) both; } }
-.barra.falta i { background: var(--rojo); }
-.barra.excede i { background: var(--naranja); }
-.barra.informativa i { background: var(--tinta-suave); }
-.barra b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--tinta); }
 .estado { font-weight: 600; white-space: nowrap; }
 .estado.cumple { color: var(--verde); }
 .estado.falta { color: var(--rojo); }
@@ -864,32 +891,58 @@ tr.elegida td { background: var(--acento-suave); font-weight: 600; }
 .estado.informativa, .estado.no_aplica { color: var(--tinta-suave); }
 .nota { color: var(--tinta-suave); font-size: 0.84rem; }
 
-.grupos { display: flex; height: 32px; border-radius: 6px; overflow: hidden; margin-top: 14px; }
-.grupos div { display: grid; place-items: center; color: #fff; font-size: 0.78rem; font-weight: 600; overflow: hidden; white-space: nowrap; }
-.leyenda-grupos { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 0.88rem; }
-.leyenda-grupos span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--c); }
-
 #mapa { height: 400px; border-radius: var(--radio); margin-top: 16px; isolation: isolate; box-shadow: var(--sombra); }
 #mapa-leyenda { display: flex; align-items: center; gap: 8px; }
 #mapa-leyenda:empty, #mapa-leyenda-dos:empty { display: none; }
+/* Marcadores y recorridos (SVG de Leaflet): el CSS les gana a los atributos, así siguen al tema aunque cambie con la
+   página abierta. */
+.m-sucursal { stroke: var(--tinta-suave); fill: var(--tinta-suave); }
+.m-elegida { stroke: var(--tinta); fill: var(--acento); }
+.m-fuera, .m-vecina { stroke: var(--tinta-suave); fill: var(--tinta-suave); }
+.m-vos { stroke: var(--foco); fill: var(--foco); }
+.ruta-animada { stroke: var(--ruta); }
 .ruta-animada { stroke-dasharray: 1; stroke-dashoffset: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .ruta-animada { animation: trazar 1.6s var(--salida) 0.2s both; }
 }
 @keyframes trazar { from { stroke-dashoffset: 1; } }
-.leaflet-tooltip { font-family: var(--texto); border-radius: 6px; box-shadow: var(--sombra); }
-.criterios { display: grid; gap: 12px; margin-top: 14px; }
-.criterios dt { font-weight: 600; }
-.criterios dd { margin: 2px 0 0; color: var(--tinta-suave); }
+.leaflet-tooltip {
+  font-family: var(--texto); border-radius: 6px; box-shadow: var(--sombra);
+  background: var(--superficie); color: var(--tinta); border-color: var(--linea);
+}
+.leaflet-tooltip-top::before { border-top-color: var(--superficie); }
+.leaflet-tooltip-bottom::before { border-bottom-color: var(--superficie); }
+.leaflet-tooltip-left::before { border-left-color: var(--superficie); }
+.leaflet-tooltip-right::before { border-right-color: var(--superficie); }
+.leaflet-container { background: var(--hundido); font-family: var(--texto); }
+.leaflet-bar a { background: var(--superficie); color: var(--tinta); border-color: var(--linea); }
+.leaflet-container .leaflet-control-attribution { background: color-mix(in oklab, var(--superficie) 85%, transparent); color: var(--tinta-suave); }
+.leaflet-container .leaflet-control-attribution a { color: var(--tinta); }
+@media (prefers-color-scheme: dark) {
+  /* Solo el mapa base: invertido y girado 180° conserva el color del agua y los parques, más apagado. */
+  .capa-base { filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.9) saturate(0.6); }
+}
 
 .pie { max-width: 1360px; margin: 0 auto; padding: 28px 24px 40px; color: var(--tinta-suave); font-size: 0.85rem; border-top: 1px solid var(--linea); }
 .pie p { max-width: 90ch; }
 
 /* ---------- Detalle por persona ---------- */
-.persona-cabeza { margin-top: 18px; display: grid; gap: 14px; }
-.cifras-persona { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
-.cifras-persona li { display: grid; gap: 2px; padding: 14px 16px; border-radius: var(--radio); background: var(--superficie); box-shadow: var(--sombra); }
-.cifras-persona b { font: 600 1.45rem var(--texto); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.persona-cabeza { margin-top: 18px; display: grid; gap: 14px; container-type: inline-size; }
+/* Las cuatro cifras de la persona en una franja (como las de la compra), no en tarjetas iguales: dos por fila en lo
+   angosto, las cuatro en una fila si entran. */
+.cifras-persona {
+  list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea);
+}
+.cifras-persona li { display: grid; align-content: start; gap: 2px; padding: 12px 16px 12px 0; }
+.cifras-persona li:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--linea-suave); }
+.cifras-persona li:nth-child(n+3) { border-top: 1px solid var(--linea-suave); }
+@container (width >= 640px) {
+  .cifras-persona { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cifras-persona li + li { padding-left: 16px; border-left: 1px solid var(--linea-suave); }
+  .cifras-persona li:nth-child(n+3) { border-top: 0; }
+}
+.cifras-persona b { font: 600 1.45rem var(--ticket); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .cifras-persona span { font-size: 0.84rem; color: var(--tinta-suave); }
 .cifras-persona .sin-faltas b { color: var(--verde); }
 .cifras-persona .con-faltas b { color: var(--naranja); }
@@ -900,9 +953,18 @@ tr.elegida td { background: var(--acento-suave); font-weight: 600; }
 }
 .calculo li {
   counter-increment: calculo; position: relative; display: grid; align-content: start; gap: 4px;
-  padding: 14px 16px 12px; border-radius: var(--radio); background: var(--superficie); box-shadow: var(--sombra);
+  padding: 14px 16px 12px; border-radius: var(--radio); background: var(--superficie); border: 1px solid var(--linea-suave);
 }
 .calculo li::before { content: counter(calculo); font: 600 0.75rem var(--ticket); color: var(--tinta-suave); }
+/* Angosto: los pasos son una lista dentro de un solo marco (el número a la izquierda), no ocho tarjetas apiladas. */
+#por-persona { container-type: inline-size; }
+@container (width < 560px) {
+  .calculo { gap: 0; border: 1px solid var(--linea-suave); border-radius: var(--radio); background: var(--superficie); }
+  .calculo li { grid-template-columns: 1.4rem minmax(0, 1fr); column-gap: 8px; row-gap: 2px; padding: 11px 14px; border: 0; border-radius: 0; background: none; }
+  .calculo li + li { border-top: 1px solid var(--linea-suave); }
+  .calculo li::before { grid-row: 1 / span 3; padding-top: 2px; }
+  .calculo li > * { grid-column: 2; }
+}
 .c-titulo { font-size: 0.88rem; color: var(--tinta-suave); }
 .c-res { font-weight: 600; font-size: 1rem; line-height: 1.35; }
 @media (prefers-reduced-motion: no-preference) {
@@ -929,28 +991,6 @@ details > :not(summary) { margin-top: 8px; }
 .estado-metas.con-faltas i { background: var(--naranja); }
 .estado-metas.info { background: var(--hundido); border: 1px solid var(--linea); }
 .estado-metas.info i { background: var(--tinta); color: var(--superficie); font-family: var(--ticket); }
-.leyenda-barra { margin-top: 18px; }
-.grupo-medidores h4 { margin: 22px 0 10px; font-size: 0.85rem; font-weight: 600; color: var(--tinta-suave); }
-.medidores { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.grupo-medidores .medidores { margin-top: 0; }
-.medidor { display: grid; gap: 7px; align-content: start; padding: 12px 14px; border-radius: 8px; background: var(--superficie); box-shadow: var(--sombra); }
-.m-cabeza, .m-pie { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.m-nombre { font-weight: 600; font-size: 0.92rem; }
-.m-valor { font: 600 0.92rem var(--ticket); white-space: nowrap; }
-.m-valor small { font-family: var(--texto); }
-.m-pie { font-size: 0.78rem; color: var(--tinta-suave); }
-.m-estado { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; white-space: nowrap; }
-.m-estado i { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-style: normal; font-size: 0.66rem; color: #fff; background: var(--tinta-suave); }
-.medidor.cumple .m-estado { color: var(--verde); }
-.medidor.cumple .m-estado i { background: var(--verde); }
-.medidor.falta .m-estado { color: var(--rojo); }
-.medidor.falta .m-estado i { background: var(--rojo); }
-.medidor.excede .m-estado { color: var(--naranja); }
-.medidor.excede .m-estado i { background: var(--naranja); }
-.medidor.falta { background: color-mix(in srgb, var(--rojo) 6%, var(--superficie)); }
-.medidor.excede { background: color-mix(in srgb, var(--naranja) 7%, var(--superficie)); }
-.m-nota { font-size: 0.76rem; color: var(--tinta-suave); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.medidor .barra { min-width: 0; }
 
 .restricciones-lista { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .restricciones-lista li { padding: 12px 14px; border-radius: 8px; background: var(--superficie); box-shadow: var(--sombra); }
@@ -987,7 +1027,8 @@ details > :not(summary) { margin-top: 8px; }
   .columna-mapa { position: static; }
   .columna-mapa .mapa-ubicacion { height: 280px; }
   .panel-pie { position: sticky; bottom: 0; z-index: 3; box-shadow: 0 -2px 8px rgba(22, 23, 26, 0.1); }
-  .encabezado-resultado { grid-template-columns: 1fr; justify-items: center; gap: 32px; }
+  .encabezado-resultado { grid-template-columns: 1fr; justify-items: center; gap: 40px; }
+  .resumen { max-width: none; }
   /* En una columna la respuesta va primero y el ticket debajo. */
   .resumen { width: 100%; order: -1; padding-top: 0; }
   #mapa { height: 320px; }
@@ -1005,8 +1046,8 @@ details > :not(summary) { margin-top: 8px; }
   .cabecera { padding: 24px 16px 44px; }
   .cabecera h1 { margin-top: 18px; }
   .mostrador { padding: 0 16px 40px; }
+  .indice { margin-inline: -16px; padding-inline: 16px; }
   .panel-cuerpo, .panel-pie { padding-left: 16px; padding-right: 16px; }
-  .fila2 { grid-template-columns: 1fr; }
   .fila3 { grid-template-columns: 1fr 1fr; }
   .escala span { font-size: 0.7rem; }
   .ticket { --ancho: calc(100vw - 48px); }
@@ -1015,8 +1056,11 @@ details > :not(summary) { margin-top: 8px; }
   th, td { padding: 9px 10px; }
 }
 
-/* Celular: la tabla de sucursales pasa a filas apiladas (nombre, tres cifras, qué no cubre) sin scroll lateral. */
-@media (max-width: 640px) {
+/* Angosta (el ancho de la tabla, no el de la pantalla): la tabla de sucursales pasa a filas apiladas (nombre, tres
+   cifras, qué no cubre) sin scroll lateral. */
+.tabla-envoltorio { container-type: inline-size; }
+.tabla-envoltorio:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+@container (width < 620px) {
   .tabla-sucursales thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .tabla-sucursales, .tabla-sucursales tbody { display: block; }
   .tabla-sucursales tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--linea-suave); }
@@ -1033,7 +1077,7 @@ details > :not(summary) { margin-top: 8px; }
 /* Imprimir: solo el ticket, como sale de la caja. */
 @media print {
   body { background: #fff; }
-  .cabecera, .panel, .pie, .resumen, .bloque, #imprimir, .ranura, .cargando .progreso, .vista-ticket { display: none !important; }
+  .cabecera, .panel, .pie, .resumen, .bloque, .indice, #imprimir, .ranura, .cargando .progreso, .vista-ticket { display: none !important; }
   .mostrador { display: block; padding: 0; margin: 0; }
   .resultado { padding: 0; }
   .encabezado-resultado { display: block; }
@@ -1046,8 +1090,8 @@ details > :not(summary) { margin-top: 8px; }
 /* ---------- Ticket de la cabecera: los datos reales del día, impresos al cargar ---------- */
 .impresora-cabecera { align-self: end; margin-bottom: -64px; }
 .impresora-cabecera .ranura { width: 300px; background: #000; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.08); }
-.ticket-cabecera { --ancho: 272px; font-size: 12px; padding: 18px 16px 26px; min-height: 120px; transform: rotate(-1.5deg); transform-origin: top center; }
-.ticket-cabecera .t-total { font-size: 14px; }
+.ticket-cabecera { --ancho: 272px; font-size: 0.75rem; padding: 18px 16px 26px; min-height: 120px; transform: rotate(-1.5deg); transform-origin: top center; }
+.ticket-cabecera .t-total { font-size: 0.875rem; }
 @media (prefers-reduced-motion: no-preference) {
   .ticket-cabecera.imprimiendo { animation: imprimir-cabecera 1.4s var(--salida-fuerte) both; }
 }
@@ -1076,50 +1120,93 @@ details > :not(summary) { margin-top: 8px; }
 .dl-dato { grid-column: 2 / -1; font-size: 0.8rem; color: var(--tinta-suave); }
 
 /* ---------- Gráficos de bala: meta (franja) y valor (punto) ---------- */
-.leyenda-balas { display: flex; align-items: center; gap: 8px; margin: 26px 0 10px; font-size: 0.84rem; color: var(--tinta-suave); }
-.lb-rango { width: 26px; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--verde) 22%, transparent); }
-.lb-punto { width: 12px; height: 12px; border-radius: 50%; background: var(--tinta); margin-left: 10px; }
-.balas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; align-items: start; }
-.grafico-balas { padding: 16px 18px 8px; border-radius: var(--radio); background: var(--superficie); box-shadow: var(--sombra); margin-top: 12px; }
+.leyenda-balas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 28px 0 12px; font-size: 0.84rem; color: var(--tinta-suave); }
+.lb-item { display: inline-flex; align-items: center; gap: 8px; }
+.lb-rango {
+  position: relative; width: 30px; height: 10px; border-radius: 3px; background: color-mix(in oklab, var(--verde) 24%, transparent);
+  box-shadow: inset 2px 0 0 var(--tinta-suave), inset -2px 0 0 var(--tinta-suave);
+}
+.lb-punto { width: 12px; height: 12px; border-radius: 50%; background: var(--tinta); }
+.balas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; align-items: start; }
+.grafico-balas { container-type: inline-size; padding: 14px 18px 6px; border-radius: var(--radio); background: var(--superficie); border: 1px solid var(--linea); margin-top: 12px; }
 .balas-grid .grafico-balas { margin-top: 0; }
-.gb-titulo { font-weight: 600; font-size: 0.92rem; padding-bottom: 8px; border-bottom: 1px solid var(--linea-suave); }
+.gb-titulo {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;
+  font-weight: 600; font-size: 0.95rem; padding-bottom: 10px; border-bottom: 1px solid var(--linea-suave);
+}
+.gb-conteo { font: 500 0.8rem var(--ticket); color: var(--tinta-suave); white-space: nowrap; }
+.gb-conteo.faltan { color: var(--naranja); }
 .grafico-balas ul { list-style: none; padding: 0; margin: 0; }
+
+/* Angosto: nombre, valor y estado arriba; la pista entera debajo. */
 .bala {
-  display: grid; grid-template-columns: minmax(110px, 1.1fr) minmax(90px, 1.4fr) minmax(92px, auto) 22px; align-items: center;
-  gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--linea-suave);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 22px; grid-template-areas: "nombre valor estado" "pista pista pista";
+  align-items: center; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--linea-suave);
 }
 .bala:last-child { border-bottom: 0; }
-.b-nombre { font-size: 0.9rem; font-weight: 500; }
-.b-nombre[title] { text-decoration: underline dotted var(--linea); text-underline-offset: 4px; cursor: help; }
-.b-pista { position: relative; height: 12px; border-radius: 6px; background: var(--hundido); box-shadow: inset 0 0 0 1px var(--linea-suave); }
-.b-rango { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: color-mix(in srgb, var(--verde) 22%, transparent); }
+.b-nombre { grid-area: nombre; font-size: 0.9rem; font-weight: 500; }
+.b-pista { grid-area: pista; }
+.b-valor { grid-area: valor; }
+.b-estado { grid-area: estado; }
+/* Ancho (el del gráfico): una fila por meta. Con subgrid todas las filas comparten las columnas de la lista, así las
+   pistas empiezan en el mismo lugar aunque un nombre sea largo y se pueden comparar de un vistazo. */
+@container (width >= 470px) {
+  .bala { grid-template-columns: minmax(120px, 1fr) minmax(110px, 1.35fr) minmax(96px, auto) 22px; grid-template-areas: "nombre pista valor estado"; column-gap: 16px; }
+  @supports (grid-template-columns: subgrid) {
+    .grafico-balas ul { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(110px, 1.35fr) minmax(96px, auto) 22px; column-gap: 16px; }
+    .bala { grid-column: 1 / -1; grid-template-columns: subgrid; }
+  }
+}
+.b-nombre[title] { text-decoration: underline dotted var(--tinta-suave); text-underline-offset: 4px; cursor: help; }
+.b-pista { position: relative; height: 12px; border-radius: 6px; background: var(--hundido); box-shadow: inset 0 0 0 1px var(--linea); }
+.b-rango { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: color-mix(in oklab, var(--verde) 24%, transparent); }
+/* El mínimo y el máximo: una raya fina que sobresale de la pista, para ver dónde empieza y termina la meta. */
+.b-marca { position: absolute; top: -3px; bottom: -3px; left: var(--x); width: 2px; margin-left: -1px; border-radius: 1px; background: var(--tinta-suave); }
 .b-punto {
-  position: absolute; top: 50%; left: var(--x); width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  position: absolute; z-index: 1; top: 50%; left: var(--x); width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
   background: var(--tinta); box-shadow: 0 0 0 2px var(--superficie);
 }
 @media (prefers-reduced-motion: no-preference) {
   .b-punto { animation: deslizar 0.9s var(--salida-fuerte) both; }
 }
 @keyframes deslizar { from { left: 0; opacity: 0; } }
-.bala.falta .b-punto { background: var(--rojo); }
-.bala.excede .b-punto { background: var(--naranja); }
+/* Lo que falta o se pasa: el punto cambia de forma (anillo) además de color, y la fila se marca entera. */
+.bala.falta .b-punto, .bala.excede .b-punto { background: var(--superficie); box-shadow: inset 0 0 0 4px var(--c-estado), 0 0 0 2px var(--superficie); }
+.bala.falta { --c-estado: var(--rojo); }
+.bala.excede { --c-estado: var(--naranja); }
 .bala.informativa .b-punto { background: var(--tinta-suave); }
-.bala.informativa .b-rango, .bala.no_aplica .b-rango { background: color-mix(in srgb, var(--tinta-suave) 16%, transparent); }
+.bala.informativa .b-rango, .bala.no_aplica .b-rango { background: color-mix(in oklab, var(--tinta-suave) 16%, transparent); }
+.bala.falta, .bala.excede {
+  margin: 0 -10px; padding-inline: 10px; border-radius: 6px; border-bottom-color: transparent;
+  background: color-mix(in oklab, var(--c-estado) 8%, var(--superficie));
+}
+.bala.falta + .bala, .bala.excede + .bala { margin-top: 2px; }
 .b-valor { display: grid; justify-items: end; font: 600 0.88rem var(--ticket); white-space: nowrap; }
 .b-valor small { font-family: var(--texto); font-weight: 400; }
 .b-meta { font-size: 0.72rem; }
+.bala.falta .b-meta, .bala.excede .b-meta { color: var(--tinta); }
 .b-estado i {
   display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-style: normal; font-size: 0.7rem;
   font-weight: 700; color: #fff; background: var(--tinta-suave);
 }
+@media (prefers-color-scheme: dark) { .b-estado i { color: #121315; } }
 .bala.cumple .b-estado i { background: var(--verde); }
 .bala.falta .b-estado i { background: var(--rojo); }
 .bala.excede .b-estado i { background: var(--naranja); }
-.bala.falta, .bala.excede { background: linear-gradient(90deg, color-mix(in srgb, var(--naranja) 7%, transparent), transparent 60%); }
+.b-estado-texto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Alto contraste de Windows: los fondos se pierden, así que la pista, la meta y el punto toman colores del sistema
+   (son el dato, no decoración). */
+@media (forced-colors: active) {
+  .b-pista, .b-rango, .b-marca, .b-punto, .lb-rango, .lb-punto { forced-color-adjust: none; }
+  .b-pista { background: Canvas; box-shadow: none; border: 1px solid CanvasText; }
+  .b-rango, .lb-rango { background: GrayText; }
+  .b-marca { background: CanvasText; }
+  .b-punto, .lb-punto { background: Highlight; box-shadow: 0 0 0 2px Canvas; }
+  .bala.falta .b-punto, .bala.excede .b-punto { background: Canvas; box-shadow: inset 0 0 0 4px Highlight; }
+  .bala.falta, .bala.excede { border: 1px solid CanvasText; }
+}
 @media (max-width: 640px) {
-  .balas-grid { grid-template-columns: minmax(0, 1fr); }
-  .bala { grid-template-columns: minmax(0, 1fr) auto 20px; grid-template-areas: "nombre valor estado" "pista pista pista"; row-gap: 6px; }
-  .b-nombre { grid-area: nombre; } .b-pista { grid-area: pista; } .b-valor { grid-area: valor; } .b-estado { grid-area: estado; }
   .dona { width: 140px; height: 140px; }
 }
 

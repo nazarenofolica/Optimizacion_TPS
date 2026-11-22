@@ -1,14 +1,12 @@
-# Publica la demo de la canasta (TPF/datos/sepa/canasta.html, la versión sin clave) en GitHub Pages:
+# Respaldo manual: publica la canasta versionada (TPF/datos/sepa/canasta.html, sin clave, con la base del repo) en
 #   https://nazarenofolica.github.io/Optimizacion_TPS/
-# Requiere, una sola vez: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# La publicación de todos los días la hace tpf-diario.yml, con los precios del día. Este workflow corre solo a mano
+# (Actions → "Demo en GitHub Pages" → Run workflow), para volver a la página del repo si el diario no puede publicar.
+# Si corriera en cada push, pisaría la página del día con la del repo. No publica fecha.txt: la corrida siguiente del
+# diario rearma y publica la del día.
 name: Demo en GitHub Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "TPF/datos/sepa/canasta.html"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:

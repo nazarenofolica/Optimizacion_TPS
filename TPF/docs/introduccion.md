@@ -2,9 +2,10 @@
 
 > **Qué es este archivo.** La introducción del TPF: de dónde viene el problema de la dieta, cómo se
 > planteó y resolvió originalmente, qué enseñó, y cómo lo vamos a plantear nosotros con precios
-> reales de Argentina. **No contiene resultados del trabajo**: la base de datos está lista y el
-> modelo está pendiente (ver [`plan_de_trabajo.md`](plan_de_trabajo.md)). Las referencias completas
-> están en [`fuentes.md`](fuentes.md).
+> reales de Argentina. **No contiene resultados del trabajo**: el modelo que se construyó (la canasta
+> saludable, sus etapas y sus cifras) está en [`ROADMAP.md`](ROADMAP.md) y en
+> [`../base_sepa/README.md`](../base_sepa/README.md). Las referencias completas están en
+> [`fuentes.md`](fuentes.md).
 
 ---
 

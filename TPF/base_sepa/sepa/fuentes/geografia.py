@@ -171,26 +171,6 @@ def localidades_de_departamentos(departamentos: list[str]) -> dict[str, list[str
     return {d: cache.get(d, []) for d in departamentos if isinstance(d, str)}
 
 
-def centroides_localidad(nombres: pd.Series, provincias: pd.Series) -> pd.DataFrame:
-    """Centroide de la localidad declarada (Georef), para ubicar aproximadamente lo que no tiene dirección útil."""
-    ruta = cfg.DIR_GEO / "georef_localidades.json"
-    cache = _leer_cache(ruta)
-    claves = [f"{p}|{n}" if isinstance(n, str) and n.strip() and isinstance(p, str) and p else ""
-              for n, p in zip(nombres, provincias)]
-    faltan = sorted({k for k in claves if k and k not in cache})
-    for i in range(0, len(faltan), MAX_LOTE):
-        lote = faltan[i:i + MAX_LOTE]
-        cuerpo = {"localidades": [{"nombre": k.split("|", 1)[1], "provincia": k.split("|", 1)[0], "max": 1,
-                                   "aplanar": True} for k in lote]}
-        for k, res in zip(lote, _post("localidades", cuerpo)["resultados"]):
-            loc = (res.get("localidades") or [{}])[0]
-            cache[k] = {"lat": loc.get("centroide_lat"), "lon": loc.get("centroide_lon"), "nombre": loc.get("nombre")}
-    if faltan:
-        _guardar_cache(ruta, cache)
-    return pd.DataFrame([cache.get(k, {}) if k else {} for k in claves], index=nombres.index,
-                        columns=["lat", "lon", "nombre"])
-
-
 # ============================================================
 # CABA: normalizador USIG, barrios y comunas
 # ============================================================

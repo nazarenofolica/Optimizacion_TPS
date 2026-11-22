@@ -586,9 +586,11 @@ function prepararUbicacion() {
 
 // Teselas de OpenStreetMap (la URL actual, sin subdominios). Desde file:// pueden no cargar porque OSM exige el
 // encabezado Referer: python -m canasta sirve la página en http://localhost.
+// className (TileLayer, Leaflet 1.9): con el tema oscuro, el CSS oscurece solo las teselas; los marcadores y el
+// recorrido quedan con sus colores.
 function capaBase() {
   return L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19, className: "capa-base", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   });
 }
 
@@ -1142,15 +1144,6 @@ function ticketDivididoHTML(d, ds) {
   </div>`;
 }
 
-function barra(c) {
-  if (c.valor == null) return "";
-  const tope = Math.max(c.maximo ?? 0, (c.minimo ?? 0) * 1.5, c.valor) || 1;
-  const ancho = Math.min(100, (c.valor / tope) * 100);
-  const marcaMin = c.minimo ? `<b style="left:${(c.minimo / tope) * 100}%" title="mínimo"></b>` : "";
-  const marcaMax = c.maximo ? `<b style="left:calc(${(c.maximo / tope) * 100}% - 2px)" title="máximo"></b>` : "";
-  return `<div class="barra ${c.estado}"><i style="width:${ancho}%"></i>${marcaMin}${marcaMax}</div>`;
-}
-
 const TEXTO_ESTADO = { cumple: "Cumple", falta: "Falta", excede: "Se pasa", informativa: "Informativa", no_aplica: "No aplica" };
 const decimales = (x) => (x == null ? 0 : Math.abs(x) < 10 ? 1 : 0);
 
@@ -1159,22 +1152,33 @@ const ICONO_ESTADO = { cumple: "✓", falta: "!", excede: "↑", informativa: "i
 const rangoTexto = (c) => (c.minimo != null && c.maximo != null ? `${fmt(c.minimo, decimales(c.minimo))}–${fmt(c.maximo, decimales(c.maximo))}`
   : c.minimo != null ? `mín. ${fmt(c.minimo, decimales(c.minimo))}` : c.maximo != null ? `máx. ${fmt(c.maximo, decimales(c.maximo))}` : "—");
 
-// Gráfico de bala: la franja es la meta (mínimo a máximo), el punto es lo que come. Se lee de un vistazo.
+// Gráfico de bala: la franja es la meta (mínimo a máximo, con una raya en cada borde) y el punto, lo que come. El
+// estado va también en el ícono y en texto (no solo en el color).
 function bala(c) {
   const tope = Math.max(c.maximo ?? 0, (c.minimo ?? 0) * 1.6, (c.valor ?? 0) * 1.08) || 1;
   const pos = (x) => Math.max(0, Math.min(100, x / tope * 100));
   const desde = c.minimo != null ? pos(c.minimo) : 0, hasta = c.maximo != null ? pos(c.maximo) : 100;
+  const marcas = [c.minimo, c.maximo].filter((x) => x != null && x > 0 && pos(x) < 100)
+    .map((x) => `<i class="b-marca" style="--x:${pos(x)}%"></i>`).join("");
   const punto = c.valor == null ? "" : `<i class="b-punto" style="--x:${pos(c.valor)}%"></i>`;
   return `<li class="bala ${c.estado}">
     <span class="b-nombre" ${c.nota ? `title="${esc(c.nota)}"` : ""}>${esc(c.nombre)}</span>
-    <span class="b-pista" aria-hidden="true"><i class="b-rango" style="left:${desde}%;width:${Math.max(hasta - desde, 1)}%"></i>${punto}</span>
+    <span class="b-pista" aria-hidden="true"><i class="b-rango" style="left:${desde}%;width:${Math.max(hasta - desde, 1)}%"></i>${marcas}${punto}</span>
     <span class="b-valor"><span>${c.valor == null ? "—" : fmt(c.valor, decimales(c.valor))} <small>${esc(c.unidad)}</small></span><small class="b-meta">meta ${rangoTexto(c)}</small></span>
-    <span class="b-estado" title="${TEXTO_ESTADO[c.estado]}"><i aria-hidden="true">${ICONO_ESTADO[c.estado]}</i><span class="sr-only">${TEXTO_ESTADO[c.estado]}</span></span>
+    <span class="b-estado" title="${TEXTO_ESTADO[c.estado]}"><i aria-hidden="true">${ICONO_ESTADO[c.estado]}</i><span class="b-estado-texto">${TEXTO_ESTADO[c.estado]}</span></span>
   </li>`;
 }
 
+// Lo que falta o se pasa va primero (en el orden de siempre); el título dice cuántas metas se cumplen.
+const ORDEN_ESTADO = { falta: 0, excede: 1 };
 function graficoBalas(titulo, lista) {
-  return `<div class="grafico-balas"><p class="gb-titulo">${esc(titulo)}</p><ul>${lista.map(bala).join("")}</ul></div>`;
+  const ordenada = lista.map((c, i) => [c, i])
+    .sort(([a, i], [b, j]) => ((ORDEN_ESTADO[a.estado] ?? 2) - (ORDEN_ESTADO[b.estado] ?? 2)) || i - j).map(([c]) => c);
+  const evaluadas = lista.filter((c) => c.estado === "cumple" || c.estado === "falta" || c.estado === "excede");
+  const cumplen = evaluadas.filter((c) => c.estado === "cumple").length;
+  const conteo = evaluadas.length
+    ? `<span class="gb-conteo ${cumplen === evaluadas.length ? "todas" : "faltan"}">${cumplen} de ${evaluadas.length} cumplen</span>` : "";
+  return `<div class="grafico-balas"><p class="gb-titulo"><span>${esc(titulo)}</span>${conteo}</p><ul>${ordenada.map(bala).join("")}</ul></div>`;
 }
 
 // Dona de calorías por grupo de alimentos, con las kcal del día en el centro.
@@ -1196,19 +1200,6 @@ function dona(todos, kcal) {
       <span class="dl-nombre">${esc(g.grupo)}</span><span class="dl-pct">${fmt(g.pct_kcal)} %</span>
       <span class="dl-dato">${fmt(g.gramos_dia)} g · ${fmt(g.kcal_dia)} kcal</span></li>`).join("")}</ul>
   </div>`;
-}
-
-// Un nutriente o una regla: nombre y valor arriba, la barra con sus marcas, la meta y el estado abajo.
-function medidor(c) {
-  const rango = c.minimo != null && c.maximo != null ? `${fmt(c.minimo, decimales(c.minimo))} a ${fmt(c.maximo, decimales(c.maximo))}`
-    : c.minimo != null ? `mín. ${fmt(c.minimo, decimales(c.minimo))}` : `máx. ${fmt(c.maximo, decimales(c.maximo))}`;
-  return `<li class="medidor ${c.estado}">
-    <p class="m-cabeza"><span class="m-nombre">${esc(c.nombre)}</span>
-      <span class="m-valor">${c.valor == null ? "—" : fmt(c.valor, decimales(c.valor))} <small>${esc(c.unidad)}</small></span></p>
-    ${barra(c) || '<div class="barra"></div>'}
-    <p class="m-pie"><span>meta ${rango}</span><span class="m-estado"><i aria-hidden="true">${ICONO_ESTADO[c.estado]}</i>${TEXTO_ESTADO[c.estado]}</span></p>
-    ${c.nota ? `<p class="m-nota" title="${esc(c.nota)}">${esc(c.nota)}</p>` : ""}
-  </li>`;
 }
 
 function bloquePersona(d, i) {
@@ -1246,7 +1237,8 @@ function bloquePersona(d, i) {
     ${canilla ? `<p class="estado-metas info"><i aria-hidden="true">i</i><span>Agua de la canilla: unos <b>${fmt(canilla.falta, 1)} L por día</b>.
       Los alimentos de esta compra aportan ${fmt(canilla.alimentos, 1)} L de los ${fmt(canilla.meta, 1)} L de agua del día.</span></p>` : ""}
     ${dona(p.grupos, energia && energia.valor)}
-    <p class="leyenda-balas"><span class="lb-rango"></span>la meta <span class="lb-punto"></span>lo que come</p>
+    <p class="leyenda-balas"><span class="lb-item"><span class="lb-rango"></span>la meta, de mínimo a máximo</span>
+      <span class="lb-item"><span class="lb-punto"></span>lo que come</span></p>
     <div class="balas-grid">
       ${graficoBalas("Energía, macronutrientes y agua", macro)}
       ${graficoBalas("Vitaminas y minerales", micro)}
@@ -1628,12 +1620,12 @@ function dibujarDosEnMapa(d) {
   const yaEstan = new Set(d.sucursales.map((x) => x.id));
   for (const v of ds.vecinas) {
     if ((propuesta && v.id === propuesta.b.id) || yaEstan.has(v.id)) continue;
-    L.circleMarker([v.lat, v.lon], { radius: 5, color: color("--tinta-suave"), weight: 1.5, dashArray: "2 3", fillOpacity: 0.15 })
+    L.circleMarker([v.lat, v.lon], { radius: 5, color: color("--tinta-suave"), weight: 1.5, dashArray: "2 3", fillOpacity: 0.15, className: "m-vecina" })
       .addTo(capa).bindTooltip(`Probado para dividir la compra: ${v.bandera} ${v.sucursal}`);
   }
   if (!propuesta) return;
   const a = propuesta.a, b = propuesta.b, nombreA = nombreTienda(a), nombreB = nombreTienda(b);
-  L.circleMarker([b.lat, b.lon], { radius: 9, color: color("--tinta"), fillColor: color("--acento"), weight: 3, fillOpacity: 0.85 })
+  L.circleMarker([b.lat, b.lon], { radius: 9, color: color("--tinta"), fillColor: color("--acento"), weight: 3, fillOpacity: 0.85, className: "m-elegida" })
     .addTo(capa).bindTooltip(`2.º súper: ${b.bandera}`, { permanent: true, direction: "right", offset: [8, 0] });
   if (estado.puntosMapa) {
     estado.puntosMapa.push([b.lat, b.lon]);
@@ -1786,35 +1778,43 @@ function mostrar(d) {
   const cifras = cifrasCompra(d, null);
 
   $("#resultado").innerHTML = `
-  <div class="encabezado-resultado">
+  <nav class="indice" aria-label="Secciones del resultado">
+    <a href="#tu-compra">Tu compra</a><a href="#donde-comprar">Dónde comprar</a><a href="#lo-que-come">${varias ? "Cada persona" : "Lo que come"}</a><a href="#como-se-elige">Cómo se elige</a>
+  </nav>
+  <div class="encabezado-resultado" id="tu-compra" tabindex="-1">
     <div class="columna-ticket">${columnaTicketHTML(d)}</div>
     <div class="resumen">
-      <p class="resumen-etiqueta">Tu compra para ${esc(d.periodo)}</p>
-      <p class="resumen-total"><b id="resumen-total" data-valor="${cifras.total}">${pesos(cifras.total, 0)}</b></p>
-      <p class="resumen-donde" id="resumen-donde">${cifras.donde}</p>
-      <ul class="datos-compra" id="datos-compra">${cifras.datos}</ul>
+      <div class="respuesta">
+        <p class="resumen-etiqueta">Tu compra para ${esc(d.periodo)}</p>
+        <p class="resumen-total"><b id="resumen-total" data-valor="${cifras.total}">${pesos(cifras.total, 0)}</b></p>
+        <p class="resumen-donde" id="resumen-donde">${cifras.donde}</p>
+        <ul class="datos-compra" id="datos-compra">${cifras.datos}</ul>
+      </div>
       ${avisoFechaHTML(s, d)}
       <p class="sr-only">${cubre}</p>
       ${avisoMetasHTML(d)}
-      ${agua}
       <div class="llegar">
         <p class="llegar-tiempo">${ICONO.caminar}<span>${caminata ? esc(caminata) : `${fmt(s.distancia_km, 1)} km en línea recta`}</span></p>
         <p class="llegar-dato">${ICONO.pin}<span>${esc(s.direccion)}${s.localidad ? `, ${esc(s.localidad)}` : ""}</span></p>
         <p class="llegar-dato">${ICONO.reloj}<span>Hoy ${esc(s.hoy.dia)}: ${esc(s.hoy.horario)}</span></p>
         <a href="#donde-comprar" class="boton-secundario">Ver el recorrido</a>
       </div>
-      <p class="ayuda">${motivo}${masBarataOtra && masBarataOtra.costo < t.total && masBarataOtra.faltantes.length
+      <p class="ayuda motivo">${motivo}${masBarataOtra && masBarataOtra.costo < t.total && masBarataOtra.faltantes.length
         ? ` La más barata que encontramos cuesta ${pesos(masBarataOtra.costo, 0)} en ${esc(masBarataOtra.bandera)}, pero no cubre: ${esc(masBarataOtra.faltantes.slice(0, 2).join("; "))}${masBarataOtra.faltantes.length > 2 ? "…" : ""}.`
         : masBarataOtra ? ` La siguiente opción cuesta ${pesos(masBarataOtra.costo, 0)}.` : ""}</p>
+      ${agua}
       ${comparacionHTML(d)}
-      ${escaleraHTML(d)}
-      <div class="dos" id="dos">${dosInterior(d)}</div>
+      <section class="ahorrar" aria-labelledby="t-ahorrar">
+        <h2 id="t-ahorrar" class="ahorrar-titulo">Para pagar menos</h2>
+        ${escaleraHTML(d)}
+        <div class="dos" id="dos">${dosInterior(d)}</div>
+      </section>
       ${varias ? `<div class="comensales">${d.personas.map((p, i) => `<span style="--c:${colorDe(i)}">${esc(p.datos.nombre)}</span>`).join("")}</div>` : ""}
       <div class="avisos">${avisoTiempos(d)}${avisos.map((a) => `<p class="aviso">${esc(a)}</p>`).join("")}</div>
     </div>
   </div>
 
-  <section class="bloque" id="donde-comprar"><h2>Dónde comprar</h2>
+  <section class="bloque" id="donde-comprar" tabindex="-1"><h2>Dónde comprar</h2>
     <p class="ayuda">${porTiempo
       ? `Supermercados a menos de ${d.caminata.minutos} min caminando${d.caminata.fuente === "ruta" ? " por la calle (rutas peatonales de OpenRouteService)" : " (tiempo estimado por distancia)"}: la más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios.`
       : "La más cercana de cada cadena y, si faltaban, las que siguen. En cada una se resolvió la canasta completa con sus precios."}
@@ -1822,7 +1822,8 @@ function mostrar(d) {
     <div id="mapa" role="img" aria-label="Mapa con el lugar elegido, las sucursales comparadas y el recorrido a la elegida"></div>
     <p class="ayuda" id="mapa-leyenda"></p>
     <p class="ayuda" id="mapa-leyenda-dos"></p>
-    <div class="tabla-envoltorio"><table class="tabla-sucursales">
+    <div class="tabla-envoltorio" role="region" aria-labelledby="t-sucursales" tabindex="0"><table class="tabla-sucursales">
+      <caption id="t-sucursales" class="sr-only">Sucursales comparadas: costo de la canasta y qué no cubre cada una</caption>
       <thead><tr><th>Sucursal</th><th class="num">${porTiempo ? "Caminando" : "Distancia"}</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Qué no cubre</th></tr></thead>
       <tbody>${d.sucursales.map((x) => `<tr class="${x.elegida ? "elegida" : ""}">
         <td class="ts-nombre">${esc(x.bandera)} ${esc(x.sucursal)}${x.elegida ? ' <span class="marca-elegida">elegida</span>' : ""}<div class="nota">${esc(x.direccion)}${haceTexto(x) ? ` · <span class="ts-fecha">${esc(`precios del ${fechaTexto(x.fecha_precios)}, ${haceTexto(x).replace("precios de ", "")}`)}</span>` : ""}</div></td>
@@ -1833,13 +1834,13 @@ function mostrar(d) {
           ? `<span class="ts-metas">${totalMetas - x.faltantes.length}/${totalMetas} metas</span> ${esc(x.faltantes.join("; "))}` : "Cubre todo"}</td></tr>`).join("")}</tbody></table></div>
   </section>
 
-  <section class="bloque"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>
+  <section class="bloque bloque-largo" id="lo-que-come" tabindex="-1"><h2>${varias ? "Lo que necesita cada uno" : "Lo que necesita y lo que come"}</h2>
     <p class="ayuda">${varias ? "Cada persona tiene su propia dieta dentro de la misma compra. Elegí a quién ver." : "Cada paso del cálculo usa el resultado del anterior."}</p>
     ${pestanas}
     <div id="por-persona" role="tabpanel">${bloquePersona(d, estado.vista)}</div>
   </section>
 
-  <section class="bloque"><h2>Cómo se elige la compra</h2>
+  <section class="bloque bloque-largo" id="como-se-elige" tabindex="-1"><h2>Cómo se elige la compra</h2>
     <p class="ayuda">Es el problema de la dieta (Stigler, 1945), resuelto en cada sucursal con programación lineal entera y el solver HiGHS.</p>
     <ol class="etapas">
       ${CON_RUTAS && d.caminata ? `<li><p class="e-n">0</p><p class="e-titulo">Filtrar por distancia</p>
@@ -1871,6 +1872,7 @@ function mostrar(d) {
     $("#por-persona").innerHTML = bloquePersona(d, estado.vista);
   }));
   enlazarAmpliar();
+  seguirIndice();
   // El ticket sale de la impresora renglón por renglón; el total cuenta hasta su valor.
   animarTicket();
   contar($("#resumen-total"));
@@ -1878,6 +1880,25 @@ function mostrar(d) {
   dibujarDosEnMapa(d);
   const suave = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#resultado").scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+}
+
+// El índice del resultado marca la sección que se está viendo (la de más arriba entre las visibles). Sin
+// IntersectionObserver, queda como una lista de enlaces sin marca.
+function seguirIndice() {
+  if (estado.indice) { estado.indice.disconnect(); estado.indice = null; }
+  const enlaces = $$(".indice a");
+  if (!enlaces.length || !window.IntersectionObserver) return;
+  const secciones = enlaces.map((a) => document.getElementById(a.hash.slice(1))).filter(Boolean);
+  const visibles = new Set();
+  const marcar = () => {
+    const actual = secciones.find((s) => visibles.has(s)) || null;
+    enlaces.forEach((a) => (a.hash.slice(1) === (actual && actual.id) ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
+  };
+  estado.indice = new IntersectionObserver((entradas) => {
+    entradas.forEach((e) => (e.isIntersecting ? visibles.add(e.target) : visibles.delete(e.target)));
+    marcar();
+  }, { rootMargin: "-80px 0px -55% 0px" });
+  secciones.forEach((s) => estado.indice.observe(s));
 }
 
 const color = (variable) => getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
@@ -1900,7 +1921,7 @@ function dibujarMapa(d) {
     for (const c of r.candidatas) {
       const tiempo = r.tiempos[c.id];
       if (comparadas.has(c.id) || !tiempo || tiempo.minutos <= d.caminata.minutos) continue;
-      L.circleMarker([c.lat, c.lon], { radius: 4, color: color("--tinta-suave"), weight: 1, opacity: 0.6, fillOpacity: 0.25 })
+      L.circleMarker([c.lat, c.lon], { radius: 4, color: color("--tinta-suave"), weight: 1, opacity: 0.6, fillOpacity: 0.25, className: "m-fuera" })
         .addTo(mapa).bindTooltip(`Fuera del límite: ${textoCaminata({ ...tiempo, fuente_tiempo: tiempo.fuente }, true)}`);
     }
   }
@@ -1909,9 +1930,9 @@ function dibujarMapa(d) {
     const etiqueta = `${x.bandera} ${x.sucursal}: ${x.costo != null ? pesos(x.costo, 0) : "sin canasta"}${x.minutos != null ? `, ${textoCaminata(x, true)}` : ""}`;
     L.circleMarker([x.lat, x.lon], { radius: x.elegida ? 10 : 6, color: x.elegida ? color("--tinta") : color("--tinta-suave"),
       fillColor: x.elegida ? color("--acento") : color("--tinta-suave"),
-      weight: x.elegida ? 3 : 2, fillOpacity: 0.85 }).addTo(mapa).bindTooltip(etiqueta, { permanent: Boolean(x.elegida), direction: "top" });
+      weight: x.elegida ? 3 : 2, fillOpacity: 0.85, className: x.elegida ? "m-elegida" : "m-sucursal" }).addTo(mapa).bindTooltip(etiqueta, { permanent: Boolean(x.elegida), direction: "top" });
   }
-  L.circleMarker(origen, { radius: 8, color: color("--foco"), fillOpacity: 0.9 }).addTo(mapa).bindTooltip("Vos");
+  L.circleMarker(origen, { radius: 8, color: color("--foco"), fillOpacity: 0.9, className: "m-vos" }).addTo(mapa).bindTooltip("Vos");
   mapa.fitBounds(puntos, { padding: [30, 30], maxZoom: 16 });
   // Solo mientras sea el mapa vigente: al cambiar de resultado, el contenedor viejo se achica a cero después de que el
   // mapa ya se quitó, e invalidateSize sobre un mapa quitado rompe Leaflet.
