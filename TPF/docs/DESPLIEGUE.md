@@ -20,7 +20,9 @@ Cada corrida, en un runner Ubuntu limpio:
 2. **¿Hay un día nuevo?** `python -m sepa --ultima-fecha` pregunta a la API de SEPA la fecha del último ZIP (sin
    bajarlo) y la compara con `fecha.txt` del sitio publicado. Si el sitio ya tiene ese día, la corrida termina **bien y
    sin cambios**, con el aviso "Sin novedades" en el resumen. Si la API de SEPA no responde, la corrida falla (es un
-   error real).
+   error real). **Salvo un 403**: `datos.produccion.gob.ar` bloquea las IPs de los runners de GitHub (desde noviembre
+   de 2026), así que la corrida termina bien, con el aviso "SEPA bloqueó al runner", sin publicar y sin abrir ni cerrar
+   el issue. Mientras dure el bloqueo, la página se actualiza corriendo el ETL desde una máquina en Argentina.
 3. Restaura de la caché de Actions las fuentes que no cambian a diario (ver "Modo diario").
 4. `python -m sepa --diario`: baja el ZIP del día (~330 MB) y rearma `TPF/datos/sepa/` con los 71 controles de
    `sepa/verificacion.py`. **Si un control crítico falla, la corrida se detiene antes de escribir la base**, el job
@@ -77,6 +79,7 @@ que un catálogo cortado a la mitad no quede guardado.
 | Fuente | Qué pasa |
 |---|---|
 | API o ZIP de SEPA | La corrida falla; queda la página anterior |
+| API de SEPA con 403 (bloquea al runner) | La corrida termina bien con un aviso, sin publicar; queda la página anterior |
 | Open Food Facts, USDA, barrios de CABA (solo sin caché) | La corrida falla; queda la página anterior |
 | Georef (solo para lo que no está en la caché) | Reintenta 4 veces y falla; queda la página anterior |
 | USIG (direcciones de CABA) | No corta la corrida: la dirección queda sin validar y esa respuesta vacía queda en la caché (ver pendientes) |

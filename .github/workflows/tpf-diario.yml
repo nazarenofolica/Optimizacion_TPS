@@ -3,6 +3,8 @@
 #
 # - No commitea nada: la base del día vive solo en el runner y en el sitio publicado (no hay historial de precios).
 # - Si SEPA no publicó un día nuevo desde el que ya está en el sitio, termina bien, sin rearmar ni publicar.
+# - Si la API de SEPA rechaza al runner (403: datos.produccion.gob.ar bloquea las IPs de GitHub), también termina
+#   bien, con un aviso, sin publicar y sin tocar el issue de fallas.
 # - Si falla algo (una fuente, la verificación de sepa/verificacion.py, la exportación), el job falla y queda
 #   publicada la página anterior. GitHub avisa por mail y se abre (o se comenta) un issue.
 # - Las fuentes que no cambian a diario (Open Food Facts, catálogos web, Georef/USIG, USDA) viajan entre corridas en la
@@ -57,6 +59,7 @@ jobs:
         working-directory: TPF/base_sepa
     outputs:
       nuevo: ${{ steps.fecha.outputs.nuevo }}
+      bloqueado: ${{ steps.fecha.outputs.bloqueado }}
       fecha: ${{ steps.dia.outputs.fecha }}
     steps:
       - uses: actions/checkout@v4
@@ -81,9 +84,21 @@ jobs:
           SITIO: ${{ steps.pages.outputs.base_url }}
           FORZAR: ${{ inputs.forzar }}
         run: |
-          # Si la API de SEPA no responde, es un error real: el job falla.
-          disponible=$(python -m sepa --ultima-fecha | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | tail -n 1) || true
+          salida=$(python -m sepa --ultima-fecha 2>&1) || true
+          disponible=$(printf '%s\n' "$salida" | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | tail -n 1 || true)
           if [ -z "$disponible" ]; then
+            # datos.produccion.gob.ar responde 403 a los runners de GitHub (bloquea esas IPs): no es una falla del
+            # pipeline y no hay nada que reintentar. La corrida termina bien, sin publicar: la página sigue con el
+            # último día bueno. Para actualizarla, correr el ETL desde una máquina en Argentina (TPF/docs/DESPLIEGUE.md).
+            if printf '%s\n' "$salida" | grep -q '403 Client Error'; then
+              echo "::warning::La API de SEPA rechazó al runner de GitHub (403). No se rearma ni se publica: la página sigue con los precios anteriores."
+              echo "### SEPA bloqueó al runner (403): no se publicó, la página sigue con los precios anteriores" >> "$GITHUB_STEP_SUMMARY"
+              echo "nuevo=false" >> "$GITHUB_OUTPUT"
+              echo "bloqueado=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Cualquier otra respuesta (caída, formato nuevo, sin ZIPs) es un error real: el job falla.
+            printf '%s\n' "$salida" | tail -n 20
             echo "::error::La API de SEPA no informó la fecha del último ZIP."
             exit 1
           fi
@@ -284,8 +299,11 @@ jobs:
         env:
           ETL: ${{ needs.etl.result }}
           DEPLOY: ${{ needs.deploy.result }}
+          BLOQUEADO: ${{ needs.etl.outputs.bloqueado }}
         with:
           script: |
+            // SEPA bloqueó al runner: no falló nada, pero tampoco "volvió a andar". No se abre ni se cierra el issue.
+            if (process.env.BLOQUEADO === "true") return;
             const titulo = "ETL diario de la canasta: falló la corrida";
             const corrida = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const fallo = process.env.ETL === "failure" || process.env.DEPLOY === "failure";
