@@ -56,7 +56,9 @@ jobs:
     timeout-minutes: 180
     defaults:
       run:
-        shell: bash
+        # El bash de Git for Windows, con su ruta corta: "shell: bash" toma el de WindowsApps (el de WSL, sin una
+        # distribución instalada) y el runner no acepta una ruta con espacios ("Program Files").
+        shell: C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -eo pipefail {0}
         working-directory: TPF/base_sepa
     outputs:
       nuevo: ${{ steps.fecha.outputs.nuevo }}
