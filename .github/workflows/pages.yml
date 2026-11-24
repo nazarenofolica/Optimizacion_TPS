@@ -48,11 +48,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # Un espacio o salto de línea pegado con el secreto hace que wrangler lo rechace: se limpia. El Account ID
-          # son 32 caracteres hexadecimales; si no, se dice qué tiene sin mostrarlo.
-          CLOUDFLARE_ACCOUNT_ID=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
+          # El Account ID son 32 caracteres hexadecimales. Un espacio, salto de línea o carácter invisible pegado con el
+          # secreto hace que wrangler lo rechace: se deja solo lo hexadecimal, en minúscula. Si no quedan 32, se dice
+          # qué tiene sin mostrarlo.
+          crudo="$CLOUDFLARE_ACCOUNT_ID"
+          CLOUDFLARE_ACCOUNT_ID=$(printf '%s' "$crudo" | LC_ALL=C tr -cd '0-9a-fA-F' | tr 'A-F' 'a-f')
           if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
-            echo "::error::CLOUDFLARE_ACCOUNT_ID no es un Account ID (32 caracteres hexadecimales): tiene ${#CLOUDFLARE_ACCOUNT_ID} caracteres."
+            echo "::error::CLOUDFLARE_ACCOUNT_ID no es un Account ID: el secreto tiene $(printf '%s' "$crudo" | LC_ALL=C wc -c) bytes y solo ${#CLOUDFLARE_ACCOUNT_ID} caracteres hexadecimales (tienen que ser 32). Volver a cargarlo con: gh secret set CLOUDFLARE_ACCOUNT_ID"
             exit 1
           fi
           export CLOUDFLARE_ACCOUNT_ID
