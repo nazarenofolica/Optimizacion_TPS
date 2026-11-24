@@ -56,8 +56,12 @@ jobs:
           # Si el secreto falta o no es un Account ID, se lo pide a Cloudflare: la cuenta a la que tiene acceso el token.
           if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
             echo "::warning::CLOUDFLARE_ACCOUNT_ID no es un Account ID (32 caracteres hexadecimales): se toma la cuenta del token."
-            cuentas=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts" | jq -r '.result[].id')
+            api="https://api.cloudflare.com/client/v4"
+            auth="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+            echo "Token: $(curl -sS -H "$auth" "$api/user/tokens/verify" | jq -c '{success, status: .result.status, errors: [.errors[]?.message]}')"
+            respuesta=$(curl -sS -H "$auth" "$api/accounts")
+            echo "Cuentas: $(printf '%s' "$respuesta" | jq -c '{success, cantidad: (.result // [] | length), errors: [.errors[]?.message]}')"
+            cuentas=$(printf '%s' "$respuesta" | jq -r '.result[]?.id')
             if [ "$(printf '%s\n' "$cuentas" | grep -c .)" != "1" ]; then
               echo "::error::El token no tiene acceso a exactamente una cuenta: cargar el Account ID con gh secret set CLOUDFLARE_ACCOUNT_ID"
               exit 1
