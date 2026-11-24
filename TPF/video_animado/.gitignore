@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+.env
+out
+
+# Lo generado se rehace con los scripts (voz.py, sonido.py, datos.py, render.py)
+salida/
+public/audio/
+public/pagina_*.mp4
+__pycache__/

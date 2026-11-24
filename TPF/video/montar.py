@@ -240,7 +240,8 @@ Style: Voz,IBM Plex Sans,38,&H00FEFFFF,&H00FEFFFF,&H281A1716,&H281A1716,0,0,0,0,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    eventos = "".join(f"Dialogue: 0,{hms(a, '.')[1:-1]},{hms(b, '.')[1:-1]},Voz,,0,0,0,,{s.replace(chr(10), '\\N')}\n"
+    salto = "\\N"   # salto de línea de ASS (fuera del f-string: Python < 3.12 no admite "\" en sus expresiones)
+    eventos = "".join(f"Dialogue: 0,{hms(a, '.')[1:-1]},{hms(b, '.')[1:-1]},Voz,,0,0,0,,{s.replace(chr(10), salto)}\n"
                       for a, b, s in bloques)
     ass.write_text(cab + eventos, encoding="utf-8")
 
