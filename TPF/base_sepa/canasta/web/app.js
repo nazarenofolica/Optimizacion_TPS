@@ -1116,7 +1116,7 @@ function ticketDivididoHTML(d, ds) {
   }).join("");
   const m = ds.metas_despues, circuito = ds.minutos;
   return `<div class="ticket ticket-dividido" role="document" aria-label="Ticket de la compra en dos supermercados">
-    <p class="t-marca">CANASTA SALUDABLE</p>
+    <p class="t-marca">CHANGUITO SANO</p>
     <p class="t-centro t-destacado">Compra en dos supermercados</p>
     <hr>
     <p>Canasta saludable para ${esc(d.periodo)}</p>
@@ -2014,7 +2014,7 @@ async function iniciar() {
   aviso.classList.add("listo");
   // El ticket de la cabecera, con los datos reales del día.
   const tc = $("#ticket-cabecera");
-  tc.innerHTML = `<p class="t-marca">CANASTA SALUDABLE</p><p class="t-centro">Precios oficiales SEPA</p><hr>
+  tc.innerHTML = `<p class="t-marca">CHANGUITO SANO</p><p class="t-centro">Precios oficiales SEPA</p><hr>
     <p class="t-linea"><span>Fecha de los precios</span><span>${esc(resumen.fecha.split("-").reverse().join("/"))}</span></p>
     <p class="t-linea"><span>Alimentos con nutrientes</span><span>${fmt(resumen.productos)}</span></p>
     <p class="t-linea"><span>Supermercados</span><span>${fmt(resumen.tiendas)}</span></p>
