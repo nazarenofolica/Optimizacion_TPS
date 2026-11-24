@@ -43,6 +43,9 @@ concurrency:
 env:
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONUTF8: "1"
+  # El runner es una PC de uso diario: nada se acumula entre corridas (ver "Que no se acumule" en DESPLIEGUE.md).
+  PIP_NO_CACHE_DIR: "1"
+  DISCO_MINIMO_GB: "6"
   CACHE_DIR: TPF/base_sepa/datos/cache
   SITIO: https://changuito-sano.pages.dev
   PROYECTO: changuito-sano
@@ -79,6 +82,8 @@ jobs:
           .venv/Scripts/python.exe -m pip install -q --disable-pip-version-check -r requirements.txt
           cygpath -w "$PWD/.venv/Scripts" >> "$GITHUB_PATH"
           echo "LOG=$(cygpath -u "$RUNNER_TEMP")/sepa.log" >> "$GITHUB_ENV"
+          # Los logs de wrangler van a la carpeta temporal del job, que el runner borra al terminar.
+          echo "WRANGLER_LOG_PATH=$(cygpath -w "$RUNNER_TEMP")\\wrangler" >> "$GITHUB_ENV"
 
       - name: ¿Hay un día nuevo en SEPA?
         id: fecha
@@ -112,6 +117,17 @@ jobs:
             echo "nuevo=false" >> "$GITHUB_OUTPUT"
           else
             echo "nuevo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # La PC no se llena por el ETL: si queda poco disco, no arranca (la corrida falla y se abre el issue).
+      - name: Espacio en disco
+        if: steps.fecha.outputs.nuevo == 'true'
+        run: |
+          libre_gb=$(( $(df -k . | awk 'NR==2 {print $4}') / 1024 / 1024 ))
+          echo "Libre en el disco del runner: ${libre_gb} GB (mínimo ${DISCO_MINIMO_GB} GB)"
+          if [ "$libre_gb" -lt "$DISCO_MINIMO_GB" ]; then
+            echo "::error::Quedan ${libre_gb} GB libres en el disco del runner (mínimo ${DISCO_MINIMO_GB} GB): no se arma la base."
+            exit 1
           fi
 
       - name: Armar la base (python -m sepa --diario)
@@ -199,6 +215,15 @@ jobs:
         run: |
           npx --yes "$WRANGLER" pages deploy ../../_site --project-name "$PROYECTO" --branch main --commit-dirty=true
           echo "### Publicado en $SITIO" >> "$GITHUB_STEP_SUMMARY"
+
+      # Los logs del runner (_diag/, uno por corrida) son lo único que crecería con los días: quedan los de 14 días.
+      - name: Limpiar logs viejos del runner
+        if: always()
+        continue-on-error: true
+        run: |
+          diag="$(cygpath -u "$RUNNER_WORKSPACE")/../../_diag"
+          find "$diag" -type f -mtime +14 -print -delete 2>/dev/null || true
+          du -sh "$diag" 2>/dev/null || true
 
   avisos:
     name: Aviso por issue

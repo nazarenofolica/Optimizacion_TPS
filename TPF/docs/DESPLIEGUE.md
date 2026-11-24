@@ -89,6 +89,26 @@ horas).
 **Memoria y disco:** el pipeline está pensado para una máquina de 8 GB. En disco, ~1,8 GB de cachés más un pico de
 ~3 GB durante la corrida (ZIP, precios intermedios y salidas).
 
+### Que no se acumule
+
+El runner es una PC de uso diario, así que lo que ocupa en disco **no crece con los días**:
+
+- El ZIP de SEPA: al bajar el nuevo se borra el anterior (`sepa/fuentes/sepa.py`); hay uno solo.
+- La base (`TPF/datos/sepa/` en la carpeta del runner) se borra y se rehace en cada corrida (`sepa/salida.py`).
+- Open Food Facts y los catálogos web tienen nombre fijo: cuando se renuevan, se pisan.
+- `corrida_fallida/` se borra en la corrida siguiente que sale bien; `_site/` se rehace en cada corrida.
+- La carpeta temporal del job (log de `python -m sepa` y los de `wrangler`, por `WRANGLER_LOG_PATH`) la borra el
+  runner al terminar.
+- Los logs del runner (`_diag/`, uno por corrida) son lo único que se sumaría: el último paso borra los de más de 14
+  días.
+- pip no guarda caché (`PIP_NO_CACHE_DIR`) y `wrangler` tiene la versión fija, así que `npx` lo baja una sola vez.
+- Si quedan menos de 6 GB libres (`DISCO_MINIMO_GB`), la corrida no arma la base: falla con ese aviso y se abre el
+  issue.
+
+Para sacar todo: `.\config.cmd remove --token <token>` en la carpeta del runner (el token sale de
+`gh api -X POST repos/nazarenofolica/Optimizacion_TPS/actions/runners/remove-token --jq .token`), borrar
+`C:\Users\Leandro\actions-runner` y, si se puso, `runner-canasta.vbs` de la carpeta Inicio.
+
 ### Si una fuente externa falla
 
 | Fuente | Qué pasa |
