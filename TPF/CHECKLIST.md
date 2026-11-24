@@ -89,7 +89,8 @@ En `main` desde el merge del PR #2 ([docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)). L
 Actions; el ETL diario todavía no corrió en GitHub.
 
 - [x] GitHub Actions cada día (07:30 y 18:00 de Argentina; SEPA sube el ZIP a la tarde): bajar SEPA, rearmar la base,
-      exportar y publicar la página en GitHub Pages, sin commitear los datos del día (`.github/workflows/tpf-diario.yml`).
+      exportar y publicar la página en Cloudflare Pages (https://changuito-sano.pages.dev/, desde un runner propio en
+      Argentina), sin commitear los datos del día (`.github/workflows/tpf-diario.yml`).
 - [x] Modo diario `python -m sepa --diario` y `--ultima-fecha`; las fuentes que no cambian a diario viajan en la caché
       de Actions. Si SEPA no publicó un día nuevo, termina bien y sin cambios.
 - [x] Si la verificación falla, no se publica y queda la del día anterior; mail de GitHub e issue (uno solo).

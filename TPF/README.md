@@ -20,7 +20,7 @@ Investigación de Operaciones I · UCA · 2026 2C · Pedro Naón
 | **POC: canasta saludable** (modelo en dos etapas, página web, búsqueda por tiempo caminando) | ✅ [`base_sepa/canasta/`](base_sepa/canasta/), página en [`datos/sepa/canasta.html`](datos/sepa/canasta.html) |
 | **MVP, etapa 1** (objetivo "Aumentar de peso", el agua como restricción en tres modos, un caso que no llega a las 37 metas) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | **MVP, etapa 2** (compra en dos supermercados: binarias de visita resueltas por pares, conviene si cubre mejor las metas o ahorra ≥ 3 % y ≥ $1.000) | ✅ 20/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), con las etapas 4 a 6 que siguen |
-| **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en GitHub Pages; tests en cada push) | ✅ 21/11/2026 en `main`, con Pages configurado y los tests andando en Actions; falta la primera corrida del diario: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
+| **MVP, etapa 3** (ETL diario y CI: cada día se baja SEPA, se rearma la base, se exporta la página y se publica en Cloudflare Pages; tests en cada push) | ✅ 21/11/2026 en `main`; desde el 24/11/2026 el ETL corre en un runner propio en Argentina (SEPA bloquea a los runners de GitHub) y publica en https://changuito-sano.pages.dev/: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) |
 | **MVP, etapa 4** (sin cerdo, halal y kosher con lo verificable por ingredientes; seis condiciones médicas que cambian metas con su fuente y avisan si requieren supervisión) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | **MVP, etapa 5** (promociones con condiciones: las leyendas de SEPA clasificadas, 2×1, 2.ª al 70 %, llevando n y porcentajes en el modelo; nunca las que piden banco o tarjeta; ticket con el descuento y el ahorro) | ✅ 21/11/2026: [`docs/ROADMAP.md`](docs/ROADMAP.md), ya con las promociones de la base del 21/11/2026 |
 | **MVP, etapa 6** (contarlo en texto libre: un LLM de Groq traduce lo que escribe la persona, o una prescripción, al formulario, que ella confirma; validado contra `config.py`; en la página local) | ✅ 21/11/2026 con respuestas simuladas, falta probarlo con una clave real: [`docs/ROADMAP.md`](docs/ROADMAP.md) |
@@ -96,7 +96,7 @@ TPF/
 │   ├── introduccion.md       el problema de la dieta: historia, formulación y nuestro planteo
 │   ├── fuentes.md            referencias y fuentes de datos
 │   ├── ROADMAP.md            etapas del MVP y camino a producción
-│   ├── DESPLIEGUE.md         GitHub Actions: tests, ETL diario y GitHub Pages
+│   ├── DESPLIEGUE.md         GitHub Actions: tests, ETL diario (runner propio) y Cloudflare Pages
 │   └── GITHUB_RESEARCH.md    herramientas investigadas
 │
 ├── informe/                  informe.tex + informe.pdf (el informe final, con figuras/); presentacion.html +
@@ -134,7 +134,8 @@ python -m sepa --diario         # lo mismo sin intervención (la primera vez tam
 ```
 
 Una vez activado el ETL diario ([`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)), GitHub Actions hace esto todos los días
-y publica la página con los precios del día en https://nazarenofolica.github.io/Optimizacion_TPS/, sin commitear la
+(en un runner propio, en una PC en Argentina) y publica la página con los precios del día en
+https://changuito-sano.pages.dev/ (Changuito sano), sin commitear la
 base del día (la versionada en `datos/sepa/` queda como la del 21/11/2026).
 
 ## Fuentes principales

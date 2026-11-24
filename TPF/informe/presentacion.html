@@ -604,9 +604,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   });
 
   // ---------- Demo: la página real de la canasta, embebida ----------
-  // Por defecto, la demo publicada en GitHub Pages (canasta.html, tiempos estimados por distancia).
+  // Por defecto, la demo publicada en Cloudflare Pages (tiempos estimados por distancia).
   // Servida por http (python informe/presentar.py) y con canasta_local.html presente, usa esa, con rutas a pie reales.
-  const PAGES = "https://nazarenofolica.github.io/Optimizacion_TPS/";
+  const PAGES = "https://changuito-sano.pages.dev/";
   const LOCAL = "../datos/sepa/canasta_local.html";
   const iframe = document.getElementById("demo");
   const cargandoDemo = document.getElementById("demo-cargando");
@@ -620,7 +620,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
       try {
         const r = await fetch(LOCAL, { method: "HEAD", cache: "no-store" });
         if (r.ok) pagina = LOCAL;
-      } catch (_) { /* sin la local: queda la de GitHub Pages */ }
+      } catch (_) { /* sin la local: queda la publicada */ }
     }
     const vivo = pagina === LOCAL;
     estado.textContent = vivo ? "rutas a pie reales" : "tiempos estimados";
@@ -634,7 +634,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     const src = p + (caso ? `?${caso}` : "");
     cargandoDemo.hidden = false;
     iframe.src = src;
-    const rotulo = p === LOCAL ? "localhost / canasta_local.html" : "nazarenofolica.github.io / Optimizacion_TPS";
+    const rotulo = p === LOCAL ? "localhost / canasta_local.html" : "changuito-sano.pages.dev";
     document.getElementById("demo-url").textContent = `${rotulo}${caso ? "?" + caso : ""}`;
     document.getElementById("demo-abrir").href = src;
     document.querySelectorAll(".caso").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.caso === caso)));
