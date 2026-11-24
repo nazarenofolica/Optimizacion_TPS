@@ -98,7 +98,8 @@ small { font-size: 0.82rem; color: var(--tinta-suave); font-weight: 400; }
           mask: radial-gradient(circle 6px at 50% 100%, #0000 98%, #000) 50% 100% / 14px 100% repeat-x;
 }
 .cabecera-interior { max-width: 1192px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: center; }
-.marca { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 1rem; letter-spacing: 0.01em; }
+.marca { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-weight: 600; font-size: 1rem; letter-spacing: 0.01em; }
+.marca-bajada { font-weight: 400; color: var(--banda-suave); }
 .logo { width: 24px; height: 24px; flex: none; color: var(--acento); }
 .cabecera h1 {
   margin-top: 26px; max-width: 20ch; font-size: clamp(1.9rem, 3.8vw, 3.1rem); font-weight: 600; letter-spacing: -0.025em; line-height: 1.08;

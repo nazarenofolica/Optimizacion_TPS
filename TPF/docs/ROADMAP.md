@@ -92,7 +92,8 @@ corrida a mano: [DESPLIEGUE.md](DESPLIEGUE.md)). No se probó todavía en GitHub
 - **ETL diario** (`.github/workflows/tpf-diario.yml`, en la raíz del repo): a las 07:30 y a las 18:00 de Argentina
   (SEPA sube el ZIP de cada día a la tarde) pregunta la fecha del último ZIP (`python -m sepa --ultima-fecha`) y, si
   el sitio no la tiene, rearma la base (`python -m sepa --diario`), exporta la página (`python -m canasta --exportar`,
-  sin clave) y la publica en **GitHub Pages** (`https://nazarenofolica.github.io/Optimizacion_TPS/`). Sin commitear
+  sin clave) y la publica en **Cloudflare Pages** (`https://changuito-sano.pages.dev/`, desde un runner propio en
+  Argentina: SEPA bloquea a los runners de GitHub; la dirección de GitHub Pages redirige). Sin commitear
   los datos del día: no hay historial y el repo no crece.
 - **Modo diario** (`--diario`): `--descargar` sin intervención; con las cachés hace lo mismo y, si faltan los catálogos
   web (un runner nuevo), los recorre en lugar de cortarse. Open Food Facts, los catálogos web, Georef/USIG y USDA
@@ -448,7 +449,7 @@ que queda:
 
 | Pieza | Propuesta | Costo orientativo |
 |---|---|---|
-| Página | Estática en GitHub Pages (hecho, falta activarlo) o Cloudflare Pages | Gratis en repo público |
+| Página | Estática en Cloudflare Pages (`changuito-sano.pages.dev`, hecho) | Gratis |
 | ETL diario | GitHub Actions (hecho: `tpf-diario.yml`; Dagster/Prefect si crecen las fuentes) | Gratis en repo público; si no, minutos de Actions |
 | Backend + rutas | FastAPI (que envuelva `canasta/llm.py`: hoy el texto libre corre en el servidor local) + ORS/OSRM autoalojado en un VPS (Coolify para desplegar) | USD 10 a 40 por mes |
 | Datos | Parquet del último día; Postgres (Supabase) recién cuando haya cuentas | Gratis al inicio |

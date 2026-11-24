@@ -1,40 +1,55 @@
 # Respaldo manual: publica la canasta versionada (TPF/datos/sepa/canasta.html, sin clave, con la base del repo) en
-#   https://nazarenofolica.github.io/Optimizacion_TPS/
+#   https://changuito-sano.pages.dev/  (Cloudflare Pages, proyecto "changuito-sano")
 # La publicación de todos los días la hace tpf-diario.yml, con los precios del día. Este workflow corre solo a mano
-# (Actions → "Demo en GitHub Pages" → Run workflow), para volver a la página del repo si el diario no puede publicar.
+# (Actions → "Demo en Cloudflare Pages" → Run workflow), para volver a la página del repo si el diario no puede publicar.
 # Si corriera en cada push, pisaría la página del día con la del repo. No publica fecha.txt: la corrida siguiente del
 # diario rearma y publica la del día.
-name: Demo en GitHub Pages
+# La primera corrida crea el proyecto en Cloudflare. Secreto del repo: CLOUDFLARE_API_TOKEN (permiso
+# "Cloudflare Pages: Edit"). El Account ID no es secreto (aparece en las URLs del dashboard): va acá abajo.
+name: Demo en Cloudflare Pages
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  PROYECTO: changuito-sano
+  CLOUDFLARE_ACCOUNT_ID: a6105ca1986f2a074fb884207521edae
+  WRANGLER: wrangler@4.159.0
+
 jobs:
   publicar:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      name: cloudflare-pages
+      url: https://changuito-sano.pages.dev/
     steps:
       - uses: actions/checkout@v4
+
       - name: Armar el sitio
         run: |
+          # La página publicada nunca lleva la clave de rutas.
+          if ! grep -qF '<script id="config-rutas" type="application/json">{"clave": ""}</script>' TPF/datos/sepa/canasta.html; then
+            echo "::error::La página versionada lleva una clave de rutas: no se publica."
+            exit 1
+          fi
           mkdir -p _site
           cp TPF/datos/sepa/canasta.html _site/index.html
           cp TPF/datos/sepa/canasta.html _site/canasta.html
-          touch _site/.nojekyll
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+
+      - name: Publicar en Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Crea el proyecto si todavía no existe (la primera vez).
+          if ! npx --yes "$WRANGLER" pages project list | grep -qw "$PROYECTO"; then
+            npx --yes "$WRANGLER" pages project create "$PROYECTO" --production-branch main
+          fi
+          npx --yes "$WRANGLER" pages deploy _site --project-name "$PROYECTO" --branch main --commit-dirty=true

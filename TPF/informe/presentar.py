@@ -4,8 +4,8 @@
 
 Sirve la carpeta TPF/ en http://localhost para que la demo embebida cargue los mapas y, si existe
 datos/sepa/canasta_local.html (la genera `python -m canasta` desde base_sepa/, con la clave de OpenRouteService),
-use rutas a pie reales. Sin ella, la demo usa la versión publicada en GitHub Pages
-(https://nazarenofolica.github.io/Optimizacion_TPS/), con tiempos estimados por distancia.
+use rutas a pie reales. Sin ella, la demo usa la versión publicada en Cloudflare Pages
+(https://changuito-sano.pages.dev/), con tiempos estimados por distancia.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def main() -> int:
         pass
     local = RAIZ / "datos" / "sepa" / "canasta_local.html"
     if not local.exists():
-        print("Aviso: no está datos/sepa/canasta_local.html; la demo usa la de GitHub Pages y estima los tiempos caminando.\n"
+        print("Aviso: no está datos/sepa/canasta_local.html; la demo usa la publicada y estima los tiempos caminando.\n"
               "  Para rutas reales: cd base_sepa && python -m canasta --exportar ../datos/sepa/canasta_local.html --con-clave")
     manejador = functools.partial(_Silencioso, directory=str(RAIZ))
     try:

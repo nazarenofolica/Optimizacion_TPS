@@ -58,8 +58,9 @@ comparación, el recorrido, el ticket dividido por sucursal y el mapa. El oficin
 **Etapa 3 del MVP (2026-11-21)**, ETL diario y CI, hecha en el repo y pendiente de activar
 ([../docs/DESPLIEGUE.md](../docs/DESPLIEGUE.md)): GitHub Actions pregunta cada día la fecha del último ZIP de SEPA
 (`python -m sepa --ultima-fecha`) y, si es nueva, rearma la base (`python -m sepa --diario`: `--descargar` sin
-intervención, que si faltan los catálogos web los recorre), exporta la página sin clave y la publica en GitHub Pages,
-sin commitear los datos del día. Open Food Facts, los catálogos web, Georef/USIG y USDA viajan en la caché de Actions.
+intervención, que si faltan los catálogos web los recorre), exporta la página sin clave y la publica en Cloudflare Pages
+(https://changuito-sano.pages.dev/), sin commitear los datos del día. Corre en un runner propio, en una PC en
+Argentina (SEPA bloquea a los runners de GitHub), donde Open Food Facts, los catálogos web, Georef/USIG y USDA quedan en disco.
 Si falla la verificación no se publica (queda el día anterior) y se abre un issue. Los tests de Python corren en cada
 push. Tests: 142 en Python.
 
