@@ -4,8 +4,8 @@
 # (Actions → "Demo en Cloudflare Pages" → Run workflow), para volver a la página del repo si el diario no puede publicar.
 # Si corriera en cada push, pisaría la página del día con la del repo. No publica fecha.txt: la corrida siguiente del
 # diario rearma y publica la del día.
-# La primera corrida crea el proyecto en Cloudflare. Secretos del repo: CLOUDFLARE_API_TOKEN (permiso
-# "Cloudflare Pages: Edit") y CLOUDFLARE_ACCOUNT_ID.
+# La primera corrida crea el proyecto en Cloudflare. Secreto del repo: CLOUDFLARE_API_TOKEN (permiso
+# "Cloudflare Pages: Edit"). El Account ID no es secreto (aparece en las URLs del dashboard): va acá abajo.
 name: Demo en Cloudflare Pages
 
 on:
@@ -20,6 +20,7 @@ concurrency:
 
 env:
   PROYECTO: changuito-sano
+  CLOUDFLARE_ACCOUNT_ID: a6105ca1986f2a074fb884207521edae
   WRANGLER: wrangler@4.159.0
 
 jobs:
@@ -46,30 +47,7 @@ jobs:
       - name: Publicar en Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # El Account ID son 32 caracteres hexadecimales. Un espacio, salto de línea o carácter invisible pegado con el
-          # secreto hace que wrangler lo rechace: se deja solo lo hexadecimal, en minúscula. Si no quedan 32, se dice
-          # qué tiene sin mostrarlo.
-          crudo="$CLOUDFLARE_ACCOUNT_ID"
-          CLOUDFLARE_ACCOUNT_ID=$(printf '%s' "$crudo" | LC_ALL=C tr -cd '0-9a-fA-F' | tr 'A-F' 'a-f')
-          # Si el secreto falta o no es un Account ID, se lo pide a Cloudflare: la cuenta a la que tiene acceso el token.
-          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
-            echo "::warning::CLOUDFLARE_ACCOUNT_ID no es un Account ID (32 caracteres hexadecimales): se toma la cuenta del token."
-            api="https://api.cloudflare.com/client/v4"
-            auth="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-            echo "Token: $(curl -sS -H "$auth" "$api/user/tokens/verify" | jq -c '{success, status: .result.status, errors: [.errors[]?.message]}')"
-            respuesta=$(curl -sS -H "$auth" "$api/accounts")
-            echo "Cuentas: $(printf '%s' "$respuesta" | jq -c '{success, cantidad: (.result // [] | length), errors: [.errors[]?.message]}')"
-            cuentas=$(printf '%s' "$respuesta" | jq -r '.result[]?.id')
-            if [ "$(printf '%s\n' "$cuentas" | grep -c .)" != "1" ]; then
-              echo "::error::El token no tiene acceso a exactamente una cuenta: cargar el Account ID con gh secret set CLOUDFLARE_ACCOUNT_ID"
-              exit 1
-            fi
-            CLOUDFLARE_ACCOUNT_ID="$cuentas"
-            echo "::add-mask::$CLOUDFLARE_ACCOUNT_ID"
-          fi
-          export CLOUDFLARE_ACCOUNT_ID
           # Crea el proyecto si todavía no existe (la primera vez).
           if ! npx --yes "$WRANGLER" pages project list | grep -qw "$PROYECTO"; then
             npx --yes "$WRANGLER" pages project create "$PROYECTO" --production-branch main
